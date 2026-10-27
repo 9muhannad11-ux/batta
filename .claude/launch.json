@@ -1,0 +1,12 @@
+﻿{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kout",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["server/src/server.js"],
+      "env": { "STATIC_DIR": "app/build/web_release", "PORT": "8080" },
+      "port": 8080
+    }
+  ]
+}

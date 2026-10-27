@@ -1,0 +1,12 @@
+node_modules/
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/.gradle/
+app/android/local.properties
+app/android/app/.cxx/
+app/ios/Pods/
+*.iml
+.idea/
+.claude/settings.local.json

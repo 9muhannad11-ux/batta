@@ -1,0 +1,15 @@
+# استضافة دائمة على Render: السيرفر يقدّم اللعبة (الويب) والاتصال الأونلاين من نفس الرابط
+services:
+  - type: web
+    name: batta
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: STATIC_DIR
+        value: public
+      - key: NODE_VERSION
+        value: "22"

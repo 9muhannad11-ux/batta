@@ -450,3 +450,16 @@ test('bot buys (6) only with 6+ cards of one suit, otherwise passes', () => {
   s.hands[seat] = ['H-2', 'H-3', 'H-4', 'H-5', 'H-6', 'H-7', 'C-2', 'D-3', 'S-4'];
   assert.strictEqual(Bot.decide(s, seat).value, 6);
 });
+
+test('bot: madmoon buyer leads the small joker -> lowest non-trump card of any suit', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 0, madmoon: true, bluePlayed: true, greyPlayed: true, trickNo: 4, turn: 1 });
+  s.trick = [{ seat: 0, card: E.GREY }];
+  s.hands[1] = ['S-2', 'H-9', 'D-4', 'C-13'];
+  assert.strictEqual(Bot.decide(s, 1).card, 'D-4'); // خصم: ما يرمي حكم
+  s.hands[1] = ['S-2', 'S-9'];
+  assert.strictEqual(Bot.decide(s, 1).card, 'S-2'); // ما عنده إلا حكم
+  s.turn = 3; s.trick.push({ seat: 1, card: 'D-4' }, { seat: 2, card: 'H-3' });
+  s.hands[3] = ['S-3', 'C-10', 'H-5'];
+  assert.strictEqual(Bot.decide(s, 3).card, 'H-5'); // زميل الشاري بعد
+});

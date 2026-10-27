@@ -76,6 +76,9 @@ function decidePlay(state, seat) {
   const led = E.suitOf(state.trick[0].card, trump);
   const same = ledByGrey ? [] : plain.filter((c) => c[0] === led);
 
+  // مضمون والشاري افتتح بالجوكر الصغير: يرمي أصغر ورقة من أي نوع غير الحكم
+  if (ledByGrey) return lowest(nonTrumps.length ? nonTrumps : plain.length ? plain : legal, trump);
+
   // زميله صاحب أكبر ورقة باللمّة: يرمي أصغر ورقة عنده ويخلي اللمّة له
   if (mateWinning) return lowest(same.length ? same : (nonTrumps.length ? nonTrumps : plain), trump);
 

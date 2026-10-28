@@ -79,6 +79,21 @@ function decidePlay(state, seat) {
   // مضمون والشاري افتتح بالجوكر الصغير: يرمي أصغر ورقة من أي نوع غير الحكم
   if (ledByGrey) return lowest(nonTrumps.length ? nonTrumps : plain.length ? plain : legal, trump);
 
+  // الورقة أكبر وحدة باقية من نوعها؟ (كل الأكبر منها نزلت قبل أو نازلة باللمّة الحين)
+  const seen = new Set([...state.played, ...state.trick.map((t) => t.card)]);
+  const isTop = (card) => {
+    for (let r = E.rankOf(card) + 1; r <= 14; r++) if (!seen.has(`${card[0]}-${r}`)) return false;
+    return true;
+  };
+
+  // زميله الشاري افتتح بحكم صغير (فيه حكم أكبر منه ما نزل): يرمي الجوكر إذا عنده، وإلا أكبر حكم
+  const lead = state.trick[0];
+  if (lead.seat === state.buyer && E.teamOf(lead.seat) === myTeam && !E.isJoker(lead.card) && lead.card[0] === trump && !isTop(lead.card)) {
+    const joker = [E.GREY, E.BLUE].find((j) => legal.includes(j));
+    if (joker) return joker;
+    if (trumps.length) return highest(trumps, trump);
+  }
+
   // زميله صاحب أكبر ورقة باللمّة: يرمي أصغر ورقة عنده ويخلي اللمّة له
   if (mateWinning) return lowest(same.length ? same : (nonTrumps.length ? nonTrumps : plain), trump);
 
@@ -90,7 +105,16 @@ function decidePlay(state, seat) {
     if (joker) return joker;
   }
 
-  if (same.length) return highest(same, trump);
+  if (same.length) {
+    // آخر واحد يلعب: يكفيه أصغر ورقة تغلب
+    if (state.trick.length === state.players - 1) {
+      const winners = same.filter(wins);
+      return lowest(winners.length ? winners : same, trump);
+    }
+    // يرمي أكبر ورقة من النوع إذا هي الأكبر الباقية وتغلب، وإلا أصغر ورقة
+    const top = highest(same, trump);
+    return wins(top) && isTop(top) ? top : lowest(same, trump);
+  }
   const winningTrumps = trumps.filter(wins);
   if (winningTrumps.length) return lowest(winningTrumps, trump);
   if (trumps.length) return lowest(trumps, trump);

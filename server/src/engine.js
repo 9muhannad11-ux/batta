@@ -112,6 +112,7 @@ function startRound(state, rng = Math.random) {
   state.greyHolder = state.hands.findIndex((h) => h.includes(GREY));
   state.bawan = false; // هل الفريق المزايد ملتزم بكل اللمّات
   state.lastTrick = null;
+  state.played = []; // كل الأوراق اللي نزلت في اللمّات المكتملة هالجولة
   state.signalsThisTurn = 0;
   return state;
 }
@@ -238,6 +239,7 @@ function playCard(state, seat, card) {
   state.tricksWon[teamOf(winner)] += 1;
   state.trickNo += 1;
   state.lastTrick = { cards: state.trick, winner };
+  state.played.push(...state.trick.map((t) => t.card));
   state.trick = [];
   state.turn = winner;
   resolveAfterTrick(state);

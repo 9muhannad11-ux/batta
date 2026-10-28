@@ -296,8 +296,8 @@ test('bot: leads strongest, but not trump when opponents bought; follows to win 
   assert.strictEqual(Bot.decide(s, 0).card, 'H-13'); // الخصم مزايد: ما يفتتح بحكم
   s.buyer = 2;
   assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
-  // يتبع: الخصم ماسك اللمّة → أعلى ورقة من النوع
-  s.turn = 0; s.trick = [{ seat: 5, card: 'H-10' }];
+  // يتبع: الخصم ماسك اللمّة والخال نازل من قبل → أعلى ورقة من النوع
+  s.turn = 0; s.played = ['H-14']; s.trick = [{ seat: 5, card: 'H-10' }];
   assert.strictEqual(Bot.decide(s, 0).card, 'H-13');
   // الزميل ماسك اللمّة → أصغر ورقة من النوع
   s.trick = [{ seat: 4, card: 'H-14' }, { seat: 5, card: 'H-10' }];
@@ -406,10 +406,12 @@ test('bot: throws a joker when an opponent holds the trick and no normal card ca
   s.hands[0] = [E.BLUE, 'H-9', 'H-3'];
   s.trick = [{ seat: 5, card: 'H-14' }];
   assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
-  // يقدر يغلبه بورقة عادية: ما يضيّع الجوكر
+  // يقدر يغلبه بورقة عادية (الخال نازل من قبل): ما يضيّع الجوكر
   s.hands[0] = [E.BLUE, 'H-13', 'H-3'];
+  s.played = ['H-14'];
   s.trick = [{ seat: 5, card: 'H-10' }];
   assert.strictEqual(Bot.decide(s, 0).card, 'H-13');
+  s.played = [];
   // الكبير قبل نزول الصغير يخسّر المباراة: ما يرميه
   s.greyPlayed = false;
   s.hands[0] = [E.BLUE, 'H-9', 'H-3'];
@@ -462,4 +464,33 @@ test('bot: madmoon buyer leads the small joker -> lowest non-trump card of any s
   s.turn = 3; s.trick.push({ seat: 1, card: 'D-4' }, { seat: 2, card: 'H-3' });
   s.hands[3] = ['S-3', 'C-10', 'H-5'];
   assert.strictEqual(Bot.decide(s, 3).card, 'H-5'); // زميل الشاري بعد
+});
+
+test('bot follows with its top card only if it is the highest left, otherwise its lowest', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 4, turn: 2 });
+  s.trick = [{ seat: 1, card: 'H-7' }];
+  s.hands[2] = ['H-13', 'H-3', 'D-2'];
+  s.played = [];
+  assert.strictEqual(Bot.decide(s, 2).card, 'H-3'); // الخال ما نزل: يرمي الأصغر
+  s.played = ['H-14', 'C-2', 'C-3', 'C-4', 'C-5', 'C-6'];
+  assert.strictEqual(Bot.decide(s, 2).card, 'H-13'); // الخال نزل: الشايب هو الأكبر
+  s.hands[2] = ['H-12', 'H-3'];
+  s.played = ['H-14'];
+  assert.strictEqual(Bot.decide(s, 2).card, 'H-3'); // الشايب ما نزل: البنت ما تنرمي
+  s.played = ['H-14', 'H-13'];
+  assert.strictEqual(Bot.decide(s, 2).card, 'H-12');
+});
+
+test('bot: teammate buyer leads a low trump -> joker if held, else highest trump', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 0, greyPlayed: false, trickNo: 2, turn: 1 });
+  s.played = [];
+  s.trick = [{ seat: 0, card: 'S-3' }, { seat: 1, card: 'S-5' }];
+  s.turn = 2;
+  s.hands[2] = [E.GREY, 'S-4', 'S-11', 'H-2'];
+  assert.strictEqual(Bot.decide(s, 2).card, E.GREY);
+  s.hands[2] = ['S-4', 'S-11', 'H-2'];
+  s.greyPlayed = true;
+  assert.strictEqual(Bot.decide(s, 2).card, 'S-11');
 });

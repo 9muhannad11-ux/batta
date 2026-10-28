@@ -366,12 +366,28 @@ function viewFor(state, seat) {
   };
 }
 
-// الترتيب من اليسار: الجوكرين، ثم الهاس، الكلفس، الديمن، السبيت (الأعلى أول)
+// الترتيب من اليسار: هاس، كلفس، ديمن، سبيت (الأعلى أول)، وبعدها الجوكرين.
+// إذا نوع ناقص نعيد الترتيب عشان يبقى أحمر ثم أسود ثم أحمر (لين ما يصير ممكن)
 const HAND_ORDER = ['H', 'C', 'D', 'S'];
+const RED = ['H', 'D'];
+const BLACK = ['C', 'S'];
+function suitSequence(hand) {
+  const has = (s) => hand.some((c) => !isJoker(c) && c[0] === s);
+  const reds = RED.filter(has);
+  const blacks = BLACK.filter(has);
+  const [first, second] = reds.length >= blacks.length ? [reds, blacks] : [blacks, reds];
+  const seq = [];
+  for (let i = 0; i < first.length; i++) {
+    seq.push(first[i]);
+    if (i < second.length) seq.push(second[i]);
+  }
+  return seq;
+}
 function sortHand(hand) {
+  const seq = suitSequence(hand);
   const order = (c) => {
-    if (isJoker(c)) return -1000 + (c === BLUE ? 0 : 1);
-    return HAND_ORDER.indexOf(c[0]) * 100 - rankOf(c);
+    if (isJoker(c)) return 1000 + (c === BLUE ? 0 : 1);
+    return seq.indexOf(c[0]) * 100 - rankOf(c);
   };
   return hand.slice().sort((a, b) => order(a) - order(b));
 }

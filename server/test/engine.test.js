@@ -284,9 +284,17 @@ test('4-player deck drops clubs/hearts 2-6 and spades/diamonds 2-5', () => {
   for (const c of ['C-7', 'H-7', 'S-6', 'D-6', E.BLUE, E.GREY]) assert.ok(deck.includes(c));
 });
 
-test('hand order: jokers, hearts, clubs, diamonds, spades', () => {
+test('hand order: hearts, clubs, diamonds, spades, then jokers; colors alternate when a suit is missing', () => {
   assert.deepStrictEqual(E.sortHand(['S-14', 'D-2', 'C-9', 'H-3', E.GREY, 'H-12', E.BLUE]),
-    [E.BLUE, E.GREY, 'H-12', 'H-3', 'C-9', 'D-2', 'S-14']);
+    ['H-12', 'H-3', 'C-9', 'D-2', 'S-14', E.BLUE, E.GREY]);
+  // ما في كلفس: هاس، سبيت، ديمن
+  assert.deepStrictEqual(E.sortHand(['D-5', 'S-2', 'H-9']), ['H-9', 'S-2', 'D-5']);
+  // ما في هاس: كلفس، ديمن، سبيت
+  assert.deepStrictEqual(E.sortHand(['S-2', 'D-5', 'C-9']), ['C-9', 'D-5', 'S-2']);
+  // ما في ديمن: هاس، كلفس، سبيت ما تنفع (أسودين ورا بعض) → كلفس، هاس، سبيت
+  assert.deepStrictEqual(E.sortHand(['S-2', 'C-9', 'H-4']), ['C-9', 'H-4', 'S-2']);
+  // ما في سبيت: هاس، كلفس، ديمن
+  assert.deepStrictEqual(E.sortHand(['D-2', 'C-9', 'H-4']), ['H-4', 'C-9', 'D-2']);
 });
 
 test('bot: leads strongest, but not trump when opponents bought; follows to win or under a winning mate', () => {

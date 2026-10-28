@@ -508,3 +508,20 @@ test('bot void in led suit, opponent trumped: over-trump, else joker, else no wa
   s.hands[0] = ['S-3', 'D-2', 'C-9'];
   assert.strictEqual(Bot.decide(s, 0).card, 'D-2'); // ما يضيّع حكمه الصغير
 });
+
+test('bot buyer on a trump lead: top trump left or a joker, unless a mate holds the top after the buyer', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 0, greyPlayed: true, trickNo: 4, turn: 0, played: [] });
+  s.trick = [{ seat: 5, card: 'S-5' }];
+  s.hands[0] = ['S-14', 'S-3', 'H-2'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
+  s.hands[0] = ['S-12', 'S-3', E.BLUE];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE); // البنت مو الأكبر: الجوكر
+  // زميله نزّل الشايب والخال عند الشاري: يرمي أصغر حكم
+  s.trick = [{ seat: 3, card: 'S-5' }, { seat: 4, card: 'S-13' }, { seat: 5, card: 'S-6' }];
+  s.hands[0] = ['S-14', 'S-3'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-3');
+  // زميله نزّل البنت والشايب ما نزل: الشاري يرمي الخال
+  s.trick = [{ seat: 3, card: 'S-5' }, { seat: 4, card: 'S-12' }, { seat: 5, card: 'S-6' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
+});

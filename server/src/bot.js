@@ -79,10 +79,15 @@ function decidePlay(state, seat) {
   // مضمون والشاري افتتح بالجوكر الصغير: يرمي أصغر ورقة من أي نوع غير الحكم
   if (ledByGrey) return lowest(nonTrumps.length ? nonTrumps : plain.length ? plain : legal, trump);
 
+  const wins = (card) => E.trickWinner([...state.trick, { seat, card }], trump) === seat;
+
   // الورقة أكبر وحدة باقية من نوعها؟ (كل الأكبر منها نزلت قبل أو نازلة باللمّة الحين)
   const seen = new Set([...state.played, ...state.trick.map((t) => t.card)]);
-  const isTop = (card) => {
-    for (let r = E.rankOf(card) + 1; r <= 14; r++) if (!seen.has(`${card[0]}-${r}`)) return false;
+  const isTop = (card, alsoKnown = []) => {
+    for (let r = E.rankOf(card) + 1; r <= 14; r++) {
+      const c = `${card[0]}-${r}`;
+      if (!seen.has(c) && !alsoKnown.includes(c)) return false;
+    }
     return true;
   };
 
@@ -94,11 +99,24 @@ function decidePlay(state, seat) {
     if (trumps.length) return highest(trumps, trump);
   }
 
+  // البوت هو الشاري والافتتاح بحكم: يلعب أكبر حكم باقي أو جوكر،
+  // إلا إذا زميله نزّل أكبر حكم بعد الأحكام اللي عند الشاري (فيرمي أصغر ورقة تحت زميله)
+  if (seat === state.buyer && !E.isJoker(lead.card) && lead.card[0] === trump) {
+    const w = E.trickWinner(state.trick, trump);
+    const winCard = state.trick.find((t) => t.seat === w).card;
+    const mateHasTop = mateWinning && !E.isJoker(winCard) && winCard[0] === trump && isTop(winCard, hand);
+    if (!mateHasTop) {
+      const top = trumps.length ? highest(trumps, trump) : null;
+      if (top && isTop(top) && wins(top)) return top;
+      const joker = [E.GREY, E.BLUE].find((j) => legal.includes(j) && wins(j));
+      if (joker) return joker;
+    }
+  }
+
   // زميله صاحب أكبر ورقة باللمّة: يرمي أصغر ورقة عنده ويخلي اللمّة له
   if (mateWinning) return lowest(same.length ? same : (nonTrumps.length ? nonTrumps : plain), trump);
 
   // الخصم ماسك اللمّة: إذا ما يقدر يغلبه بورقة عادية، يرمي الجوكر (الأصغر اللي يغلب)
-  const wins = (card) => E.trickWinner([...state.trick, { seat, card }], trump) === seat;
   const plainWinners = plain.filter(wins);
   if (!plainWinners.length) {
     const joker = [E.GREY, E.BLUE].find((j) => legal.includes(j) && wins(j));

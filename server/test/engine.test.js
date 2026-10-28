@@ -494,3 +494,17 @@ test('bot: teammate buyer leads a low trump -> joker if held, else highest trump
   s.greyPlayed = true;
   assert.strictEqual(Bot.decide(s, 2).card, 'S-11');
 });
+
+test('bot void in led suit, opponent trumped: over-trump, else joker, else no wasted trump', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 4, turn: 0, played: [] });
+  s.trick = [{ seat: 4, card: 'H-9' }, { seat: 5, card: 'S-8' }];
+  s.hands[0] = ['S-3', 'S-10', 'S-13', 'D-2', E.GREY];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-10'); // أصغر حكم يغلب، والجوكر يتخلّى
+  s.hands[0] = ['S-3', E.GREY, 'D-2'];
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY);
+  s.hands[0] = ['S-3', E.BLUE, 'D-2'];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  s.hands[0] = ['S-3', 'D-2', 'C-9'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-2'); // ما يضيّع حكمه الصغير
+});

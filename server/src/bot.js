@@ -115,10 +115,11 @@ function decidePlay(state, seat) {
     const top = highest(same, trump);
     return wins(top) && isTop(top) ? top : lowest(same, trump);
   }
+  // ما عنده النوع: يقطع بأصغر حكم يغلب (حتى لو الخصم قاطع بحكم). الجوكر فوق إذا ما في حكم يغلب
   const winningTrumps = trumps.filter(wins);
   if (winningTrumps.length) return lowest(winningTrumps, trump);
-  if (trumps.length) return lowest(trumps, trump);
-  return lowest(plain, trump);
+  // ما يقدر يغلب: ما يضيّع حكم، يرمي أصغر ورقة من غير الحكم
+  return lowest(nonTrumps.length ? nonTrumps : plain, trump);
 }
 
 function decide(state, seat, { timeout = false } = {}) {

@@ -17,6 +17,7 @@ class KoutColors {
   static const redSuit = Color(0xFFD32F2F); // هاس وديمن: أحمر
   static const blackSuit = Color(0xFF111111); // سبيت وكلفس: أسود
   static const madmoon = Color(0xFF43A047); // كلمة مضمون: أخضر
+  static const majbur = Color(0xFFFF8F00); // كلمة مجبور: برتقالي
   static const teamBlue = Color(0xFF3D8BFF); // الفريق الأول
   static const teamYellow = Color(0xFFF5C518); // الفريق الثاني
   static const gold = Color(0xFFD4AF37);

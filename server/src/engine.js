@@ -125,9 +125,12 @@ function fail(msg) {
 
 // ---------- المزايدة ----------
 
+// الخابص إذا وصله الدور ومحد زايد: بدل «طاف» عنده «6 مجبور» (MAJBUR)
+const MAJBUR = 'majbur';
+
 function legalBids(state, seat) {
   if (state.phase !== 'bidding' || state.turn !== seat) return [];
-  const out = ['pass'];
+  const out = [seat === state.khabis && state.buyer === null ? MAJBUR : 'pass'];
   for (let b = Math.max(MIN_BID, state.currentBid + 1); b <= BAWAN; b++) out.push(b);
   return out;
 }
@@ -135,7 +138,12 @@ function legalBids(state, seat) {
 function bid(state, seat, value) {
   if (!legalBids(state, seat).includes(value)) fail('مزايدة غير مسموحة');
   state.bids.push({ seat, bid: value });
-  if (value !== 'pass') {
+  if (value === MAJBUR) {
+    // 6 مجبور: الخسارة 6 بس للخصم بدون مضاعفة، وبدون باون
+    state.currentBid = MIN_BID;
+    state.buyer = seat;
+    state.majbur = true;
+  } else if (value !== 'pass') {
     state.currentBid = value;
     state.buyer = seat;
   }
@@ -143,12 +151,6 @@ function bid(state, seat, value) {
   if (!finished) {
     state.turn = nextSeat(seat, state.players);
     return state;
-  }
-  if (state.buyer === null) {
-    // الكل طاف: مجبور على الخابص
-    state.buyer = state.khabis;
-    state.currentBid = MIN_BID;
-    state.majbur = true;
   }
   state.bawan = state.currentBid === BAWAN;
   state.phase = 'trump';
@@ -268,8 +270,8 @@ function resolveAfterTrick(state) {
   if (state.tricksWon[opp] > TRICKS - need) {
     return endRound(state, { type: 'failed', team: opp, points: state.majbur ? MIN_BID : need * 2 });
   }
-  // خيار الباون: الفريق أخذ كل اللمّات وباقي له لمّة وحدة
-  if (state.tricksWon[opp] === 0 && state.tricksWon[bidTeam] === need - 1) {
+  // خيار الباون: الفريق أخذ كل اللمّات وباقي له لمّة وحدة (المجبور ما له باون)
+  if (!state.majbur && state.tricksWon[opp] === 0 && state.tricksWon[bidTeam] === need - 1) {
     state.phase = 'bawanOffer';
   }
 }
@@ -393,7 +395,7 @@ function sortHand(hand) {
 }
 
 module.exports = {
-  SUITS, BLUE, GREY, JOKER_SIGNAL, PLAYERS, MODES, TRICKS, WIN_SCORE, GREY_PENALTY, GREY_DEADLINE, MIN_BID, BAWAN,
+  SUITS, BLUE, GREY, JOKER_SIGNAL, PLAYERS, MODES, TRICKS, WIN_SCORE, GREY_PENALTY, GREY_DEADLINE, MIN_BID, BAWAN, MAJBUR,
   nextSeat, teamOf, isJoker, suitOf, power, rankOf, newDeck, shuffle, deal, sortHand,
   createMatch, startRound, legalBids, bid, chooseTrump, legalCards, trickWinner, blueLosesMatch,
   playCard, answerBawan, nextRound, signal, viewFor,

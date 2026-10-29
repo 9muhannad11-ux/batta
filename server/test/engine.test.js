@@ -31,10 +31,13 @@ test('deck has 54 unique cards and each player gets 9', () => {
   s.hands.forEach((h) => assert.strictEqual(h.length, 9));
 });
 
-test('bidding: single round, khabis last, must go higher, majbur when all pass', () => {
+test('bidding: single round, khabis last, must go higher, khabis gets «6 مجبور» instead of pass when nobody bid', () => {
   const s = E.createMatch({ khabis: 2 });
   assert.strictEqual(s.turn, 3);
-  for (const seat of [3, 4, 5, 0, 1, 2]) E.bid(s, seat, 'pass');
+  for (const seat of [3, 4, 5, 0, 1]) E.bid(s, seat, 'pass');
+  assert.deepStrictEqual(E.legalBids(s, 2), [E.MAJBUR, 6, 7, 8, 9]);
+  assert.throws(() => E.bid(s, 2, 'pass'));
+  E.bid(s, 2, E.MAJBUR);
   assert.strictEqual(s.majbur, true);
   assert.strictEqual(s.buyer, 2);
   assert.strictEqual(s.currentBid, 6);
@@ -265,7 +268,7 @@ for (const players of [6, 4]) {
         const seat = s.phase === 'bawanOffer' ? s.buyer : s.turn;
         const action = Bot.decide(s, seat);
         // البوت ما يزايد فوق 6
-        if (action.type === 'bid') assert.ok(action.value === 'pass' || action.value === 6);
+        if (action.type === 'bid') assert.ok(action.value === 'pass' || action.value === 6 || action.value === E.MAJBUR);
         Bot.apply(s, seat, action);
         assert.ok(++steps < 100000, 'match did not terminate');
       }
@@ -323,8 +326,8 @@ test('bot: third-trick lead is lowest card while small joker is out; never bawan
   const s = E.createMatch({ khabis: 5 });
   Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 2, greyPlayed: false, trickNo: 2, turn: 0, trick: [] });
   s.hands[0] = ['S-14', 'H-13', 'H-4', 'D-9'];
-  // الشاري من فريقه: أصغر حكم (وهنا ما عنده غير حكم واحد)
-  assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
+  // الشاري من فريقه: أصغر حكم بس إذا 2 لين 7 (هنا حكمه الوحيد خال، فيرمي أصغر ورقة غير الحكم)
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
   // الشاري من الخصم: أصغر ورقة غير الحكم
   s.buyer = 1;
   assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
@@ -532,4 +535,57 @@ test('bot buyer on a trump lead: top trump left or a joker, unless a mate holds 
   // زميله نزّل البنت والشايب ما نزل: الشاري يرمي الخال
   s.trick = [{ seat: 3, card: 'S-5' }, { seat: 4, card: 'S-12' }, { seat: 5, card: 'S-6' }];
   assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
+});
+
+test('majbur: failing costs only 6 to the opponents, and no bawan offer while sweeping', () => {
+  let s = finishTrick({ bidValue: 6, majbur: true, tricksWon: [4, 3], winnerSeat: 1 });
+  assert.deepStrictEqual([s.lastRound.type, s.scores], ['failed', [0, 6]]);
+  s = finishTrick({ bidValue: 6, majbur: true, tricksWon: [4, 0], winnerSeat: 0 });
+  assert.strictEqual(s.phase, 'playing'); // يكمل عادي بدون نافذة الباون
+  assert.strictEqual(E.viewFor(s, 0).bawanOffer, false);
+});
+
+test('bot khabis picks «6 مجبور» when nobody bid; timeout does the same', () => {
+  const s = E.createMatch({ khabis: 2 });
+  for (const seat of [3, 4, 5, 0, 1]) E.bid(s, seat, 'pass');
+  assert.strictEqual(Bot.decide(s, 2).value, E.MAJBUR);
+  assert.strictEqual(Bot.decide(s, 2, { timeout: true }).value, E.MAJBUR);
+});
+
+test('bot holding the small joker leads trick 2 with its lowest card', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: false, trickNo: 1, turn: 0, trick: [], played: [] });
+  s.hands[0] = [E.GREY, 'H-14', 'D-9', 'C-3', 'S-12'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'C-3');
+  s.buyer = 2; // حتى لو فريقه هو الشاري
+  assert.strictEqual(Bot.decide(s, 0).card, 'C-3');
+});
+
+test('trick 3, small joker still out: the others throw their lowest card and never trump', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: false, trickNo: 2, turn: 0, played: [] });
+  s.trick = [{ seat: 5, card: 'H-9' }];
+  s.hands[0] = ['H-14', 'H-3', 'S-12'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-3'); // عنده النوع: أصغره
+  s.hands[0] = ['S-3', 'S-12', 'D-10', 'C-5'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'C-5'); // ما عنده: أصغر ورقة وما يقطع
+  s.hands[0] = [E.GREY, 'H-3'];
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY); // اللي معه الصغير يرميه
+});
+
+test('bot leading trick 3 with a teammate buyer: lowest trump only if it is 2..7', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 2, greyPlayed: false, trickNo: 2, turn: 0, trick: [], played: [] });
+  s.hands[0] = ['S-6', 'S-13', 'H-14', 'D-4'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-6');
+  s.hands[0] = ['S-9', 'S-13', 'H-14', 'D-4'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-4');
+});
+
+test('bot plays its lowest non-trump under a teammate holding the top card of the led suit', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 4, turn: 0, played: ['H-14'] });
+  s.trick = [{ seat: 3, card: 'H-5' }, { seat: 4, card: 'H-13' }, { seat: 5, card: 'H-7' }];
+  s.hands[0] = ['S-2', 'D-12', 'C-4'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'C-4');
 });

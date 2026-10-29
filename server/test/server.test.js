@@ -39,7 +39,7 @@ test('a human with 5 bots can play a full match over websockets', async () => {
       const key = `${v.round}/${v.phase}/${v.bids.length}/${v.trickNo}/${v.trick.length}`;
       if (key === lastKey) return;
       lastKey = key;
-      if (v.legalBids.length) return sendMsg({ t: 'bid', value: 'pass' });
+      if (v.legalBids.length) return sendMsg({ t: 'bid', value: v.legalBids[0] }); // طاف، أو 6 مجبور للخابص
       if (v.phase === 'trump' && v.buyer === v.seat) return sendMsg({ t: 'trump', suit: 'H' });
       if (v.bawanOffer) return sendMsg({ t: 'bawan', accept: false });
       if (v.legalCards.length) {

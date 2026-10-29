@@ -70,6 +70,10 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     _collect.addStatusListener((s) {
       if (s == AnimationStatus.completed && mounted) setState(() => _collecting = null);
     });
+    // نافذة المزايدة تطلع أول ما يخلص التوزيع
+    _deal.addStatusListener((s) {
+      if (s == AnimationStatus.completed && mounted) setState(() {});
+    });
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) => _tick());
     WidgetsBinding.instance.addPostFrameCallback((_) => _onChange());
   }
@@ -531,7 +535,7 @@ class _Seat extends StatelessWidget {
     final isKhabis = v['khabis'] == seat;
     final teamColor = KoutColors.team(seat % 2);
     final bids = (v['bids'] as List).where((b) => b['seat'] == seat).toList();
-    final bidLabel = bids.isEmpty ? null : (bids.last['bid'] == 'pass' ? 'طاف' : '${bids.last['bid']}');
+    final bidLabel = bids.isEmpty ? null : bidName(bids.last['bid'] as Object);
     final sig = client.signals[seat];
     final info = client.seatInfo(seat);
     final isBot = info?['bot'] == true;
@@ -605,6 +609,8 @@ class _Seat extends StatelessWidget {
     final tags = <Widget>[
       if (isBuyer && v['madmoon'] == true)
         const Text('مضمون', style: TextStyle(fontSize: 13, color: KoutColors.madmoon, fontWeight: FontWeight.w900)),
+      if (isBuyer && v['majbur'] == true)
+        const Text('مجبور', style: TextStyle(fontSize: 13, color: KoutColors.majbur, fontWeight: FontWeight.w900)),
       if (phase == 'bidding' && bidLabel != null)
         Text(bidLabel, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bidLabel == 'طاف' ? KoutColors.textDim : KoutColors.text)),
       if (isKhabis && phase == 'bidding') const Text('خابص', style: TextStyle(fontSize: 11, color: KoutColors.textDim)),
@@ -631,6 +637,9 @@ class _Seat extends StatelessWidget {
   }
 }
 
+/// اسم المزايدة اللي يشوفه اللاعب
+String bidName(Object b) => switch (b) { 'pass' => 'طاف', 'majbur' => '6 مجبور', _ => '$b' };
+
 class _BidPanel extends StatelessWidget {
   final GameClient client;
   final Map<String, dynamic> view;
@@ -640,9 +649,8 @@ class _BidPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final legal = view['legalBids'] as List;
     final current = view['currentBid'] as int;
-    final isKhabis = view['khabis'] == client.mySeat;
     final left = client.secondsLeft;
-    String label(Object b) => switch (b) { 'pass' => 'طاف', 6 => '6 باب', 9 => '9 باون', _ => '$b' };
+    String label(Object b) => switch (b) { 6 => '6 باب', 9 => '9 باون', _ => bidName(b) };
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Row(mainAxisSize: MainAxisSize.min, children: [
         Text(current == 0 ? 'دورك تزايد' : 'أعلى مزايدة: $current (${client.seatName(view['buyer'] as int)})',
@@ -653,10 +661,11 @@ class _BidPanel extends StatelessWidget {
           Text(' ${left.ceil()}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: left <= 3 ? KoutColors.lose : KoutColors.text)),
         ],
       ]),
-      if (isKhabis && current == 0)
+      if (legal.contains('majbur'))
         const Padding(
           padding: EdgeInsets.only(top: 4),
-          child: Text('أنت الخابص: إذا طفت تصير مجبور على 6', style: TextStyle(fontSize: 13, color: KoutColors.textDim)),
+          child: Text('محد زايد: «6 مجبور» إذا خسرت ياخذ الخصم 6 بس، وبدون باون',
+              style: TextStyle(fontSize: 13, color: KoutColors.textDim)),
         ),
       const SizedBox(height: 14),
       Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
@@ -665,7 +674,11 @@ class _BidPanel extends StatelessWidget {
               ? OutlinedButton(onPressed: () => client.bid(b), child: Text(label(b), style: const TextStyle(fontSize: 17)))
               : FilledButton(
                   onPressed: () => client.bid(b),
-                  style: b == 9 ? FilledButton.styleFrom(backgroundColor: KoutColors.gold) : null,
+                  style: b == 9
+                      ? FilledButton.styleFrom(backgroundColor: KoutColors.gold)
+                      : b == 'majbur'
+                          ? FilledButton.styleFrom(backgroundColor: KoutColors.majbur)
+                          : null,
                   child: Text(label(b), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 ),
       ]),

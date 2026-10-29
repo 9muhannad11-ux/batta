@@ -27,6 +27,8 @@ function decideBid(state, seat) {
   // البوت ما يشري إلا إذا عنده 6 أوراق أو أكثر من نوع واحد، وما يزايد أكثر من 6
   const longest = Math.max(...E.SUITS.map((s) => hand.filter((c) => !E.isJoker(c) && c[0] === s).length));
   const legal = E.legalBids(state, seat);
+  // الخابص ومحد زايد: «6 مجبور» أحسن له من 6 العادية (الخسارة ما تتضاعف)
+  if (legal.includes(E.MAJBUR)) return { type: 'bid', value: E.MAJBUR };
   return { type: 'bid', value: longest >= 6 && legal.includes(6) ? 6 : 'pass' };
 }
 
@@ -60,6 +62,14 @@ function decidePlay(state, seat) {
 
   if (state.trick.length === 0) {
     const thirdBeforeGrey = state.trickNo === 2 && !state.greyPlayed;
+    // معه الصغير ويفتتح اللمّة الثانية: أصغر ورقة، عشان ما ياخذها ويفتتح الثالثة (الصغير ما يفتتح)
+    if (state.trickNo === 1 && deadlineOpen && hand.includes(E.GREY)) return lowest(plain, trump);
+    // اللمّة الثالثة وزميله الشاري: أصغر حكم بس إذا هو من 2 لين 7، وإلا أصغر ورقة من غير الحكم
+    if (thirdBeforeGrey && !oppBought && seat !== state.buyer) {
+      const low = trumps.length ? lowest(trumps, trump) : null;
+      if (low && E.rankOf(low) <= 7) return low;
+      return lowest(nonTrumps.length ? nonTrumps : plain, trump);
+    }
     // افتتاح أول لمّة لما الخصم مزايد بـ 8: أصغر حكم
     if (state.trickNo === 0 && state.currentBid === 8 && oppBought && trumps.length) return lowest(trumps, trump);
     if (oppBought) {
@@ -78,6 +88,9 @@ function decidePlay(state, seat) {
 
   // مضمون والشاري افتتح بالجوكر الصغير: يرمي أصغر ورقة من أي نوع غير الحكم
   if (ledByGrey) return lowest(nonTrumps.length ? nonTrumps : plain.length ? plain : legal, trump);
+
+  // اللمّة الثالثة والصغير ما نزل (وهو مو معه): يرمي أصغر ورقة، حتى لو ما عنده النوع (ما يقطع)
+  if (deadlineOpen && lastChance && !hand.includes(E.GREY)) return lowest(same.length ? same : plain, trump);
 
   const wins = (card) => E.trickWinner([...state.trick, { seat, card }], trump) === seat;
 
@@ -142,8 +155,9 @@ function decidePlay(state, seat) {
 
 function decide(state, seat, { timeout = false } = {}) {
   if (state.phase === 'bidding' && state.turn === seat) {
-    // لاعب خلص وقته يطوف
-    return timeout ? { type: 'bid', value: 'pass' } : decideBid(state, seat);
+    // لاعب خلص وقته يطوف (والخابص اللي ما زايد أحد قبله يصير 6 مجبور)
+    if (timeout) return { type: 'bid', value: E.legalBids(state, seat)[0] };
+    return decideBid(state, seat);
   }
   if (state.phase === 'trump' && state.buyer === seat) {
     return { type: 'trump', suit: bestSuit(state.hands[seat]) };

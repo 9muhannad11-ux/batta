@@ -153,6 +153,33 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('khabis sees «6 مجبور» instead of pass, and the forced buyer is labelled «مجبور» for everyone', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final c = tableClient(playingView()
+      ..['phase'] = 'bidding'
+      ..['khabis'] = 0
+      ..['currentBid'] = 0
+      ..['buyer'] = null
+      ..['trump'] = null
+      ..['legalCards'] = []
+      ..['canSignal'] = false
+      ..['legalBids'] = ['majbur', 6, 7, 8, 9]);
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 100)); // يبدأ التوزيع
+    await tester.pump(const Duration(seconds: 2)); // يخلص التوزيع وتطلع نافذة المزايدة
+    expect(find.text('6 مجبور'), findsOneWidget);
+    expect(find.text('طاف'), findsNothing);
+
+    c.view = playingView()
+      ..['buyer'] = 1
+      ..['majbur'] = true;
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('مجبور'), findsOneWidget);
+  });
+
   testWidgets('grey penalty names the player who held the small joker', (tester) async {
     tester.view.physicalSize = const Size(400, 860);
     tester.view.devicePixelRatio = 1;

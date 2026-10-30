@@ -8,7 +8,8 @@ process.env.TRICK_PAUSE_MS = '0';
 process.env.NEXT_ROUND_MS = '0';
 process.env.DEAL_PAUSE_MS = '0';
 process.env.TURN_MS = '300';
-const { server } = require('../src/server');
+const { server, rooms } = require('../src/server');
+const E = require('../src/engine');
 const WebSocket = require('ws');
 
 const ready = () => new Promise((r) => (server.listening ? r() : server.once('listening', r)));
@@ -52,6 +53,37 @@ test('a human with 5 bots can play a full match over websockets', async () => {
 
   assert.ok(result.winner === 0 || result.winner === 1);
   assert.ok(signals >= 1, 'signal was broadcast');
+  ws.close();
+});
+
+test('a human khabis can choose «6 مجبور» over websockets', async () => {
+  await ready();
+  const ws = new WebSocket(`ws://localhost:${server.address().port}`);
+  const sendMsg = (m) => ws.send(JSON.stringify(m));
+  const view = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), 20000);
+    let code, botsAdded = false, started = false, sent = false;
+    ws.on('open', () => sendMsg({ t: 'create', name: 'خابص' }));
+    ws.on('message', (raw) => {
+      const m = JSON.parse(raw);
+      if (m.t === 'error') return reject(new Error(m.msg));
+      if (m.t === 'joined') code = m.code;
+      if (m.t === 'room' && !botsAdded) { botsAdded = true; return sendMsg({ t: 'addBots' }); }
+      if (m.t === 'room' && !started && m.seats.every(Boolean)) { started = true; return sendMsg({ t: 'start' }); }
+      if (m.t !== 'state') return;
+      if (!sent) {
+        // نخلي اللاعب هو الخابص والباقين طافوا، وبعدين يضغط «6 مجبور» مثل التطبيق
+        sent = true;
+        const g = E.createMatch({ khabis: 0, players: 6 });
+        for (const seat of [1, 2, 3, 4, 5]) E.bid(g, seat, 'pass');
+        rooms.get(code).game = g;
+        return sendMsg({ t: 'bid', value: 'majbur' });
+      }
+      if (m.view.majbur && m.view.buyer === m.view.seat) { clearTimeout(timer); resolve(m.view); }
+    });
+  });
+  assert.strictEqual(view.currentBid, 6);
+  assert.deepStrictEqual(view.bids.at(-1), { seat: 0, bid: 'majbur' });
   ws.close();
 });
 

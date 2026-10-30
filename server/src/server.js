@@ -213,7 +213,7 @@ function handle(ws, msg) {
         if (room.seats.some((s) => !s)) throw illegal(`لازم ${room.mode} لاعبين (أو عبّي بالبوتات)`);
         room.game = E.createMatch({ players: room.mode });
         break;
-      case 'bid': E.bid(game(room), seat, msg.value === 'pass' ? 'pass' : Number(msg.value)); break;
+      case 'bid': E.bid(game(room), seat, msg.value === 'pass' || msg.value === E.MAJBUR ? msg.value : Number(msg.value)); break;
       case 'trump': E.chooseTrump(game(room), seat, msg.suit); break;
       case 'play': E.playCard(game(room), seat, msg.card); break;
       case 'bawan': E.answerBawan(game(room), seat, !!msg.accept); break;

@@ -14,6 +14,7 @@ const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS ?? 1600); // وقت أ�
 const DEAL_PAUSE_MS = Number(process.env.DEAL_PAUSE_MS ?? 1500); // وقت أنميشن التوزيع
 const NEXT_ROUND_MS = Number(process.env.NEXT_ROUND_MS ?? 5000);
 const TURN_MS = Number(process.env.TURN_MS ?? 12500); // وقت كل لاعب للمزايدة واللعب (12.5 ثانية)
+const TRUMP_MS = Number(process.env.TRUMP_MS ?? 10000); // وقت اختيار الحكم
 
 // الشخصيات: البوت ياخذ اسم الشخصية، واللاعب ياخذ وجهها ويبقى اسمه
 const CHARACTERS = [
@@ -128,6 +129,10 @@ function schedule(room) {
   if (g.phase === 'bidding' || g.phase === 'playing') {
     room.deadline = Date.now() + TURN_MS + pause;
     room.timer = setTimeout(() => act({ timeout: true }), TURN_MS + pause);
+  } else if (g.phase === 'trump') {
+    // 10 ثواني لاختيار الحكم، وبعدها السيرفر يختار النوع اللي عنده منه أكثر
+    room.deadline = Date.now() + TRUMP_MS;
+    room.timer = setTimeout(() => act({ timeout: true }), TRUMP_MS);
   }
 }
 

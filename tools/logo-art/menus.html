@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><title>قوائم بتّه</title>
+<link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* معاينة ثيم القوائم من الشعار: خلفية كروم، ألواح بيضاء بإطار أسود مثل الورقة، أزرار غامقة، لمسات أحمر/أخضر الجوكر */
+:root { --ink:#1d1f22; --red:#cc202c; --green:#128c48; --blue:#3D8BFF; --yellow:#F5C518; }
+* { box-sizing:border-box; font-family:"El Messiri", sans-serif; }
+body { margin:0; background:#222; display:flex; gap:28px; justify-content:center; flex-wrap:wrap; padding:20px; color:var(--ink); }
+.cap { color:#bbb; text-align:center; font-size:15px; margin-bottom:8px; }
+.phone { width:360px; height:740px; border-radius:34px; overflow:hidden; position:relative; box-shadow:0 10px 40px #000a;
+  background:linear-gradient(#f2f3f5 0%, #c9ccd1 18%, #8e939a 50%, #7b8087 52%, #a9adb3 80%, #d9dbdf 100%); }
+.phone::before { content:""; position:absolute; top:6px; left:40px; right:40px; height:5px; border-radius:3px;
+  background:linear-gradient(90deg, transparent, #fffb, transparent); }
+.scr { position:absolute; inset:0; padding:26px 22px; display:flex; flex-direction:column; gap:12px; }
+.logo { width:190px; height:190px; border-radius:42px; align-self:center; margin-top:8px;
+  background:url(logo.png) center/cover; box-shadow:0 8px 22px #0006, inset 0 0 0 1px #fff8; }
+.tag { text-align:center; font-size:15px; color:#2b2e33; margin-top:-2px; }
+/* معكوس: الألواح والمقاعد سودا بإطار أبيض، الزر الأساسي أبيض والثانوي أسود */
+.panel { background:#111; color:#fff; border:3px solid #fff; border-radius:16px; padding:14px; box-shadow:0 6px 16px #0006; display:flex; flex-direction:column; gap:10px; }
+.lbl { font-size:13px; color:#bbb; margin-bottom:-6px; }
+.field { border:2px solid #fff; border-radius:10px; padding:10px 12px; font-size:18px; font-weight:700; background:#2a2c30; color:#fff; }
+.btn { border-radius:12px; padding:12px; text-align:center; font-size:19px; font-weight:700; cursor:pointer; user-select:none; }
+.dark { background:linear-gradient(#ffffff, #dfe1e4); color:#111; border:2px solid #fff; box-shadow:inset 0 -2px 0 #0002, 0 3px 0 #000; }
+.dark:active { transform:translateY(2px); box-shadow:0 1px 0 #000; }
+.light { background:#111; color:#fff; border:2px solid #fff; box-shadow:0 3px 0 #000; }
+.row { display:flex; gap:8px; align-items:stretch; }
+.row .field { flex:1; text-align:center; letter-spacing:4px; }
+.suits { display:flex; justify-content:center; gap:10px; font-size:22px; line-height:1; }
+.r { color:var(--red); } .k { color:#111; }
+.link { text-align:center; font-size:14px; color:#2b2e33; text-decoration:underline; margin-top:auto; }
+/* شاشة الغرفة */
+.bar { display:flex; align-items:center; gap:10px; }
+.mini { width:44px; height:44px; border-radius:11px; background:url(logo.png) center/cover; box-shadow:0 3px 8px #0005; }
+.bar h1 { margin:0; font-size:24px; flex:1; }
+.out { width:40px; height:40px; border-radius:10px; display:grid; place-items:center; font-size:20px; }
+.code { text-align:center; font-size:46px; font-weight:700; letter-spacing:10px; line-height:1.1; }
+.hint { text-align:center; font-size:13px; color:#2b2e33; }
+.panel .hint { color:#bbb; }
+.seg { display:flex; border:2px solid #fff; border-radius:12px; overflow:hidden; }
+.seg div { flex:1; text-align:center; padding:8px; font-weight:700; font-size:16px; background:#111; color:#fff; }
+.seg .on { background:#fff; color:#111; }
+.teams { display:flex; gap:10px; }
+.team { flex:1; display:flex; flex-direction:column; gap:7px; }
+.team h3 { margin:0; text-align:center; font-size:17px; padding:3px; border-radius:8px; color:#111; }
+.seat { background:#111; color:#fff; border:2px solid #fff; border-radius:11px; height:52px; display:flex; align-items:center; gap:7px; padding:0 7px; font-size:14px; font-weight:700; }
+.seat.me { box-shadow:0 0 0 3px var(--c); }
+.av { width:38px; height:38px; border-radius:50%; background:#bfe6f7; border:3px solid var(--c); display:grid; place-items:center; font-size:18px; }
+.empty { color:#999; font-weight:500; border-style:dashed; }
+.bot { margin-inline-start:auto; font-size:13px; }
+</style></head>
+<body>
+<div>
+  <div class="cap">الشاشة الرئيسية</div>
+  <div class="phone"><div class="scr">
+    <div class="logo"></div>
+    <div class="tag">6 أو 4 لاعبين · فريقين</div>
+    <div class="panel">
+      <div class="lbl">اسمك</div>
+      <div class="field">مهند</div>
+      <div class="btn dark">سوّ غرفة جديدة</div>
+    </div>
+    <div class="panel">
+      <div class="lbl">كود الغرفة</div>
+      <div class="row"><div class="field">4821</div><div class="btn light" style="padding:10px 22px">ادخل</div></div>
+    </div>
+    <div class="suits"><span class="r">♥</span><span class="k">♣</span><span class="r">♦</span><span class="k">♠</span></div>
+    <div class="link">إعدادات السيرفر</div>
+  </div></div>
+</div>
+<div>
+  <div class="cap">شاشة الغرفة</div>
+  <div class="phone"><div class="scr">
+    <div class="bar"><div class="mini"></div><h1>الغرفة</h1><div class="out light">⎋</div></div>
+    <div class="panel" style="gap:4px">
+      <div class="hint">كود الغرفة</div>
+      <div class="code">4821</div>
+      <div class="hint">أرسل الكود لأصحابك عشان يدخلون</div>
+    </div>
+    <div class="seg"><div class="on">6 لاعبين</div><div>4 لاعبين</div></div>
+    <div class="teams">
+      <div class="team" style="--c:var(--blue)">
+        <h3 style="background:var(--blue);color:#fff">الفريق الأزرق</h3>
+        <div class="seat me"><div class="av">🙂</div>مهند (أنت)</div>
+        <div class="seat"><div class="av">🙂</div>سالم</div>
+        <div class="seat empty"><div class="av" style="border-style:dashed">·</div>فاضي</div>
+      </div>
+      <div class="team" style="--c:var(--yellow)">
+        <h3 style="background:var(--yellow)">الفريق الأصفر</h3>
+        <div class="seat"><div class="av">🙂</div>خالد</div>
+        <div class="seat"><div class="av">🤖</div>بوت<span class="bot">🤖</span></div>
+        <div class="seat empty"><div class="av" style="border-style:dashed">·</div>فاضي</div>
+      </div>
+    </div>
+    <div class="hint">اضغط على مقعد فاضي عشان تنتقل له</div>
+    <div class="btn light" style="font-size:16px">عبّي المقاعد الفاضية</div>
+    <div class="btn dark">بانتظار 2 لاعبين</div>
+  </div></div>
+</div>
+</body>
+</html>

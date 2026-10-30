@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>خلفية المجلس</title>
+<style>body{margin:0;background:#111;color:#aaa;font:13px sans-serif;display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px}canvas{max-width:100%;border-radius:24px}</style>
+</head>
+<body>
+<!-- يرسم خلفية الجلسة (SVG) ويركّب فوقها الدلة من الصورة، ويحفظ النتيجة PNG: bg.png (خلفية بس) و preview.png (مع اللعب) -->
+<canvas id="cv"></canvas>
+<div id="info">…</div>
+<script>
+const W = 380, H = 700, S = 2;
+const K = '#1b1c1e', G = '#5a5e63', LG = '#878b90', CR = '#ada38c', MU = '#9c7531', DK = '#34373b';
+
+function bgSVG(ui) {
+  const defs = `<defs>
+  <filter id="noise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .09 0"/></filter>
+  <filter id="weave" x="0" y="0" width="100%" height="100%"><feTurbulence type="turbulence" baseFrequency="1.4 .35" numOctaves="1" seed="8"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0"/></filter>
+  <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity=".35"/></filter>
+  <filter id="soft" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".3"/></filter>
+  <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a99f8e"/><stop offset="1" stop-color="#bdb3a1"/></linearGradient>
+  <linearGradient id="teal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86a6a1"/><stop offset="1" stop-color="#749590"/></linearGradient>
+  <linearGradient id="nicheIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3f5f5b"/><stop offset=".5" stop-color="#628480"/><stop offset="1" stop-color="#7b9a96"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f877b"/><stop offset="1" stop-color="#a59d91"/></linearGradient>
+  <linearGradient id="cush" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cbbd9f"/><stop offset=".7" stop-color="#b6a785"/><stop offset="1" stop-color="#9d8e6d"/></linearGradient>
+  <radialGradient id="vig" cx=".5" cy=".55" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
+  <radialGradient id="avatar" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#e6f6ff"/><stop offset="1" stop-color="#a9dcf5"/></radialGradient>
+  <radialGradient id="date" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#a65f2f"/><stop offset=".55" stop-color="#5b2a10"/><stop offset="1" stop-color="#261004"/></radialGradient>
+  <radialGradient id="plate" cx=".5" cy=".4" r=".6"><stop offset="0" stop-color="#e9e3d6"/><stop offset="1" stop-color="#b9b1a2"/></radialGradient>
+  <linearGradient id="puff" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient>
+  <linearGradient id="puffX" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".3" stop-color="#fff" stop-opacity="0"/><stop offset=".75" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
+  <radialGradient id="carpetLight" cx=".35" cy=".25" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></radialGradient>
+  <linearGradient id="contact" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
+  <linearGradient id="wallLight" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient>
+  <linearGradient id="brassH" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7a5a1f"/><stop offset=".22" stop-color="#c9a052"/><stop offset=".38" stop-color="#ecd08d"/><stop offset=".55" stop-color="#b8893a"/><stop offset=".8" stop-color="#8e6826"/><stop offset="1" stop-color="#5e4212"/></linearGradient>
+  <radialGradient id="dateG" cx=".32" cy=".3" r=".85"><stop offset="0" stop-color="#b8703a"/><stop offset=".35" stop-color="#7a3b17"/><stop offset=".8" stop-color="#3d1907"/><stop offset="1" stop-color="#1e0a02"/></radialGradient>
+  <filter id="blend" x="-20%" y="-20%" width="140%" height="140%"><feColorMatrix type="saturate" values=".72"/><feComponentTransfer><feFuncR type="linear" slope=".8" intercept=".02"/><feFuncG type="linear" slope=".78" intercept=".02"/><feFuncB type="linear" slope=".76" intercept=".02"/></feComponentTransfer></filter>
+  </defs>`;
+
+  // محراب: قوس جبس بحبات، عمق داخلي، رف وظله
+  const niche = (x) => {
+    const beads = Array.from({ length: 15 }, (_, i) => { const a = Math.PI * (i / 14); return `<circle cx="${32 - 28 * Math.cos(a)}" cy="${40 - 37 * Math.sin(a)}" r="2.3" fill="#e4dccd" stroke="#9f9584" stroke-width=".6"/>`; }).join('');
+    return `<g transform="translate(${x},32)" filter="url(#sh)"><path d="M-3,106 L-3,40 Q-3,-5 32,-5 Q67,-5 67,40 L67,106Z" fill="#ddd4c4" stroke="#a0968a"/>
+    <path d="M6,100 L6,42 Q6,6 32,6 Q58,6 58,42 L58,100Z" fill="url(#nicheIn)"/><path d="M6,100 L6,42 Q6,6 32,6" fill="none" stroke="#000" stroke-opacity=".35" stroke-width="3"/><path d="M58,100 L58,42 Q58,6 32,6" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="2"/>${beads}<path d="M-3,106 L-3,40 Q-3,-5 32,-5" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.5"/>
+    <path d="M6,42 Q6,6 32,6 Q58,6 58,42 L58,60 Q32,48 6,60Z" fill="#000" opacity=".18"/>
+    <rect x="6" y="73" width="52" height="5" fill="#e8e0d1" stroke="#a0968a" stroke-width=".6"/><rect x="6" y="78" width="52" height="4" fill="#000" opacity=".2"/>
+    <g transform="translate(20,61)"><rect width="24" height="12" rx="2" fill="#4c5258"/><rect x="2" y="2" width="20" height="8" rx="1" fill="#2b3035"/><circle cx="20" cy="6" r=".8" fill="#7fd38b"/></g>
+    <g fill="none" stroke="#a0968a" stroke-width=".8">${Array.from({ length: 11 }, (_, i) => `<path d="M${-3 + i * 6.4},108 l3.2,-5 3.2,5"/>`).join('')}<path d="M-3,110 H67"/></g></g>`;
+  };
+  // مسند: قماش بملمس، حواف مخيطة، تطريز رصاصي، ظل
+  // مسند بنقشة السدو اللي بالصورة، بألوان الجلسة الحالية:
+  // شريط غامق فوق وتحت بخطوط رفيعة، بالنص معيّن مدرّج فوق وتحت ومعه أسهم لليمين واليسار، وشراشيب بالزوايا
+  const cushion = (x, w) => {
+    const cx = x + w / 2, cy = 215, DKB = '#3a3c40', CRM = '#e2d9c6', TL = '#5f7f7a', MS = '#9c7531';
+    const stripes = (y, dir) => [[CRM, 0], [TL, 1.6], [MS, 3.2], [CRM, 4.8]].map(([c, o]) => `<path d="M${x + 3},${y + dir * o} H${x + w - 3}" stroke="${c}" stroke-width=".9"/>`).join('');
+    // نص المعيّن المدرّج (فوق)، وينقلب لتحت
+    const step = (sgn) => { const T = (dy) => cy + sgn * dy;
+      return `<path d="M${cx - 12},${T(2)} H${cx + 12} V${T(5)} H${cx + 8} V${T(8)} H${cx + 4} V${T(11)} H${cx - 4} V${T(8)} H${cx - 8} V${T(5)} H${cx - 12}Z" fill="${CRM}"/>
+      <path d="M${cx - 7},${T(3)} H${cx + 7} L${cx},${T(9.5)}Z" fill="${TL}"/><path d="M${cx - 3},${T(3)} H${cx + 3} L${cx},${T(6)}Z" fill="${MS}"/>
+      <path d="M${cx - 2},${T(11)} H${cx + 2} V${T(13)} H${cx - 2}Z" fill="${CRM}"/>`; };
+    // سهم مدرّج لجهة (يمين/يسار)
+    const arrow = (dir) => { const X = (dx) => cx + dir * dx;
+      return [0, 1].map((k) => { const y = cy - 3.5 + k * 4.5;
+        return `<path d="M${X(13)},${y} H${X(19)} V${y + 2.5} H${X(13)}Z" fill="${CRM}"/><path d="M${X(19)},${y} H${X(24)} V${y + 2.5} H${X(19)}Z" fill="${DKB}"/><path d="M${X(24)},${y} H${X(28)} V${y + 2.5} H${X(24)}Z" fill="${CRM}"/>`; }).join(''); };
+    // الشعر: خيوط جلد قصيرة فوق ويمين ويسار، كل خيط يختلف شوي بالطول والميلان
+    const fringe = () => {
+      let f = '', k = x * 7 + 1;
+      const rnd = () => { k = (k * 9301 + 49297) % 233280; return k / 233280; };
+      const col = () => (rnd() < 0.5 ? '#6e5f48' : '#857459');
+      for (let fx = x + 6; fx <= x + w - 6; fx += 1.6) {
+        const len = 4.5 + rnd() * 2.5, bend = (rnd() - 0.5) * 1.6;
+        f += `<path d="M${fx.toFixed(1)},191 q${(bend / 2).toFixed(1)},${(-len / 2).toFixed(1)} ${bend.toFixed(1)},${(-len).toFixed(1)}" stroke="${col()}" stroke-width="1.1" fill="none" stroke-linecap="round"/>`;
+      }
+      for (const [sx, dir] of [[x + 2.5, -1], [x + w - 2.5, 1]]) for (let fy = 196; fy <= 234; fy += 1.6) {
+        const len = 3.5 + rnd() * 2, bend = (rnd() - 0.5) * 1.4;
+        f += `<path d="M${sx},${fy.toFixed(1)} q${(dir * len / 2).toFixed(1)},${(bend / 2).toFixed(1)} ${(dir * len).toFixed(1)},${bend.toFixed(1)}" stroke="${col()}" stroke-width="1" fill="none" stroke-linecap="round"/>`;
+      }
+      return f;
+    };
+    return `<g filter="url(#soft)"><rect x="${x + 2}" y="190" width="${w - 4}" height="50" rx="9" fill="url(#cush)" stroke="#83755a" stroke-width="1.2"/>
+    <path d="M${x + 2},199 V199 Q${x + 2},190 ${x + 11},190 H${x + w - 11} Q${x + w - 2},190 ${x + w - 2},199 V200 H${x + 2}Z" fill="${DKB}"/>${stripes(201.5, 1)}
+    <path d="M${x + 2},230 H${x + w - 2} V231 Q${x + w - 2},240 ${x + w - 11},240 H${x + 11} Q${x + 2},240 ${x + 2},231Z" fill="${DKB}"/>${stripes(228.5, -1)}
+    <path d="M${x + 3},${cy} H${x + w - 3}" stroke="${DKB}" stroke-width="2"/><path d="M${x + 3},${cy - 1.6} H${x + w - 3} M${x + 3},${cy + 1.6} H${x + w - 3}" stroke="${MS}" stroke-width=".6"/>
+    ${step(-1)}${step(1)}${arrow(-1)}${arrow(1)}
+    <rect x="${x + 2}" y="190" width="${w - 4}" height="50" rx="9" filter="url(#noise)" opacity=".9"/><rect x="${x + 2}" y="190" width="${w - 4}" height="50" rx="9" filter="url(#weave)" opacity=".5"/>
+    ${fringe()}
+    <rect x="${x + 2}" y="190" width="${w - 4}" height="50" rx="9" fill="url(#puff)"/><rect x="${x + 2}" y="190" width="${w - 4}" height="50" rx="9" fill="url(#puffX)"/>
+    <path d="M${x + 8},238 Q${cx},246 ${x + w - 8},238" fill="none" stroke="#000" stroke-opacity=".18" stroke-width="3"/></g>`;
+  };
+
+  // مخدة الكوع: مسند صغير قايم بين كل مسندين
+  const elbow = (x) => { const DKB = '#3a3c40', CRM = '#e2d9c6', TL = '#5f7f7a', MS = '#9c7531', body = `M${x - 11},248 L${x - 11},218 Q${x - 11},206 ${x},206 Q${x + 11},206 ${x + 11},218 L${x + 11},248Z`;
+    return `<g filter="url(#soft)"><path d="${body}" fill="url(#cush)" stroke="#6f6248" stroke-width="1.1"/>
+    <path d="M${x - 11},218 H${x + 11} V223 H${x - 11}Z M${x - 11},240 H${x + 11} V245 H${x - 11}Z" fill="${DKB}"/>
+    <path d="M${x - 11},224.5 H${x + 11} M${x - 11},238.5 H${x + 11}" stroke="${MS}" stroke-width=".8"/>
+    <path d="M${x},226 l5,5.5 -5,5.5 -5,-5.5Z" fill="${CRM}"/><path d="M${x},228.5 l2.6,3 -2.6,3 -2.6,-3Z" fill="${TL}"/>
+    <path d="${body}" filter="url(#noise)"/><path d="${body}" fill="url(#puffX)"/><path d="${body}" fill="url(#puff)"/>
+    <path d="M${x + 6},210 Q${x + 9},226 ${x + 7},246" fill="none" stroke="#000" stroke-opacity=".16" stroke-width="3"/></g>`; };
+
+  // السجادة: سدو بالرصاصي بدل الأحمر، والميدالية الكبيرة تغطي مكان نزول الأوراق
+  const carpet = () => {
+    const cx = 190, cy = 470;
+    const quad = (i) => `M${-158 + i},${-155 + i} L${158 - i},${-155 + i} L${178 - i * 1.13},${195 - i} L${-178 + i * 1.13},${195 - i}Z`;
+    const dia = (r, k = 1.08) => `M0,${15 - r * k} L${r},15 L0,${15 + r * k} L${-r},15Z`;
+    // شريط متعرّج على محيط معيّن بين نصفي قطرين
+    const zig = (r1, r2, n, col, w = 1.6) => {
+      const P = (r, t) => { const pts = [[0, 15 - r * 1.08], [r, 15], [0, 15 + r * 1.08], [-r, 15]]; const e = Math.floor(t * 4) % 4, f = t * 4 - Math.floor(t * 4); const a = pts[e], b = pts[(e + 1) % 4]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; };
+      let d = ''; for (let i = 0; i <= n; i++) { const [x, y] = P(i % 2 ? r2 : r1, i / n); d += (i ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1); }
+      return `<path d="${d}Z" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="miter"/>`;
+    };
+    const dots = (r, n, col, rad = 2) => Array.from({ length: n }, (_, i) => { const t = i / n, e = Math.floor(t * 4), f = t * 4 - e; const pts = [[0, 15 - r * 1.08], [r, 15], [0, 15 + r * 1.08], [-r, 15]]; const a = pts[e], b = pts[(e + 1) % 4]; return `<circle cx="${(a[0] + (b[0] - a[0]) * f).toFixed(1)}" cy="${(a[1] + (b[1] - a[1]) * f).toFixed(1)}" r="${rad}" fill="${col}"/>`; }).join('');
+    let s = `<g transform="translate(${cx},${cy})"><path d="M-178,195 L178,195 L178,200 L-178,200Z" fill="#141516"/><g filter="url(#sh)"><path d="${quad(0)}" fill="${K}"/></g>`;
+    for (let i = 0; i < 35; i++) s += `<path d="M${-174 + i * 10.2},195 q1,5 0,10" stroke="#bfb49b" stroke-width="2" fill="none"/>`;
+    for (let i = 0; i < 32; i++) s += `<path d="M${-156 + i * 10.1},-155 q1,-5 0,-9" stroke="#bfb49b" stroke-width="2" fill="none"/>`;
+    s += `<path d="${quad(6)}" fill="${CR}"/><path d="${quad(10)}" fill="${G}"/><path d="${quad(15)}" fill="${K}"/><path d="${quad(19)}" fill="${CR}"/>`;
+    for (let i = 0; i < 14; i++) { const x = -132 + i * 20; s += `<path d="M${x},-130 l10,-7 10,7 -10,7Z" fill="${i % 2 ? MU : K}"/><path d="M${x + 5},-130 l5,-3.5 5,3.5 -5,3.5Z" fill="${CR}"/>`; }
+    for (let i = 0; i < 16; i++) { const x = -154 + i * 20; s += `<path d="M${x},171 l10,-7 10,7 -10,7Z" fill="${i % 2 ? K : MU}"/><path d="M${x + 5},171 l5,-3.5 5,3.5 -5,3.5Z" fill="${CR}"/>`; }
+    for (let k = 0; k < 11; k++) { const y = -114 + k * 27, xl = -140 - k * 1.95, xr = 140 + k * 1.95; for (const xx of [xl, xr]) s += `<path d="M${xx},${y} l8,8 -8,8 -8,-8Z" fill="${k % 2 ? G : K}"/><path d="M${xx},${y + 4} l4,4 -4,4 -4,-4Z" fill="${CR}"/>`; }
+    // أرضية داخلية بشبكة معيّنات صغيرة
+    s += `<g opacity=".55">`; for (let r = -6; r <= 6; r++) for (let c = -6; c <= 6; c++) { const x = c * 22 + (r % 2 ? 11 : 0), y = r * 24 + 15; if (Math.abs(x) > 118 + (y + 140) * .06 || Math.abs(y - 15) > 140) continue; s += `<path d="M${x},${y - 5} l5,5 -5,5 -5,-5Z" fill="${G}"/>`; } s += `</g>`;
+    // الميدالية: طبقات معيّنات، أشرطة متعرجة، نقاط، وأمشاط سدو
+    const layers = [[150, K], [140, CR], [134, G], [124, K], [116, LG], [106, DK], [96, CR], [88, K], [78, G], [68, CR], [58, K], [48, LG], [38, DK], [28, MU], [18, K]];
+    for (const [r, c] of layers) s += `<path d="${dia(r)}" fill="${c}"/>`;
+    s += zig(140, 134, 56, MU, 2) + zig(116, 106, 48, CR, 1.8) + zig(88, 78, 40, MU, 1.6) + zig(58, 48, 28, CR, 1.4);
+    s += dots(145, 44, CR, 1.6) + dots(101, 36, MU, 1.8) + dots(73, 28, CR, 1.5) + dots(43, 20, MU, 1.4);
+    // أمشاط على أطراف الميدالية (فوق/تحت/يمين/يسار)
+    for (const [x, y, rot] of [[0, 15 - 160, 0], [0, 15 + 160, 180], [-150, 15, -90], [150, 15, 90]]) s += `<g transform="translate(${x},${y}) rotate(${rot})"><path d="M-14,0 h28" stroke="${K}" stroke-width="3"/>${Array.from({ length: 7 }, (_, i) => `<path d="M${-12 + i * 4},0 v-7" stroke="${K}" stroke-width="2"/>`).join('')}<path d="M0,-11 l4,4 -4,4 -4,-4Z" fill="${MU}"/></g>`;
+    s += `<path d="M0,5 l10,10 -10,10 -10,-10Z" fill="${CR}"/><path d="M0,10 l5,5 -5,5 -5,-5Z" fill="${K}"/>`;
+    for (const [x, y] of [[-122, -112], [122, -112], [-140, 152], [140, 152]]) s += `<g transform="translate(${x},${y})"><path d="M0,-15 L15,0 L0,15 L-15,0Z" fill="${K}"/><path d="M0,-10 L10,0 L0,10 L-10,0Z" fill="${MU}"/><path d="M0,-5 L5,0 L0,5 L-5,0Z" fill="${CR}"/></g>`;
+    s += `<path d="${quad(0)}" filter="url(#weave)"/><path d="${quad(0)}" filter="url(#noise)"/><path d="${quad(0)}" fill="url(#carpetLight)"/></g>`;
+    return s;
+  };
+
+  // صينية القهوة وصحن تمر كبير (الدلة نفسها تنحط من الصورة)
+  const tray = (x, y) => `<g transform="translate(${x},${y}) scale(.82)" filter="url(#sh)"><ellipse cx="0" cy="0" rx="58" ry="15" fill="#a08b5f" stroke="#5f4f30" stroke-width="1.4"/><ellipse cx="0" cy="-2" rx="52" ry="12" fill="#b9a273"/><ellipse cx="0" cy="-2" rx="46" ry="9.5" fill="none" stroke="#7e6a43" stroke-width=".8" stroke-dasharray="2 2"/></g>`;
+  const dates = (x, y) => { const pts = [[-14, -3, 15], [-5, -6, -10], [5, -6, 20], [14, -3, -25], [-17, 3, 35], [-8, 1, -5], [1, 0, 12], [10, 1, -30], [18, 4, 25], [-11, 7, -15], [-2, 6, 40], [7, 7, -8], [15, 9, 18], [-5, 11, -28], [4, 12, 10]];
+    const date = ([a, b, r], i) => { const sx = 5 + (i % 3) * .5, sy = 2.9 + (i % 2) * .3;
+      return `<g transform="translate(${a},${b - 2}) rotate(${r})"><ellipse rx="${sx}" ry="${sy}" fill="url(#dateG)" stroke="#140601" stroke-width=".5"/>
+      <path d="M${-sx * .6},${-sy * .1} Q${-sx * .2},${sy * .35} ${sx * .1},${-sy * .05} M${-sx * .1},${sy * .3} Q${sx * .3},${sy * .6} ${sx * .6},${sy * .2} M${-sx * .5},${sy * .45} Q0,${sy * .7} ${sx * .3},${sy * .55}" fill="none" stroke="#1c0802" stroke-width=".45" opacity=".8"/>
+      <path d="M${-sx * .55},${-sy * .45} Q${-sx * .1},${-sy * .85} ${sx * .4},${-sy * .55}" stroke="#f2b47c" stroke-width=".8" fill="none" opacity=".8"/><ellipse cx="${-sx * .3}" cy="${-sy * .45}" rx="${sx * .18}" ry="${sy * .14}" fill="#fff" opacity=".45"/>
+      <path d="M${sx * .95},0 l1.2,-.4" stroke="#c49a5a" stroke-width=".7"/></g>`; };
+    return `<g transform="translate(${x},${y}) scale(.8)" filter="url(#sh)"><ellipse cx="0" cy="7" rx="31" ry="11.5" fill="#8f877a"/><ellipse cx="0" cy="6" rx="30" ry="11" fill="url(#plate)" stroke="#6e685d" stroke-width="1"/><ellipse cx="0" cy="5.4" rx="25.5" ry="8.6" fill="#d8d1c3" stroke="#a49b8b" stroke-width=".6"/><ellipse cx="0" cy="5" rx="25" ry="8.5" fill="none" stroke="#2e6f6c" stroke-width=".9"/><path d="M-26,3 Q-20,-2 -10,-3" stroke="#fff" stroke-width="1" opacity=".5" fill="none"/>
+    ${pts.map(date).join('')}</g>`; };
+
+  // الدلة مرسومة بنفس أسلوب الجلسة وبشكل الدلة اللي بالصورة: قاعدة، بطن منفوخ، رقبة، غطا بقبة وراس مدبب، منقار طويل معكوف، ويد
+  const dallah = (x, y) => { const O = '#3f2c0c', L = '#e3bf73', D = '#6e4f17';
+    const body = 'M-11,0 Q-18,-6 -16,-17 Q-13,-27 -8,-33 L-8,-40 H8 L8,-33 Q13,-27 16,-17 Q18,-6 11,0Z';
+    // نقوش حلزونية صغيرة مثل اللي على الدلة بالصورة
+    const swirl = (cx, cy, r) => `<path d="M${cx},${cy} m${r * .2},0 a${r * .2},${r * .2} 0 1 1 -${r * .4},0 a${r * .45},${r * .45} 0 1 1 ${r * .9},0 a${r * .75},${r * .75} 0 1 1 -${r * 1.5},0" fill="none" stroke="${D}" stroke-width=".55" opacity=".85"/>`;
+    const swirls = [[-10, -6, 3], [-3, -3, 3.2], [5, -4, 3], [11, -8, 2.6], [-12, -14, 2.6], [-5, -12, 3], [3, -13, 3.1], [10, -16, 2.6], [-7, -21, 2.4], [0, -22, 2.6], [7, -23, 2.3], [-4, -29, 2], [4, -30, 2]].map(([a, b, r]) => swirl(a, b, r)).join('');
+    const spout = 'M7,-31 Q9,-50 27,-53 L33,-55 Q28,-51 24,-48 Q14,-42 11,-24Z';
+    return `<g transform="translate(${x},${y})" filter="url(#soft)">
+    <path d="M-7,-36 Q-21,-38 -22,-26 Q-22,-15 -14,-11" fill="none" stroke="${O}" stroke-width="3.8" stroke-linecap="round"/><path d="M-7,-36 Q-21,-38 -22,-26 Q-22,-15 -14,-11" fill="none" stroke="url(#brassH)" stroke-width="2.2" stroke-linecap="round"/><path d="M-19,-33 Q-21,-28 -20.6,-22" fill="none" stroke="#f6e1a8" stroke-width=".7" opacity=".8"/>
+    <path d="${spout}" fill="url(#brassH)" stroke="${O}" stroke-width="1"/><path d="M10,-30 Q11,-45 25,-50" fill="none" stroke="#f6e1a8" stroke-width=".9" opacity=".85"/>
+    <path d="${body}" fill="url(#brassH)" stroke="${O}" stroke-width="1.1"/>
+    ${swirls}
+    <path d="M-13,-21 Q0,-24.5 13,-21 M-15.5,-11 Q0,-14 15.5,-11" fill="none" stroke="${D}" stroke-width=".7"/>
+    <path d="M-8,-36 H8 M-8,-34 H8" stroke="${D}" stroke-width=".6"/>
+    <path d="M-8,-30 Q-13,-20 -12,-6" fill="none" stroke="#fff3cf" stroke-width="2" opacity=".55" stroke-linecap="round"/><path d="M-6,-28 Q-9,-22 -9,-14" fill="none" stroke="#fff" stroke-width=".8" opacity=".6"/>
+    <path d="M11,0 Q18,-6 16,-17 Q13,-27 8,-33 L8,-40 H6 L6,-33 Q10,-27 12,-17 Q14,-6 9,0Z" fill="#000" opacity=".22"/>
+    <ellipse cx="0" cy="0" rx="12" ry="2.2" fill="${D}" stroke="${O}" stroke-width=".8"/><path d="M-11,-1.5 Q0,1 11,-1.5" stroke="${L}" stroke-width=".6" fill="none"/>
+    <rect x="-9.5" y="-43" width="19" height="3.5" rx="1.2" fill="url(#brassH)" stroke="${O}" stroke-width=".9"/><path d="M-8,-41.2 H8" stroke="${D}" stroke-width=".5"/>
+    <path d="M-8.5,-43 Q-9,-55 0,-57 Q9,-55 8.5,-43Z" fill="url(#brassH)" stroke="${O}" stroke-width="1"/><path d="M-6,-45 Q-6,-53 -1,-55" fill="none" stroke="#fff3cf" stroke-width="1.1" opacity=".8"/>
+    ${swirl(-3, -48, 2)}${swirl(3.5, -48.5, 2)}
+    <rect x="-3" y="-60" width="6" height="3" rx="1" fill="url(#brassH)" stroke="${O}" stroke-width=".8"/>
+    <circle cx="0" cy="-62" r="2" fill="url(#brassH)" stroke="${O}" stroke-width=".7"/>
+    <path d="M0,-64 Q-3.5,-67 0,-75 Q3.5,-67 0,-64Z" fill="url(#brassH)" stroke="${O}" stroke-width=".9"/><path d="M0,-75 v-3" stroke="${O}" stroke-width="1.2"/><circle cx="0" cy="-78.5" r=".9" fill="${L}"/>
+    <path d="M-9,-41 q-3,-2 -3.5,-5 q2,.3 3.5,2" fill="url(#brassH)" stroke="${O}" stroke-width=".8"/></g>`; };
+  const cup = (x, y) => `<g transform="translate(${x},${y})" filter="url(#soft)"><path d="M-5,-11 L5,-11 L3.6,0 L-3.6,0Z" fill="url(#brassH)" stroke="#3f2c0c" stroke-width=".8"/><ellipse cx="0" cy="-11" rx="5" ry="1.4" fill="#e7dcc4" stroke="#3f2c0c" stroke-width=".6"/><ellipse cx="0" cy="-10.6" rx="3.6" ry=".8" fill="#6b4220"/>
+    <path d="M-3.5,-9 L-2.6,-1" stroke="#fff3cf" stroke-width=".9" opacity=".7"/><path d="M-4.6,-7 h9.2 M-4.1,-3 h8.2" stroke="#6e4f17" stroke-width=".5"/><circle cx="0" cy="-5" r="1.3" fill="none" stroke="#6e4f17" stroke-width=".5"/></g>`;
+
+  const seat = (x, y, c, n) => `<g filter="url(#soft)"><circle cx="${x}" cy="${y}" r="22" fill="url(#avatar)" stroke="${c}" stroke-width="3"/><circle cx="${x}" cy="${y + 5}" r="11" fill="#d9a07a" stroke="#1f2d78" stroke-width=".8"/><path d="M${x - 13},${y - 1} Q${x},${y - 17} ${x + 13},${y - 1}Z" fill="#f4f4f4" stroke="#1f2d78" stroke-width=".8"/></g><text x="${x}" y="${y + 38}" font-size="12" font-weight="700" fill="#f2efe8" text-anchor="middle" font-family="sans-serif" paint-order="stroke" stroke="#2a2a2a" stroke-width="3">${n}</text>`;
+  const uiLayer = ui ? `<g filter="url(#soft)"><rect x="10" y="12" width="42" height="30" rx="8" fill="#ffffffd9" stroke="#3d8bff" stroke-width="1.6"/><text x="31" y="33" font-size="16" font-weight="800" fill="#2f6fd6" text-anchor="middle" font-family="sans-serif">12</text>
+    <rect x="58" y="12" width="42" height="30" rx="8" fill="#ffffffd9" stroke="#e0b100" stroke-width="1.6"/><text x="79" y="33" font-size="16" font-weight="800" fill="#9c7700" text-anchor="middle" font-family="sans-serif">7</text></g>
+    ${seat(190, 300, '#e0b100', 'مصبّح')}${seat(46, 360, '#3d8bff', 'صديق')}${seat(334, 372, '#3d8bff', 'سلوم')}${seat(40, 520, '#e0b100', 'خصيب')}${seat(340, 520, '#e0b100', 'مرهون')}
+    <g filter="url(#sh)">${[[190, 300, -6, 'K', '#d11f1f'], [46, 360, 7, '9', '#111'], [334, 372, -5, '7', '#d11f1f'], [40, 520, 5, 'A', '#111'], [340, 520, -7, 'Q', '#d11f1f'], [190, 600, 3, 'J', '#111']].map(([sx, sy, r, t, c]) => { const x = 190 + (sx - 190) * .5 - 17, y = 460 + (sy - 460) * .5 - 25; return `<g transform="rotate(${r} ${x + 17} ${y + 25})"><rect x="${x}" y="${y}" width="34" height="50" rx="4" fill="#fff" stroke="#888"/><text x="${x + 7}" y="${y + 17}" font-size="14" font-weight="700" fill="${c}" font-family="Times New Roman">${t}</text></g>`; }).join('')}</g>
+    ${seat(190, 600, '#3d8bff', 'أنت')}
+    <g filter="url(#sh)">${Array.from({ length: 9 }, (_, k) => `<rect x="${44 + k * 31}" y="${642 + (k === 3 ? -10 : 0)}" width="38" height="54" rx="4" fill="#fff" stroke="${k === 3 ? '#e9b616' : '#999'}" stroke-width="${k === 3 ? 2.5 : 1}"/>`).join('')}</g>` : '';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W * S}" height="${H * S}" viewBox="0 0 ${W} ${H}">${defs}
+  <rect width="${W}" height="${H}" fill="url(#floor)"/>
+  <rect width="${W}" height="196" fill="url(#wall)"/><rect width="${W}" height="196" filter="url(#noise)"/><rect width="${W}" height="210" fill="url(#wallLight)"/>
+  <g>${Array.from({ length: 32 }, (_, i) => `<path d="M${i * 12},0 l6,11 6,-11Z" fill="#d8cfbf" stroke="#9c9282" stroke-width=".6"/>`).join('')}<rect y="12" width="${W}" height="3" fill="#000" opacity=".15"/></g>
+  <rect y="148" width="${W}" height="62" fill="url(#teal)"/><rect y="148" width="${W}" height="62" filter="url(#noise)"/><path d="M0,148 H${W}" stroke="#5f7f7a" stroke-width="1.5"/>
+  ${niche(28)}${niche(158)}${niche(288)}
+  <rect y="240" width="${W}" height="12" fill="#857a63"/><rect y="252" width="${W}" height="5" fill="#000" opacity=".22"/>
+  ${[0, 64, 128, 192, 256, 320].map((x, i) => cushion(x, i === 5 ? 60 : 64)).join('')}
+  ${[128, 256].map((x) => elbow(x)).join('')}
+  <rect y="257" width="${W}" height="22" fill="url(#contact)"/>
+  <g stroke="#7d766b" stroke-width="1">${Array.from({ length: 9 }, (_, i) => `<path d="M${-70 + i * 65},257 L${-190 + i * 95},${H}"/>`).join('')}${[292, 344, 404, 474, 554, 644].map((y) => `<path d="M0,${y} H${W}"/>`).join('')}</g>
+  <rect y="257" width="${W}" height="${H - 257}" filter="url(#noise)"/>
+  ${carpet()}
+  <g filter="url(#blend)">${tray(318, 320)}${dates(268, 318)}
+  ${dallah(320, 322)}${cup(290, 330)}${cup(303, 334)}${cup(347, 332)}</g>
+  <rect width="${W}" height="${H}" fill="url(#vig)"/>
+  ${uiLayer}
+  </svg>`;
+}
+
+// الدلة: نشيل الخلفية البيضاء من الصورة (فيضان من الحواف)، ونفصل الدلة عن الفنجان
+async function cutDallah() {
+  const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = 'dallah_source.png'; });
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), p = d.data, w = c.width, h = c.height;
+  const white = (i) => { const r = p[i * 4], gg = p[i * 4 + 1], b = p[i * 4 + 2]; return Math.min(r, gg, b) > 228 && Math.max(r, gg, b) - Math.min(r, gg, b) < 22; };
+  const bg = new Uint8Array(w * h), st = [];
+  for (let x = 0; x < w; x++) { st.push(x, (h - 1) * w + x); } for (let y = 0; y < h; y++) { st.push(y * w, y * w + w - 1); }
+  while (st.length) { const i = st.pop(); if (bg[i] || !white(i)) continue; bg[i] = 1; const x = i % w, y = (i / w) | 0; if (x > 0) st.push(i - 1); if (x < w - 1) st.push(i + 1); if (y > 0) st.push(i - w); if (y < h - 1) st.push(i + w); }
+  // البياض المحبوس (مثل اللي داخل حلقة المقبض): بقع بيضاء كبيرة ما توصل للحواف نعتبرها خلفية بعد
+  { const seen = new Uint8Array(w * h);
+    for (let s0 = 0; s0 < w * h; s0++) {
+      if (bg[s0] || seen[s0] || !white(s0)) continue;
+      const q = [s0], part = []; seen[s0] = 1;
+      while (q.length) { const i = q.pop(); part.push(i); const x = i % w, y = (i / w) | 0;
+        for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !seen[j] && !bg[j] && white(j)) { seen[j] = 1; q.push(j); } }
+      if (part.length > 60) for (const i of part) bg[i] = 1;
+    } }
+  // حواف ناعمة: البكسل اللي جنب الخلفية ياخذ شفافية حسب بياضه
+  for (let i = 0; i < w * h; i++) {
+    if (bg[i]) { p[i * 4 + 3] = 0; continue; }
+    const x = i % w, y = (i / w) | 0; let edge = false;
+    for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && bg[yy * w + xx]) { edge = true; break; } }
+    if (edge) { const l = (p[i * 4] + p[i * 4 + 1] + p[i * 4 + 2]) / 3; p[i * 4 + 3] = Math.max(0, Math.min(255, (255 - l) * 4)); }
+  }
+  g.putImageData(d, 0, 0);
+  // نلقى القطع (الدلة والفنجان) ونقصها
+  const comp = new Int32Array(w * h).fill(-1), boxes = [];
+  for (let s = 0; s < w * h; s++) {
+    if (p[s * 4 + 3] < 40 || comp[s] >= 0) continue;
+    const id = boxes.length; const b = { x0: w, y0: h, x1: 0, y1: 0, n: 0 }; const q = [s]; comp[s] = id;
+    while (q.length) { const i = q.pop(), x = i % w, y = (i / w) | 0; b.n++; b.x0 = Math.min(b.x0, x); b.x1 = Math.max(b.x1, x); b.y0 = Math.min(b.y0, y); b.y1 = Math.max(b.y1, y);
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && comp[j] < 0 && p[j * 4 + 3] >= 40) { comp[j] = id; q.push(j); } }
+    boxes.push(b);
+  }
+  boxes.sort((a, b) => b.n - a.n);
+  return { canvas: c, dallah: boxes[0], cup: boxes[1] };
+}
+
+async function render(ui) {
+  const cv = document.createElement('canvas'); cv.width = W * S; cv.height = H * S;
+  const g = cv.getContext('2d');
+  const svg = new Blob([bgSVG(ui)], { type: 'image/svg+xml' });
+  const im = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = URL.createObjectURL(svg); });
+  g.drawImage(im, 0, 0);
+  const { canvas: src, dallah: D, cup: C } = await cutDallah();
+  const put = (b, cx, bottom, hgt) => { const sc = hgt / (b.y1 - b.y0 + 1), w = (b.x1 - b.x0 + 1) * sc;
+    g.save(); g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 8 * S; g.shadowOffsetY = 3 * S;
+    g.filter = 'brightness(.8) saturate(1.05) sepia(.25) contrast(.95)';
+    g.drawImage(src, b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1, (cx - w / 2) * S, (bottom - hgt) * S, w * S, hgt * S); g.restore(); };
+  // الدلة على الصينية، وثلاث فناجين حولها
+  return cv;
+}
+
+(async () => {
+  const bg = await render(false), pv = await render(true);
+  for (const [name, c] of [['bg.png', bg], ['preview.png', pv]]) {
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    await fetch('/save?name=' + name, { method: 'POST', body: blob });
+  }
+  const show = document.getElementById('cv'); show.width = pv.width; show.height = pv.height; show.style.width = W + 'px';
+  show.getContext('2d').drawImage(pv, 0, 0);
+  document.getElementById('info').textContent = 'saved bg.png + preview.png';
+})().catch((e) => document.getElementById('info').textContent = 'error ' + e);
+</script>
+</body>
+</html>

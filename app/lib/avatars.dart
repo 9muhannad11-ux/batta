@@ -55,7 +55,9 @@ class CharacterAvatar extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: const Color(0xFF2A2A2A),
+          // خلفية سماوي فاتح (مثل جو المجلس)
+          gradient: const RadialGradient(center: Alignment(-0.2, -0.3), radius: 0.7, colors: [Color(0xFFE6F6FF), Color(0xFFA9DCF5)]),
+          boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
           border: Border.all(color: ring, width: max(2, size * 0.06)),
         ),
         child: ClipOval(child: CustomPaint(painter: _FacePainter(_looks[charId] ?? _looks['musabbah']!))),

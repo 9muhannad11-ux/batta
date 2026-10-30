@@ -363,18 +363,28 @@ test('signals: only on your turn, several at once, joker signal rules', () => {
   s.phase = 'playing'; s.trump = 'S'; s.turn = 2; s.signalsThisTurn = 0; s.greyPlayed = false;
   s.hands[2] = ['H-2', 'D-4'];
   assert.throws(() => E.signal(s, 1, ['H']));
-  assert.deepStrictEqual(E.signal(s, 2, ['H', 'D']), { seat: 2, suits: ['H', 'D'] });
-  assert.deepStrictEqual(E.signal(s, 2, ['C']), { seat: 2, suits: ['C'] });
+  assert.deepStrictEqual(E.signal(s, 2, ['H', 'D']), { seat: 2, suits: ['H', 'D'], big: false });
+  assert.deepStrictEqual(E.signal(s, 2, ['C']), { seat: 2, suits: ['C'], big: false });
   // بدون جوكر: ما فيه إشارة جوكر
   assert.throws(() => E.signal(s, 2, ['J']));
   // حامل الكبير ما يقدر لين ينزل الصغير
   s.hands[2] = [E.BLUE, 'H-2'];
   assert.throws(() => E.signal(s, 2, ['J']));
   s.greyPlayed = true;
-  assert.deepStrictEqual(E.signal(s, 2, ['J']).suits, ['J']);
+  assert.deepStrictEqual(E.signal(s, 2, ['J']), { seat: 2, suits: ['J'], big: true }); // كف الجوكر الكبير
   // حامل الصغير يقدر
   s.signalsThisTurn = 0; s.greyPlayed = false; s.hands[2] = [E.GREY, 'H-2'];
-  assert.deepStrictEqual(E.signal(s, 2, ['J', 'H']).suits, ['J', 'H']);
+  assert.deepStrictEqual(E.signal(s, 2, ['J', 'H']), { seat: 2, suits: ['J', 'H'], big: false });
+});
+
+test('trump timeout picks the longest suit, ties go to the stronger cards', () => {
+  const Bot = require('../src/bot');
+  assert.strictEqual(Bot.mostSuit(['H-2', 'H-3', 'H-4', 'S-14', 'S-13', E.BLUE]), 'H');
+  assert.strictEqual(Bot.mostSuit(['H-2', 'H-13', 'D-14', 'D-3', 'C-9']), 'D');
+  assert.strictEqual(Bot.mostSuit(['C-10', 'C-9', 'S-10', 'S-8']), 'C');
+  const s = E.createMatch({ khabis: 0 });
+  s.phase = 'trump'; s.buyer = 2; s.hands[2] = ['S-2', 'S-3', 'H-14', 'S-4'];
+  assert.deepStrictEqual(Bot.decide(s, 2, { timeout: true }), { type: 'trump', suit: 'S' });
 });
 
 test('biased deal gives longer suits than a plain deal, still 54 unique cards', () => {

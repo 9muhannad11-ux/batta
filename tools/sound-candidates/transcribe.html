@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Melody</title></head>
+<body style="background:#111;color:#ccc;font:13px monospace">
+<!-- يقرأ اللحن من تسجيل صوت (?f=file): طبقة كل لحظة (autocorrelation) ثم يقسمها نغمات بأوقاتها -->
+<pre id="out">loading…</pre>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const ctx = new AudioContext();
+  const buf = await ctx.decodeAudioData(await (await fetch(q.get('f'))).arrayBuffer());
+  const rate = buf.sampleRate, x = buf.getChannelData(0);
+  const hop = Math.round(rate * 0.01), win = Math.round(rate * 0.04);
+  const minF = 70, maxF = 900, minL = Math.floor(rate / maxF), maxL = Math.ceil(rate / minF);
+  const frames = [];
+  let peakRms = 0;
+  for (let s = 0; s + win + maxL < x.length; s += hop) {
+    let e = 0; for (let i = 0; i < win; i++) e += x[s + i] * x[s + i];
+    const rms = Math.sqrt(e / win); peakRms = Math.max(peakRms, rms);
+    // نسخة YIN مبسطة: الفرق التراكمي، وأول نزلة تحت الحد
+    const d = new Float32Array(maxL + 1); let run = 0; d[0] = 1; let best = -1;
+    for (let L = 1; L <= maxL; L++) {
+      let sum = 0; for (let i = 0; i < win; i++) { const t = x[s + i] - x[s + i + L]; sum += t * t; }
+      run += sum; d[L] = run ? sum * L / run : 1;
+    }
+    for (let L = minL; L < maxL; L++) if (d[L] < 0.15 && d[L] <= d[L + 1]) { best = L; break; }
+    let f = 0, conf = 0;
+    if (best > 0) { const a = d[best - 1], b = d[best], c = d[best + 1]; const sh = (a - c) / (2 * (a - 2 * b + c) || 1); f = rate / (best + sh); conf = 1 - b; }
+    frames.push({ t: s / rate, rms, f, conf });
+  }
+  // نحول لنصف نغمات (midi)، ونجمع الفريمات المتتالية القريبة بنغمة وحدة
+  const midi = (f) => 69 + 12 * Math.log2(f / 440);
+  const voiced = frames.map((fr) => ({ ...fr, m: fr.f && fr.rms > peakRms * 0.12 && fr.conf > 0.6 ? midi(fr.f) : null }));
+  const notes = []; let cur = null;
+  for (const fr of voiced) {
+    if (fr.m === null) { if (cur) { notes.push(cur); cur = null; } continue; }
+    if (cur && Math.abs(fr.m - cur.ms[cur.ms.length - 1]) < 0.8) { cur.ms.push(fr.m); cur.end = fr.t; cur.amp = Math.max(cur.amp, fr.rms); }
+    else { if (cur) notes.push(cur); cur = { start: fr.t, end: fr.t, ms: [fr.m], amp: fr.rms }; }
+  }
+  if (cur) notes.push(cur);
+  const med = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
+  const out = notes.filter((n) => n.end - n.start >= 0.06).map((n) => ({ start: +n.start.toFixed(3), dur: +(n.end - n.start + 0.01).toFixed(3), midi: +med(n.ms).toFixed(2), amp: +(n.amp / peakRms).toFixed(2) }));
+  window.result = { duration: buf.duration, notes: out };
+  document.getElementById('out').textContent = JSON.stringify(window.result, null, 1);
+})().catch((e) => document.getElementById('out').textContent = 'error ' + e);
+</script>
+</body>
+</html>

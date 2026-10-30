@@ -7,6 +7,33 @@
       "runtimeArgs": ["server/src/server.js"],
       "env": { "STATIC_DIR": "app/build/web_release", "PORT": "8080" },
       "port": 8080
+    },
+    {
+      "name": "sound-preview",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["tools/sound-candidates/preview-server.js"],
+      "port": 8099
+    },
+    {
+      "name": "majlis-preview",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["tools/sound-candidates/preview-server.js"],
+      "env": { "DIR": "tools/majlis-art", "PORT": "8098" },
+      "port": 8098
+    },
+    {
+      "name": "logo-preview",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["tools/sound-candidates/preview-server.js"],
+      "env": { "DIR": "tools/logo-art", "PORT": "8097" },
+      "port": 8097
+    },
+    {
+      "name": "card-preview",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["tools/sound-candidates/preview-server.js"],
+      "env": { "DIR": "app/assets/cards", "PORT": "8096" },
+      "port": 8096
     }
   ]
 }

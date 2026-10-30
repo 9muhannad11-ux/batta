@@ -60,9 +60,19 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # أصوات اللعبة (تتولد بـ tools/gen-sounds.js)
+  # الأصوات (من tools/sound-candidates)، الأوراق (من tools/card-art/deck.html و tools/joker-art)،
+  # الشعار وخلفية المجلس (tools/logo-art و tools/majlis-art)
   assets:
     - assets/sounds/
+    - assets/cards/
+    - assets/images/
+
+  # خط المسيري الغامق لكل نصوص اللعبة (نفس خط «بتّه» بالشعار)
+  fonts:
+    - family: ElMessiri
+      fonts:
+        - asset: assets/fonts/ElMessiri-Bold.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

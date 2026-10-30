@@ -79,7 +79,7 @@ void main() {
 
   testWidgets('home screen shows create and join', (tester) async {
     await tester.pumpWidget(KoutApp(client: GameClient()));
-    expect(find.text('بتّه'), findsOneWidget);
+    expect(find.byType(AppLogo), findsOneWidget);
     expect(find.text('سوّ غرفة جديدة'), findsOneWidget);
     expect(find.text('ادخل'), findsOneWidget);
   });
@@ -106,13 +106,78 @@ void main() {
     final c = tableClient(playingView());
     await tester.pumpWidget(KoutApp(client: c));
     await tester.pump(const Duration(milliseconds: 500));
-    final ace = find.widgetWithText(PlayingCard, 'خال');
+    final ace = find.byKey(const ValueKey('hand-H-14'));
     await tester.tap(ace);
     await tester.pump(const Duration(milliseconds: 300));
     expect(c.played, isEmpty);
     await tester.tap(ace);
     await tester.pump(const Duration(milliseconds: 300));
     expect(c.played, ['H-14']);
+  });
+
+  testWidgets('drag: past the line throws, short drag raises, illegal card does not throw', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final c = tableClient(playingView(legal: ['H-14', 'C-9']));
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 500));
+    // سحب قصير: ترجع لليد مرفوعة وما تنرمى
+    await tester.drag(find.byKey(const ValueKey('hand-C-9')), const Offset(0, -30));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(c.played, isEmpty);
+    // الممنوعة ما تنرمى حتى لو انسحبت لفوق
+    await tester.drag(find.byKey(const ValueKey('hand-S-2')), const Offset(0, -300));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(c.played, isEmpty);
+    // فوق الحد: تنرمى
+    await tester.drag(find.byKey(const ValueKey('hand-H-14')), const Offset(0, -300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(c.played, ['H-14']);
+  });
+
+  testWidgets('bid window: «كم تروح؟» with 9 8 7 6 طاف, illegal numbers stay but do nothing', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final c = tableClient(playingView()
+      ..['phase'] = 'bidding'
+      ..['currentBid'] = 7
+      ..['trump'] = null
+      ..['legalCards'] = []
+      ..['canSignal'] = false
+      ..['bids'] = [{'seat': 1, 'bid': 7}]
+      ..['legalBids'] = ['pass', 8, 9]);
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('كم تروح؟'), findsOneWidget);
+    for (final t in ['9', '8', '6', 'طاف']) {
+      expect(find.text(t), findsWidgets);
+    }
+    final x = [for (final t in ['9', '8', '6', 'طاف']) tester.getCenter(find.text(t).last).dx];
+    expect(x, orderedEquals([...x]..sort())); // من اليسار: 9، 8، 7، 6، طاف
+  });
+
+  testWidgets('big joker signal: no J bubble, the next card gets the palm', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final c = tableClient(playingView()..['turn'] = 2);
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 400));
+    c.slapPending.add(2);
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(GoldJ), findsNothing);
+    c.view = playingView()
+      ..['turn'] = 3
+      ..['trick'] = [{'seat': 2, 'card': 'D-5'}];
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byWidgetPredicate((w) => w is CustomPaint && w.painter.runtimeType.toString() == '_PalmPainter'), findsOneWidget);
+    expect(c.slapPending, isEmpty);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byWidgetPredicate((w) => w is CustomPaint && w.painter.runtimeType.toString() == '_PalmPainter'), findsNothing);
   });
 
   testWidgets('round end: red effect when buyer fails, green when made', (tester) async {
@@ -233,13 +298,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     final bar = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_SignalBar');
-    expect(find.descendant(of: bar, matching: find.byType(JokerSignalIcon)), findsOneWidget);
+    expect(find.descendant(of: bar, matching: find.byType(GoldJ)), findsOneWidget);
     // كل ضغطة ترسل على طول بدون تأكيد
     await tester.tap(find.descendant(of: bar, matching: find.byWidgetPredicate((w) => w is SuitIcon && w.suit == 'H')));
     await tester.pump();
     expect(c.sent, [['H']]);
     await tester.tap(find.descendant(of: bar, matching: find.byWidgetPredicate((w) => w is SuitIcon && w.suit == 'C')));
-    await tester.tap(find.descendant(of: bar, matching: find.byType(JokerSignalIcon)));
+    await tester.tap(find.descendant(of: bar, matching: find.byType(GoldJ)));
     await tester.pump();
     expect(c.sent, [['H'], ['C'], ['J']]);
 
@@ -247,7 +312,7 @@ void main() {
     c.signals[0] = SuitSignal(0, ['H', 'C', 'J']);
     c.notifyListeners();
     await tester.pump(const Duration(milliseconds: 300));
-    final jokers = find.byType(JokerSignalIcon);
+    final jokers = find.byType(GoldJ);
     expect(jokers, findsNWidgets(2)); // واحد بالنافذة وواحد فوق اللاعب
   });
 }

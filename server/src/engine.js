@@ -324,7 +324,8 @@ function signal(state, seat, suits) {
   if (!list.length || list.some((s) => !SUITS.includes(s) && s !== JOKER_SIGNAL)) fail('إشارة غير معروفة');
   if (list.includes(JOKER_SIGNAL) && !canSignalJoker(state, seat)) fail('ما تقدر تستخدم إشارة الجوكر');
   state.signalsThisTurn += 1;
-  return { seat, suits: list };
+  // big: إشارة الجوكر من صاحب الكبير (التطبيق يعرضها كف يضرب ورقته بدل الفقاعة)
+  return { seat, suits: list, big: list.includes(JOKER_SIGNAL) && state.hands[seat].includes(BLUE) };
 }
 
 // ما يشوفه كل لاعب: أوراقه فقط، وعدد أوراق البقية

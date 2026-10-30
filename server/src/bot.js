@@ -14,6 +14,19 @@ function bestSuit(hand) {
   return best;
 }
 
+// اللاعب اللي خلص وقته وهو يختار الحكم: النوع اللي عنده منه أكثر، والتعادل للأقوى (أعلى ورقة ثم اللي بعدها)
+function mostSuit(hand) {
+  const ranks = (s) => hand.filter((c) => !E.isJoker(c) && c[0] === s).map(E.rankOf).sort((a, b) => b - a);
+  const stronger = (a, b) => {
+    if (a.length !== b.length) return a.length > b.length;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i];
+    return false;
+  };
+  let best = E.SUITS[0];
+  for (const s of E.SUITS) if (stronger(ranks(s), ranks(best))) best = s;
+  return best;
+}
+
 // قوة الورقة عند البوت: الحكم أقوى من غيره، والجوكرات آخر شي يفكر فيها
 function strength(card, trump) {
   if (E.isJoker(card)) return 1000 + E.power(card);
@@ -160,7 +173,7 @@ function decide(state, seat, { timeout = false } = {}) {
     return decideBid(state, seat);
   }
   if (state.phase === 'trump' && state.buyer === seat) {
-    return { type: 'trump', suit: bestSuit(state.hands[seat]) };
+    return { type: 'trump', suit: (timeout ? mostSuit : bestSuit)(state.hands[seat]) };
   }
   if (state.phase === 'bawanOffer' && state.buyer === seat) {
     return { type: 'bawan', accept: false }; // البوت ما يفعّل الباون
@@ -181,4 +194,4 @@ function apply(state, seat, action) {
   }
 }
 
-module.exports = { decide, apply };
+module.exports = { decide, apply, mostSuit };

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ar">
+<head><meta charset="utf-8"><title>شعار بتّه</title>
+<link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#1a1a1a;color:#aaa;font:13px sans-serif;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px}.row{display:flex;gap:20px;align-items:flex-end}img{border-radius:22%}</style></head>
+<body>
+<!-- شعار اللعبة والتطبيق: 5 أوراق مفرودة (خال من كل نوع + الجوكر الكبير)، وتحتها «بتّه» بخط Cairo، على خلفية كروم بدون شفافية. يحفظ logo.png (1024) -->
+<div class="row" id="row"></div>
+<div id="info">…</div>
+<script>
+const O = '#111';
+const SUIT = {
+  H: ['#d11f1f', '<path d="M0,1.02 L-0.8,0.08 C-1.06,-0.2 -1.03,-0.64 -0.76,-0.87 C-0.48,-1.08 -0.12,-0.99 0,-0.64 C0.12,-0.99 0.48,-1.08 0.76,-0.87 C1.03,-0.64 1.06,-0.2 0.8,0.08 Z"/>'],
+  C: ['#111', '<circle cx="0" cy="-0.52" r="0.47"/><circle cx="-0.53" cy="0.12" r="0.47"/><circle cx="0.53" cy="0.12" r="0.47"/><circle cx="0" cy="0.06" r="0.24"/><path d="M-0.08,0.2 C-0.11,0.6 -0.22,0.86 -0.42,1.02 L0.42,1.02 C0.22,0.86 0.11,0.6 0.08,0.2Z"/>'],
+  D: ['#d11f1f', '<path d="M0,-1.08 L0.86,0 L0,1.08 L-0.86,0Z"/>'],
+  S: ['#111', '<path d="M0,-1 C0.35,-0.6 1,-0.25 1,0.25 C1,0.62 0.62,0.78 0.3,0.62 C0.2,0.58 0.1,0.5 0.06,0.42 C0.1,0.7 0.2,0.88 0.38,1 L-0.38,1 C-0.2,0.88 -0.1,0.7 -0.06,0.42 C-0.1,0.5 -0.2,0.58 -0.3,0.62 C-0.62,0.78 -1,0.62 -1,0.25 C-1,-0.25 -0.35,-0.6 0,-1Z"/>'],
+};
+const pip = (s, x, y, sc) => `<g transform="translate(${x},${y}) scale(${sc})" fill="${SUIT[s][0]}">${SUIT[s][1]}</g>`;
+// المروحة تدور حول نقطة المسكة تحت (PIV)
+const PIV = [512, 640], CW = 236, CH = 350, CX = PIV[0] - CW / 2, CY = PIV[1] - 30 - CH;
+const card = (s, rot) => `<g transform="rotate(${rot} ${PIV[0]} ${PIV[1]})">
+  <rect x="${CX}" y="${CY}" width="${CW}" height="${CH}" rx="24" fill="#fff" stroke="${O}" stroke-width="7"/>
+  <text x="${CX + 38}" y="${CY + 64}" font-size="60" font-weight="bold" font-family="'Times New Roman',Times,serif" fill="${SUIT[s][0]}" text-anchor="middle">A</text>
+  ${pip(s, CX + 38, CY + 106, 19)}
+  ${pip(s, PIV[0], CY + 190, 54)}
+</g>`;
+// ورقة الجوكر الكبير المعتمدة (صورة) بنفس مقاس وزاوية الأوراق
+const jokerCard = (rot, href) => {
+  const sc = CW / 400, big = [...'JOKER'].map((ch, i) => `<text x="${CX + 30}" y="${CY + 54 + i * 44}" font-size="44" font-weight="900" font-family="Arial Black, Arial, sans-serif" fill="${i % 2 ? '#cc202c' : '#128c48'}" text-anchor="middle">${ch}</text>`).join('');
+  return `<g transform="rotate(${rot} ${PIV[0]} ${PIV[1]})">
+  <clipPath id="jc"><rect x="${CX}" y="${CY}" width="${CW}" height="${CH}" rx="24"/></clipPath>
+  <rect x="${CX}" y="${CY}" width="${CW}" height="${CH}" rx="24" fill="#fff"/>
+  <image href="${href}" x="${CX}" y="${CY}" width="${CW}" height="${CH}" preserveAspectRatio="none" clip-path="url(#jc)"/>
+  <rect x="${CX + 4}" y="${CY + 6}" width="${30 * sc + 14}" height="${150 * sc + 6}" fill="#fff"/>
+  <rect x="${CX + CW - 30 * sc - 18}" y="${CY + CH - 150 * sc - 12}" width="${30 * sc + 14}" height="${150 * sc + 6}" fill="#fff"/>
+  ${big}
+  <rect x="${CX}" y="${CY}" width="${CW}" height="${CH}" rx="24" fill="none" stroke="${O}" stroke-width="7"/>
+</g>`; };
+
+function svg(jokerHref) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="chr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2f3f5"/><stop offset=".18" stop-color="#c9ccd1"/><stop offset=".5" stop-color="#8e939a"/><stop offset=".52" stop-color="#7b8087"/><stop offset=".8" stop-color="#a9adb3"/><stop offset="1" stop-color="#d9dbdf"/></linearGradient>
+    <linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="skin" cx=".4" cy=".3" r=".85"><stop offset="0" stop-color="#f0c39d"/><stop offset=".6" stop-color="#e2ab83"/><stop offset="1" stop-color="#c48861"/></radialGradient>
+    <linearGradient id="fing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#efc29c"/><stop offset=".55" stop-color="#e2ab83"/><stop offset="1" stop-color="#c98e66"/></linearGradient>
+    <linearGradient id="thumb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d79f78"/><stop offset=".45" stop-color="#efc29c"/><stop offset="1" stop-color="#cf946c"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity=".35"/></filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#chr)"/>
+  <rect x="80" y="14" width="864" height="10" rx="5" fill="url(#gl)"/>
+  <g filter="url(#sh)" transform="translate(512,440) scale(1.1) translate(-512,-560)">
+    ${card('H', -36)}${card('C', -18)}${card('D', 0)}${card('S', 18)}${jokerCard(36, jokerHref)}
+  </g>
+  </svg>`;
+}
+
+(async () => {
+  // صورة الجوكر الكبير كـ data URL عشان تنرسم داخل الـ SVG
+  const jb = await (await fetch('joker_big.png')).blob();
+  const jokerHref = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(jb); });
+  const blob = new Blob([svg(jokerHref)], { type: 'image/svg+xml' });
+  const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = URL.createObjectURL(blob); });
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 1024;
+  const g = cv.getContext('2d');
+  g.drawImage(img, 0, 0);
+  // «بتّه» بخط المسيري (El Messiri) الغامق تحت
+  await document.fonts.load('700 150px "El Messiri"', 'بتّه'); await document.fonts.ready;
+  g.font = '700 240px "El Messiri"'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.direction = 'rtl';
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 12; g.shadowOffsetY = 6;
+  g.fillStyle = '#1d1f22'; g.fillText('بتّه', 512, 845);
+  const png = await new Promise((r) => cv.toBlob(r, 'image/png'));
+  await fetch('/save?name=logo.png', { method: 'POST', body: png });
+  const url = URL.createObjectURL(png);
+  document.getElementById('row').innerHTML = [256, 96, 48].map((s) => `<img src="${url}" width="${s}" height="${s}">`).join('');
+  document.getElementById('info').textContent = 'saved logo.png';
+})().catch((e) => document.getElementById('info').textContent = 'error ' + e);
+</script>
+</body>
+</html>

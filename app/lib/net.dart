@@ -29,6 +29,8 @@ class GameClient extends ChangeNotifier {
   Map<String, dynamic>? room; // معلومات اللوبي
   Map<String, dynamic>? view; // حالة اللعبة الخاصة بهذا اللاعب
   final Map<int, SuitSignal> signals = {};
+  // صاحب الجوكر الكبير أرسل إشارة الجوكر: ما تطلع فوقه، وورقته الجاية ينزل عليها كف
+  final Set<int> slapPending = {};
   String? error;
   bool kicked = false;
 
@@ -152,7 +154,12 @@ class GameClient extends ChangeNotifier {
         deadline = ms == null ? null : DateTime.now().add(Duration(milliseconds: ms));
       case 'signal':
         final seat = m['seat'] as int;
-        final incoming = (m['suits'] as List).cast<String>();
+        var incoming = (m['suits'] as List).cast<String>();
+        if (m['big'] == true) {
+          slapPending.add(seat);
+          incoming = incoming.where((s) => s != 'J').toList();
+          if (incoming.isEmpty) break;
+        }
         // إذا اللاعب ضغط أكثر من نوع ورا بعض، تظهر كلها مع بعض ويتجدد الوقت
         final shown = signals[seat]?.suits ?? const <String>[];
         final sig = SuitSignal(seat, [...shown, ...incoming.where((s) => !shown.contains(s))]);

@@ -107,10 +107,10 @@ void main() {
     await tester.pumpWidget(KoutApp(client: c));
     await tester.pump(const Duration(milliseconds: 500));
     final ace = find.byKey(const ValueKey('hand-H-14'));
-    await tester.tap(ace);
+    await tester.tapAt(tester.getTopLeft(ace) + const Offset(12, 30)); // الجزء الظاهر من الورقة
     await tester.pump(const Duration(milliseconds: 300));
     expect(c.played, isEmpty);
-    await tester.tap(ace);
+    await tester.tapAt(tester.getTopLeft(ace) + const Offset(12, 30)); // الجزء الظاهر من الورقة
     await tester.pump(const Duration(milliseconds: 300));
     expect(c.played, ['H-14']);
   });
@@ -123,15 +123,15 @@ void main() {
     await tester.pumpWidget(KoutApp(client: c));
     await tester.pump(const Duration(milliseconds: 500));
     // سحب قصير: ترجع لليد مرفوعة وما تنرمى
-    await tester.drag(find.byKey(const ValueKey('hand-C-9')), const Offset(0, -30));
+    await tester.dragFrom(tester.getTopLeft(find.byKey(const ValueKey('hand-C-9'))) + const Offset(12, 30), const Offset(0, -30));
     await tester.pump(const Duration(milliseconds: 300));
     expect(c.played, isEmpty);
     // الممنوعة ما تنرمى حتى لو انسحبت لفوق
-    await tester.drag(find.byKey(const ValueKey('hand-S-2')), const Offset(0, -300));
+    await tester.dragFrom(tester.getTopLeft(find.byKey(const ValueKey('hand-S-2'))) + const Offset(30, 30), const Offset(0, -300));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.played, isEmpty);
     // فوق الحد: تنرمى
-    await tester.drag(find.byKey(const ValueKey('hand-H-14')), const Offset(0, -300));
+    await tester.dragFrom(tester.getTopLeft(find.byKey(const ValueKey('hand-H-14'))) + const Offset(12, 30), const Offset(0, -300));
     await tester.pump(const Duration(milliseconds: 300));
     expect(c.played, ['H-14']);
   });
@@ -242,7 +242,7 @@ void main() {
       ..['majbur'] = true;
     c.notifyListeners();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('مجبور'), findsOneWidget);
+    expect(find.text('مجبور'), findsNWidgets(2)); // مرتين: الكلمة وحدها الأسود
   });
 
   testWidgets('grey penalty names the player who held the small joker', (tester) async {

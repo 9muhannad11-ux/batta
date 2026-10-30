@@ -47,21 +47,35 @@ class CharacterAvatar extends StatelessWidget {
   final String? charId;
   final double size;
   final Color ring;
-  const CharacterAvatar({super.key, required this.charId, this.size = 48, this.ring = Colors.transparent});
+  final Color? background; // لون الفريق (وإلا سماوي فاتح)
+  const CharacterAvatar({super.key, required this.charId, this.size = 48, this.ring = Colors.transparent, this.background});
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          // خلفية سماوي فاتح (مثل جو المجلس)
-          gradient: const RadialGradient(center: Alignment(-0.2, -0.3), radius: 0.7, colors: [Color(0xFFE6F6FF), Color(0xFFA9DCF5)]),
-          boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
-          border: Border.all(color: ring, width: max(2, size * 0.06)),
+  Widget build(BuildContext context) {
+    final bg = background;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: const Alignment(-0.2, -0.3),
+          radius: 0.75,
+          colors: bg == null ? const [Color(0xFFE6F6FF), Color(0xFFA9DCF5)] : [Color.lerp(bg, Colors.white, 0.45)!, bg],
         ),
-        child: ClipOval(child: CustomPaint(painter: _FacePainter(_looks[charId] ?? _looks['musabbah']!))),
-      );
+        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
+        border: Border.all(color: ring, width: max(2.5, size * 0.075)),
+      ),
+      // الوجه أكبر شوي داخل الإطار
+      child: ClipOval(
+        child: Transform.scale(
+          scale: 1.14,
+          alignment: const Alignment(0, 0.35),
+          child: CustomPaint(painter: _FacePainter(_looks[charId] ?? _looks['musabbah']!)),
+        ),
+      ),
+    );
+  }
 }
 
 class _FacePainter extends CustomPainter {

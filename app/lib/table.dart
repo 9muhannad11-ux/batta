@@ -12,64 +12,76 @@ import 'sounds.dart';
 const _turnSeconds = 12.5;
 const _trumpSeconds = 10.0;
 
-/// أماكن اللاعبين بالطولي حول الطاولة (نسبة من نص عرضها وطولها)، أنا أول واحد.
+/// أماكن اللاعبين بالطولي: يمين/يسار = حافة الشاشة، وفوق/تحت نسبة من نص طول الطاولة. أنا أول واحد.
 /// اللعب عكس عقارب الساعة: اللي على يميني يلعب بعدي.
-const _align6 = [Offset(0, 1), Offset(0.97, 0.36), Offset(0.97, -0.6), Offset(0, -1), Offset(-0.97, -0.6), Offset(-0.97, 0.36)];
-const _align4 = [Offset(0, 1), Offset(0.97, -0.1), Offset(0, -1), Offset(-0.97, -0.1)];
-// بالعرضي: زوايا حول الطاولة (270 = فوق)، والجنبين متباعدين أكثر
-const _angles6 = [90.0, 40.0, 318.0, 270.0, 222.0, 140.0];
-const _angles4 = [90.0, 0.0, 270.0, 180.0];
+const _align6 = [Offset(0, 1), Offset(1, 0.36), Offset(1, -0.6), Offset(0, -1), Offset(-1, -0.6), Offset(-1, 0.36)];
+const _align4 = [Offset(0, 1), Offset(1, -0.1), Offset(0, -1), Offset(-1, -0.1)];
 // ميلان خفيف لكل ورقة منزولة
 const _tilt6 = [3.0, -7.0, -5.0, -6.0, 7.0, 5.0];
 const _tilt4 = [3.0, -6.0, -6.0, 6.0];
 
-/// مقاسات الطاولة لهالشاشة: أماكن اللاعبين، والوسط، ومقاس الأوراق.
+/// مقاسات الطاولة لهالشاشة: أماكن اللاعبين (قريبة من حواف الشاشة ومو مربوطة بالطاولة)، الطاولة، ومقاس الأوراق.
 class _Board {
   final Size size;
   final bool landscape;
   final double handTop, handW, cardW, avatar;
+  final double handLeft, handRight; // المساحة اللي تنفرد فيها اليد
   final Offset center;
+  final Rect table;
   final List<Offset> seats; // حسب الترتيب بالنسبة لي (0 = أنا)
   final List<double> tilts;
 
-  _Board._(this.size, this.landscape, this.handTop, this.handW, this.cardW, this.avatar, this.center, this.seats, this.tilts);
+  _Board._(this.size, this.landscape, this.handTop, this.handW, this.cardW, this.avatar, this.handLeft, this.handRight, this.table,
+      this.seats, this.tilts)
+      : center = table.center;
 
   factory _Board(Size size, int players) {
     final w = size.width, h = size.height;
     final landscape = w > h;
     final tilts = players == 4 ? _tilt4 : _tilt6;
     if (landscape) {
-      final handW = min(88.0, min(h * 0.17, w / 10));
-      final handTop = h - (handW * cardRatio + 14);
-      final center = Offset(w / 2, handTop / 2 + 8);
-      final rx = w / 2 - 78, ry = handTop / 2 - 44;
-      final seats = [
-        for (final a in players == 4 ? _angles4 : _angles6)
-          center + Offset(cos(a * pi / 180) * rx, sin(a * pi / 180) * ry),
-      ];
-      return _Board._(size, true, handTop, handW, min(60.0, h * 0.145), min(48.0, h * 0.11), center, seats, tilts);
+      // مثل الصورة النموذج: أنا تحت يسار، اثنين يمين واثنين يسار على حافة الشاشة، وواحد فوق بالنص
+      final avatar = min(64.0, h * 0.17);
+      final edge = avatar / 2 + 16;
+      final handW = min(80.0, h * 0.21);
+      final handTop = h - handW * cardRatio * 0.66; // الأوراق تطلع من تحت الشاشة (يبين ثلثينها)
+      final topY = avatar / 2 + 10;
+      final me = Offset(edge, h - avatar / 2 - 30);
+      final seats = players == 4
+          ? [me, Offset(w - edge, h * 0.42), Offset(w / 2, topY), Offset(edge, h * 0.42)]
+          // الجنبين بنفس المستوى: فوق 0.24 وتحت 0.57 (شخصيتي تحت يسار تحتهم)
+          : [me, Offset(w - edge, h * 0.57), Offset(w - edge, h * 0.24), Offset(w / 2, topY), Offset(edge, h * 0.24), Offset(edge, h * 0.57)];
+      // الطاولة تاخذ الطول كله تقريباً بين اللي فوق واليد
+      final table = Rect.fromLTRB(edge + avatar * 1.25, topY + avatar * 0.7, w - edge - avatar * 1.25, h * 0.82);
+      return _Board._(size, true, handTop, handW, min(64.0, h * 0.16), avatar, edge + avatar * 1.4, w - 215, table, seats, tilts);
     }
+    final s = (w / 380).clamp(0.85, 1.3);
+    final avatar = (60 * s).clamp(50.0, 74.0);
+    final edge = avatar / 2 + 14;
     final handW = min(88.0, w / 4.6);
     final handTop = h - (handW * cardRatio + 40);
-    // الطاولة تعبّي المساحة بين النتيجة واليد، واللاعبين حولها (أنا تحت فوق الإشارات)
-    final s = (w / 380).clamp(0.85, 1.3);
-    final top = 96.0, myY = handTop - 95;
-    final center = Offset(w / 2, (top + myY) / 2);
-    final rx = w / 2 - 50, ry = (myY - top) / 2;
-    return _Board._(size, false, handTop, handW, (68 * s).clamp(44.0, 80.0), (50 * s).clamp(40.0, 62.0), center,
-        [for (final a in players == 4 ? _align4 : _align6) center + Offset(a.dx * rx, a.dy * ry)], tilts);
+    final top = 138.0, myY = handTop - 104;
+    final cy = (top + myY) / 2, ry = (myY - top) / 2;
+    final seats = [
+      for (final a in players == 4 ? _align4 : _align6)
+        Offset(a.dx == 0 ? w / 2 : (a.dx > 0 ? w - edge : edge), cy + a.dy * ry),
+    ];
+    // الطاولة بين اللاعبين: ما تلمس شخصيات الجنب، وفوق وتحت تحت شخصية اللي فوق وفوقي
+    final table = Rect.fromLTRB(avatar + 14, top + avatar * 0.55, w - avatar - 14, myY - avatar * 0.55);
+    return _Board._(size, false, handTop, handW, (66 * s).clamp(44.0, 78.0), avatar, 34, w - 34, table, seats, tilts);
   }
 
-  /// مكان الورقة المنزولة: بنص المسافة بين وسط الطاولة وصاحبها
-  Offset slot(int rel) => center + (seats[rel] - center) * 0.5;
-
-  /// الطاولة البيضاوية: اللاعبين قاعدين على حوافها
-  Rect get table => Rect.fromLTRB(
-        seats.map((s) => s.dx).reduce(min),
-        seats.map((s) => s.dy).reduce(min),
-        seats.map((s) => s.dx).reduce(max),
-        seats.map((s) => s.dy).reduce(max),
-      );
+  /// مكان الورقة المنزولة: بالطولي بنص المسافة بين وسط الطاولة وصاحبها.
+  /// بالعرضي أماكن ثابتة حول الوسط (بمقاس الورقة) عشان ما تتداخل: ورقتي تحت بالنص،
+  /// اللي فوق فوق بالنص، والجنبين فوق وتحت بمسافة ورقة كاملة بينهم
+  Offset slot(int rel) {
+    if (!landscape) return center + (seats[rel] - center) * 0.5;
+    final x = cardW * 1.6, y = cardH;
+    final spots = seats.length == 4
+        ? [Offset(0, y * 0.62), Offset(x, 0), Offset(0, -y * 0.62), Offset(-x, 0)]
+        : [Offset(0, y * 0.62), Offset(x, y * 0.44), Offset(x, -y * 0.62), Offset(0, -y * 0.55), Offset(-x, -y * 0.62), Offset(-x, y * 0.44)];
+    return center + spots[rel];
+  }
   double get cardH => cardW * cardRatio;
 }
 
@@ -362,13 +374,22 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   ),
                   ..._trickLayer(v, b, n),
                   _centerInfo(v, b), // فوق الأوراق عشان ما تغطيها
-                  for (var seat = 0; seat < n; seat++) _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar)),
+                  for (var seat = 0; seat < n; seat++)
+                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2)),
                   _dealLayer(b, n),
-                  if (_dragOver) _dropTarget(b),
                   ..._handLayer(v, b),
                   _signalRow(v, b),
                   _slapLayer(b),
-                  Positioned(top: 6, left: 8, child: _Scores(view: v)),
+                  // النتيجة: بالعرضي فوق يمين، وبالطولي فوق بالنص
+                  if (b.landscape)
+                    // أصغر وأبعد عن الحافة عشان اللي فوق يمين يكون بمستوى اللي فوق يسار
+                    Positioned(
+                      top: 6,
+                      right: b.avatar + 70,
+                      child: Transform.scale(scale: 0.85, alignment: Alignment.topRight, child: _Scores(view: v)),
+                    )
+                  else
+                    Positioned(top: 6, left: 0, right: 0, child: Center(child: _Scores(view: v))),
                   Positioned(top: 2, right: 2, child: _TopActions(client: c)),
                   Positioned.fromRect(rect: Rect.fromLTWH(0, 0, b.size.width, b.handTop), child: _overlay(v)),
                 ]),
@@ -382,8 +403,11 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   }
 
   Widget _seatAt(_Board b, int rel, Widget child) {
-    const w = 110.0;
     final p = b.seats[rel];
+    // اللي فوق: الاسم يسار الشخصية، والشخصية بمكانها
+    if (rel == b.seats.length ~/ 2) return Positioned(right: b.size.width - p.dx - (b.avatar + 10) / 2, top: p.dy - (b.avatar + 10) / 2, child: child);
+    // اللي على حافة الشاشة: الاسم ما يطلع برا الشاشة
+    final w = min(130.0, 2 * min(p.dx, b.size.width - p.dx) + 8.0);
     return Positioned(left: p.dx - w / 2, top: p.dy - (b.avatar + 10) / 2, width: w, child: child);
   }
 
@@ -395,22 +419,41 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final buyer = v['buyer'] as int?;
     if (trump == null || buyer == null) return const SizedBox.shrink();
     final bawan = _bawanActive(v);
-    // أكبر، وكل شي بحد أسود
+    final suit = Stack(alignment: Alignment.center, children: [
+      SuitIcon(trump, size: 34, color: Colors.black),
+      SuitIcon(trump, size: 28, color: isRedSuit(trump) ? const Color(0xFFFF4D4D) : const Color(0xFF2B2B2B)),
+    ]);
+    final bid = OutlinedText(bawan ? 'باون' : '${v['currentBid']}', size: 30, color: bawan ? KoutColors.gold : Colors.white);
+    final name = OutlinedText(c.seatName(buyer), size: b.landscape ? 15 : 12, color: KoutColors.team(buyer % 2));
+    if (b.landscape) {
+      // بالعرضي: يسار (الحكم والعدد) ويمين (الشاري)، جنب أوراق الجنبين بنفس المسافة من الوسط
+      final d = b.cardW * 2.1 + 60; // طرف أوراق الجنب (1.6 + نص ورقة) + مسافة
+      const box = 110.0;
+      Widget at(double x, Widget child) => Positioned(
+            left: b.center.dx + x - box / 2,
+            width: box,
+            top: b.center.dy - 60,
+            height: 120,
+            child: Center(child: child),
+          );
+      return Positioned.fill(
+        child: IgnorePointer(
+          child: Stack(children: [
+            at(-d, Column(mainAxisSize: MainAxisSize.min, children: [suit, bid])),
+            at(d, Column(mainAxisSize: MainAxisSize.min, children: [const OutlinedText('الشاري', size: 11, color: Color(0xFFEEEEEE)), name])),
+          ]),
+        ),
+      );
+    }
+    // بالطولي بوسط الطاولة، أصغر شوي، وكل شي بحد أسود
     return Positioned(
-      left: b.center.dx - 90,
-      top: b.center.dy - 42,
-      width: 180,
+      left: b.center.dx - 80,
+      top: b.center.dy - 36,
+      width: 160,
       child: IgnorePointer(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Stack(alignment: Alignment.center, children: [
-              SuitIcon(trump, size: 40, color: Colors.black),
-              SuitIcon(trump, size: 34, color: isRedSuit(trump) ? const Color(0xFFFF4D4D) : const Color(0xFF2B2B2B)),
-            ]),
-            const SizedBox(width: 6),
-            OutlinedText(bawan ? 'باون' : '${v['currentBid']}', size: 36, color: bawan ? KoutColors.gold : Colors.white),
-          ]),
-          OutlinedText(c.seatName(buyer), size: 17, color: KoutColors.team(buyer % 2)),
+          Row(mainAxisSize: MainAxisSize.min, children: [suit, const SizedBox(width: 6), bid]),
+          name,
         ]),
       ),
     );
@@ -515,25 +558,18 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     );
   }
 
-  // مربع ذهبي منقّط بنص الطاولة: إذا تركت الورقة هنا تنرمى
-  Widget _dropTarget(_Board b) {
-    final w = b.cardW * 1.3;
-    return Positioned(
-      left: b.center.dx - w / 2,
-      top: b.center.dy - w * cardRatio / 2,
-      child: IgnorePointer(child: CustomPaint(size: Size(w, w * cardRatio), painter: _DashedBox())),
-    );
-  }
-
   List<Widget> _handLayer(Map<String, dynamic> v, _Board b) {
     final hand = (v['hand'] as List).cast<String>();
     final legal = _legal.toSet();
     final myTurn = legal.isNotEmpty && _deal.isAnimating == false;
     final w = b.handW;
-    final W = b.size.width;
     final n = max(hand.length, 1);
-    // بالعرضي نخلي مكان لعمود الإشارات على اليمين
-    final step = n == 1 ? 0.0 : min(w + 4, (W - (b.landscape ? 110 : 16) - w) / (n - 1));
+    // اليد تنفرد بين handLeft و handRight (بالعرضي فيه مكان لشخصيتي يسار والإشارات يمين)
+    final avail = b.handRight - b.handLeft;
+    // المسافة بين الأوراق ثابتة (محسوبة على يد كاملة 9 أوراق)، فلما تنقص ورقة يتقاربون للوسط ويبقى الشكل مرتب.
+    // بالعرضي الأوراق أقرب لبعض
+    final slots = max(n, 9);
+    final step = min(min(w + 4, (avail - w) / (slots - 1)), b.landscape ? w * 0.55 : double.infinity);
     final total = w + step * (n - 1);
     final out = <Widget>[];
     final dealFade = _deal.isAnimating ? ((_deal.value - 0.6) / 0.4).clamp(0.0, 1.0) : 1.0;
@@ -542,9 +578,19 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       final ok = legal.contains(card);
       final sel = card == _selected;
       // اليد من اليسار لليمين (هاس، كلفس، ديمن، سبيت، ثم الجوكرين)
-      final left = (W - total) / 2 + i * step;
-      final top = b.handTop + (b.landscape ? (sel ? -14 : (myTurn && ok ? 4 : 12)) : (sel ? -8 : (myTurn && ok ? 18 : 28)));
-      Widget face = PlayingCard(card, width: w, highlight: sel, enabled: !myTurn || ok);
+      final left = b.handLeft + (avail - total) / 2 + i * step;
+      // اليد مقوّسة: الأطراف تميل لبرا وتنزل شوي
+      final t = n == 1 ? 0.0 : (i - (n - 1) / 2) / ((n - 1) / 2);
+      final angle = t * min(0.22, n * 0.026);
+      final arc = (t * t - 1) * w * 0.12; // الوسط أعلى والأطراف بنفس مكان اليد القديم
+      final top = arc + b.handTop + (b.landscape ? (sel ? -14 : (myTurn && ok ? 4 : 12)) : (sel ? -8 : (myTurn && ok ? 18 : 28)));
+      // الميلان يتحرك بنعومة مع تحرك الورقة لمكانها الجديد
+      Widget face = AnimatedRotation(
+        turns: angle / (2 * pi),
+        duration: const Duration(milliseconds: 180),
+        alignment: Alignment.bottomCenter,
+        child: PlayingCard(card, width: w, highlight: sel, enabled: !myTurn || ok),
+      );
       if (_selected != null && !sel) face = Opacity(opacity: 0.6, child: face); // الباقي يخفت
       if (card == _shakeCard) {
         face = TweenAnimationBuilder<double>(
@@ -614,9 +660,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     }
   }
 
-  // الإشارات: بدون نافذة، صف رموز صغير فوق اليد (بالعرضي عمود يمين تحت جنب اليد)
+  // الإشارات: بدون نافذة. بالطولي مربع فوق اليد، وبالعرضي صف يمين تحت جنب اليد
   Widget _signalRow(Map<String, dynamic> v, _Board b) {
-    if (b.landscape) return Positioned(right: 6, bottom: 6, child: _SignalBar(client: c, view: v, vertical: true));
+    if (b.landscape) return Positioned(right: 10, bottom: 8, child: _SignalBar(client: c, view: v, row: true));
     // بالطولي المربع على يمين شخصيتي فوق اليد
     return Positioned(right: 14, bottom: b.size.height - b.handTop + 4, child: _SignalBar(client: c, view: v));
   }
@@ -748,16 +794,18 @@ class OutlinedText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = TextStyle(fontSize: size, height: 1.15);
-    return Stack(children: [
+    return Stack(alignment: Alignment.center, children: [
       Text(text,
           maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: style.copyWith(
               foreground: Paint()
                 ..style = PaintingStyle.stroke
-                ..strokeWidth = max(3, size * 0.12)
+                ..strokeWidth = max(3, size * 0.16)
                 ..strokeJoin = StrokeJoin.round
+                ..strokeCap = StrokeCap.round
                 ..color = Colors.black)),
-      Text(text, maxLines: 1, style: style.copyWith(color: color)),
+      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style.copyWith(color: color)),
     ]);
   }
 }
@@ -849,26 +897,6 @@ class _MatPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MatPainter old) => false;
-}
-
-class _DashedBox extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(size.width * 0.08));
-    canvas.drawRRect(r, Paint()..color = KoutColors.gold.withValues(alpha: 0.18));
-    final paint = Paint()
-      ..color = KoutColors.gold
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    for (final m in (Path()..addRRect(r)).computeMetrics()) {
-      for (double d = 0; d < m.length; d += 12) {
-        canvas.drawPath(m.extractPath(d, min(d + 6, m.length)), paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBox old) => false;
 }
 
 /// الكف (بدون رسغ ولا كم): حدود سودا، أظافر ومفاصل وخطوط كف وظل. نفس tools/sound-candidates/hand-slap.html
@@ -1098,40 +1126,82 @@ class _Panel extends StatelessWidget {
       );
 }
 
-/// النتيجة فوق يسار، كل فريق بلونه.
+/// النتيجة: الأزرق يسار والأصفر يمين، وبالنص عداد اللمّات المشترك:
+/// 9 نقاط، الأزرق يعبّي من اليسار والأصفر من اليمين، والنقطة البيضاء هدف الفريقين بهالجولة
+/// (مثلاً الشاري الأزرق بـ 6: الأزرق يحتاج 6 نقاط والأصفر 4 من الجهة الثانية، ويلتقون عندها).
 class _Scores extends StatelessWidget {
   final Map<String, dynamic> view;
   const _Scores({required this.view});
+
+  static const _tricks = 9;
 
   @override
   Widget build(BuildContext context) {
     final v = view;
     final myTeam = v['team'] as int;
     final scores = (v['scores'] as List).cast<int>();
-    final tricks = (v['tricksWon'] as List).cast<int>();
-    final playing = v['trump'] != null;
+    final won = (v['tricksWon'] as List).cast<int>();
+    final buyer = v['buyer'] as int?;
+    final bid = v['currentBid'] as int;
+    final playing = v['trump'] != null && buyer != null;
+    final bawan = v['bawan'] == true;
+    // هدف كل فريق: الشاري يحتاج عدد المزايدة (أو كلها بالباون)، والخصم يحتاج الباقي + 1 عشان يكسره
+    final need = playing ? (bawan ? _tricks : bid) : 0;
+    final goal = playing ? (buyer % 2 == 0 ? [need, _tricks - need + 1] : [_tricks - need + 1, need]) : [0, 0];
 
-    Widget pill(int t) {
-      final color = KoutColors.team(t);
-      final dark = t == 0 ? const Color(0xFF2F6FD6) : const Color(0xFF9C7700);
+    Widget score(int t) => Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(t == myTeam ? 'فريقك' : 'الخصم', style: TextStyle(fontSize: 9, color: KoutColors.team(t), height: 1.1)),
+          Text('${scores[t]}', style: TextStyle(fontSize: 19, color: KoutColors.team(t), height: 1.05)),
+        ]);
+    Widget count(int t) => Text(playing ? '${won[t]}/${goal[t]}' : '', style: TextStyle(fontSize: 11, color: KoutColors.team(t)));
+
+    Widget dot(int i) {
+      // i من اليسار
+      final blue = i < won[0], yellow = i >= _tricks - won[1];
+      final marker = playing && i == goal[0] - 1;
+      final fill = blue ? KoutColors.teamBlue : (yellow ? KoutColors.teamYellow : const Color(0xFF3A3A3A));
       return Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        width: 9,
+        height: 9,
+        margin: const EdgeInsets.symmetric(horizontal: 1.5),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color, width: t == myTeam ? 2.5 : 1.5),
-          boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))],
+          shape: BoxShape.circle,
+          color: marker && !blue && !yellow ? Colors.white : fill,
+          border: marker ? Border.all(color: Colors.white, width: 2) : null,
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(t == myTeam ? 'فريقك' : 'الخصم', style: TextStyle(fontSize: 10, color: dark, height: 1.2)),
-          Text('${scores[t]}', style: TextStyle(fontSize: 22, color: dark, height: 1.1)),
-          if (playing) Text('لمّات ${tricks[t]}', style: const TextStyle(fontSize: 10, color: Color(0xFF555555), height: 1.2)),
-        ]),
       );
     }
 
-    return Directionality(textDirection: TextDirection.ltr, child: Row(mainAxisSize: MainAxisSize.min, children: [pill(myTeam), pill(1 - myTeam)]));
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 3, 8, 5),
+      decoration: BoxDecoration(
+        color: const Color(0xE6151515),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF555555)),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            score(0),
+            const SizedBox(width: 30),
+            const Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('من', style: TextStyle(fontSize: 9, color: Color(0xFF999999), height: 1.1)),
+              Text('54', style: TextStyle(fontSize: 13, color: Color(0xFFCCCCCC), height: 1.1)),
+            ]),
+            const SizedBox(width: 30),
+            score(1),
+          ]),
+          const SizedBox(height: 3),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(width: 26, child: count(0)),
+            for (var i = 0; i < _tricks; i++) dot(i),
+            SizedBox(width: 26, child: Align(alignment: Alignment.centerRight, child: count(1))),
+          ]),
+        ]),
+      ),
+    );
   }
 }
 
@@ -1165,21 +1235,14 @@ class _TopActions extends StatelessWidget {
       ]);
 }
 
-/// كتابة فاتحة بحد غامق (تبين على السجادة)
-const _outline = [
-  Shadow(color: Color(0xFF2A2A2A), offset: Offset(1.2, 1.2)),
-  Shadow(color: Color(0xFF2A2A2A), offset: Offset(-1.2, 1.2)),
-  Shadow(color: Color(0xFF2A2A2A), offset: Offset(1.2, -1.2)),
-  Shadow(color: Color(0xFF2A2A2A), offset: Offset(-1.2, -1.2)),
-];
-
 class _Seat extends StatelessWidget {
   final GameClient client;
   final Map<String, dynamic> view;
   final int seat;
   final bool me;
   final double size;
-  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false});
+  final bool nameLeft;
+  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1212,7 +1275,7 @@ class _Seat extends StatelessWidget {
         ),
       Container(
         decoration: isTurn ? BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: teamColor.withValues(alpha: 0.8), blurRadius: 14)]) : null,
-        child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor),
+        child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor, background: teamColor),
       ),
       if (isBot)
         Positioned(
@@ -1252,22 +1315,38 @@ class _Seat extends StatelessWidget {
         ),
     ]));
 
-    TextStyle tag(Color color, [double size = 12]) => TextStyle(fontSize: size, color: color, shadows: _outline, height: 1.2);
+    // كل الكتابة تحت الشخصية بحد أسود متصل
     final tags = <Widget>[
-      if (isBuyer && v['madmoon'] == true) Text('مضمون', style: tag(KoutColors.madmoon, 13)),
-      if (isBuyer && v['majbur'] == true) Text('مجبور', style: tag(KoutColors.majbur, 13)),
-      if (phase == 'bidding' && bidLabel != null) Text(bidLabel, style: tag(bidLabel == 'طاف' ? const Color(0xFFCCCCCC) : Colors.white, 13)),
-      if (isKhabis && phase == 'bidding') Text('خابص', style: tag(const Color(0xFFDDDDDD), 11)),
-      if (left != null) Text('${left.ceil()}', style: tag(left <= 3 ? const Color(0xFFFF5A5A) : Colors.white, 13)),
+      if (isBuyer && v['madmoon'] == true) const OutlinedText('مضمون', size: 13, color: KoutColors.madmoon),
+      if (isBuyer && v['majbur'] == true) const OutlinedText('مجبور', size: 13, color: KoutColors.majbur),
+      if (phase == 'bidding' && bidLabel != null) OutlinedText(bidLabel, size: 13, color: bidLabel == 'طاف' ? const Color(0xFFCCCCCC) : Colors.white),
+      if (isKhabis && phase == 'bidding') const OutlinedText('خابص', size: 11, color: Color(0xFFDDDDDD)),
+      if (left != null) OutlinedText('${left.ceil()}', size: 13, color: left <= 3 ? const Color(0xFFFF5A5A) : Colors.white),
     ];
 
+    // الاسم بلون فريقه
+    final name = OutlinedText(me ? 'أنت' : client.seatName(seat), size: 14, color: teamColor);
+    if (nameLeft) {
+      // اللي فوق: الاسم على يسار الشخصية
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 130),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+              name,
+              Wrap(spacing: 6, children: tags),
+            ]),
+          ),
+          const SizedBox(width: 4),
+          avatar,
+        ]),
+      );
+    }
     return Column(mainAxisSize: MainAxisSize.min, children: [
       avatar,
       const SizedBox(height: 2),
-      Text(me ? 'أنت' : client.seatName(seat),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13, color: Color(0xFFF2EFE8), shadows: _outline, height: 1.2)),
+      name,
       Wrap(spacing: 6, alignment: WrapAlignment.center, children: tags),
     ]);
   }
@@ -1447,8 +1526,8 @@ class _Effect extends StatelessWidget {
 class _SignalBar extends StatefulWidget {
   final GameClient client;
   final Map<String, dynamic> view;
-  final bool vertical;
-  const _SignalBar({required this.client, required this.view, this.vertical = false});
+  final bool row; // بالعرضي صف، وبالطولي مربع
+  const _SignalBar({required this.client, required this.view, this.row = false});
 
   @override
   State<_SignalBar> createState() => _SignalBarState();
@@ -1479,9 +1558,10 @@ class _SignalBarState extends State<_SignalBar> {
               : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            margin: widget.vertical ? const EdgeInsets.symmetric(vertical: 3) : const EdgeInsets.all(3),
-            width: 30,
-            height: 30,
+            margin: const EdgeInsets.all(3),
+            // بالعرضي أصغر شوي عشان ما توصل للأوراق
+            width: widget.row ? 32 : 38,
+            height: widget.row ? 32 : 38,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               gradient: KoutColors.chrome(0.85),
@@ -1489,13 +1569,13 @@ class _SignalBarState extends State<_SignalBar> {
               border: Border.all(color: on ? KoutColors.gold : KoutColors.chromeEdge, width: on ? 2 : 1),
               boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 1))],
             ),
-            child: s == 'J' ? const GoldJ(size: 20) : SuitIcon(s, size: 18),
+            child: s == 'J' ? GoldJ(size: widget.row ? 22 : 26) : SuitIcon(s, size: widget.row ? 20 : 24),
           ),
         ),
       );
     }
 
-    if (widget.vertical) return Column(mainAxisSize: MainAxisSize.min, children: [for (final s in options) chip(s)]);
+    if (widget.row) return Directionality(textDirection: TextDirection.ltr, child: Row(mainAxisSize: MainAxisSize.min, children: [for (final s in options) chip(s)]));
     // بالطولي مربع: فوق هاس وسبيت، تحت كلفس وديمن (الألوان متقابلة)، والجوكر فوقهم بالنص
     return Directionality(
       textDirection: TextDirection.ltr,

@@ -16,7 +16,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.1';
+const appVersion = '1.0.2';
 
 class KoutApp extends StatelessWidget {
   final GameClient client;
@@ -471,7 +471,7 @@ class _SeatTile extends StatelessWidget {
                 child: const Icon(Icons.event_seat_outlined, color: Color(0xFF5A6A72), size: 22),
               )
             else
-              CharacterAvatar(charId: s['char'] as String?, size: 44, ring: teamColor),
+              CharacterAvatar(charId: s['char'] as String?, size: 44, ring: teamColor, background: teamColor),
             const SizedBox(width: 7),
             Expanded(
               child: Text(s == null ? 'فاضي' : '${s['name']}${me ? ' (أنت)' : ''}',

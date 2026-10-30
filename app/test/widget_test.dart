@@ -196,7 +196,7 @@ void main() {
     c.view = v;
     c.notifyListeners();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('خسارة'), findsOneWidget);
+    expect(find.text('خسارة'), findsWidgets); // مرتين: الكلمة وحدها الأسود
     expect(find.text('خصيب ما جاب 7'), findsOneWidget);
     expect(find.text('+14 للفريق الأزرق'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
@@ -214,7 +214,7 @@ void main() {
       ..['lastRound'] = {'type': 'made', 'team': 1, 'points': 7, 'buyer': 1, 'bid': 7, 'majbur': false, 'tricksWon': [2, 7]};
     c.notifyListeners();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('وصول'), findsOneWidget);
+    expect(find.text('وصول'), findsWidgets);
     await tester.pump(const Duration(seconds: 3));
   });
 

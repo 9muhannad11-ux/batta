@@ -12,12 +12,10 @@ import 'sounds.dart';
 const _turnSeconds = 12.5;
 const _trumpSeconds = 10.0;
 
-/// أماكن اللاعبين بالطولي: نقاط على رسمة المجلس (380×700، tools/majlis-art/majlis.html)، أنا أول واحد.
+/// أماكن اللاعبين بالطولي حول الطاولة (نسبة من نص عرضها وطولها)، أنا أول واحد.
 /// اللعب عكس عقارب الساعة: اللي على يميني يلعب بعدي.
-const _bgW = 380.0, _bgH = 700.0;
-const _bgCenter = Offset(190, 460);
-const _bgSeats6 = [Offset(190, 600), Offset(340, 520), Offset(334, 372), Offset(190, 300), Offset(46, 360), Offset(40, 520)];
-const _bgSeats4 = [Offset(190, 600), Offset(345, 450), Offset(190, 300), Offset(35, 450)];
+const _align6 = [Offset(0, 1), Offset(0.97, 0.36), Offset(0.97, -0.6), Offset(0, -1), Offset(-0.97, -0.6), Offset(-0.97, 0.36)];
+const _align4 = [Offset(0, 1), Offset(0.97, -0.1), Offset(0, -1), Offset(-0.97, -0.1)];
 // بالعرضي: زوايا حول الطاولة (270 = فوق)، والجنبين متباعدين أكثر
 const _angles6 = [90.0, 40.0, 318.0, 270.0, 222.0, 140.0];
 const _angles4 = [90.0, 0.0, 270.0, 180.0];
@@ -32,10 +30,9 @@ class _Board {
   final double handTop, handW, cardW, avatar;
   final Offset center;
   final List<Offset> seats; // حسب الترتيب بالنسبة لي (0 = أنا)
-  final Rect? bgRect; // مكان رسمة المجلس بالطولي
   final List<double> tilts;
 
-  _Board._(this.size, this.landscape, this.handTop, this.handW, this.cardW, this.avatar, this.center, this.seats, this.bgRect, this.tilts);
+  _Board._(this.size, this.landscape, this.handTop, this.handW, this.cardW, this.avatar, this.center, this.seats, this.tilts);
 
   factory _Board(Size size, int players) {
     final w = size.width, h = size.height;
@@ -50,21 +47,29 @@ class _Board {
         for (final a in players == 4 ? _angles4 : _angles6)
           center + Offset(cos(a * pi / 180) * rx, sin(a * pi / 180) * ry),
       ];
-      return _Board._(size, true, handTop, handW, min(54.0, h * 0.13), min(48.0, h * 0.11), center, seats, null, tilts);
+      return _Board._(size, true, handTop, handW, min(60.0, h * 0.145), min(48.0, h * 0.11), center, seats, tilts);
     }
     final handW = min(88.0, w / 4.6);
     final handTop = h - (handW * cardRatio + 40);
-    // المجلس يتمدد لين يملأ المساحة فوق اليد، وتحته شوي يدخل ورا اليد
-    final bottom = handTop + 40;
-    final s = min(w / _bgW, bottom / _bgH);
-    final bg = Rect.fromLTWH((w - _bgW * s) / 2, bottom - _bgH * s, _bgW * s, _bgH * s);
-    Offset p(Offset o) => bg.topLeft + o * s;
-    return _Board._(size, false, handTop, handW, (60 * s).clamp(40.0, 72.0), (46 * s).clamp(36.0, 60.0), p(_bgCenter),
-        [for (final o in players == 4 ? _bgSeats4 : _bgSeats6) p(o)], bg, tilts);
+    // الطاولة تعبّي المساحة بين النتيجة واليد، واللاعبين حولها (أنا تحت فوق الإشارات)
+    final s = (w / 380).clamp(0.85, 1.3);
+    final top = 96.0, myY = handTop - 95;
+    final center = Offset(w / 2, (top + myY) / 2);
+    final rx = w / 2 - 50, ry = (myY - top) / 2;
+    return _Board._(size, false, handTop, handW, (68 * s).clamp(44.0, 80.0), (50 * s).clamp(40.0, 62.0), center,
+        [for (final a in players == 4 ? _align4 : _align6) center + Offset(a.dx * rx, a.dy * ry)], tilts);
   }
 
   /// مكان الورقة المنزولة: بنص المسافة بين وسط الطاولة وصاحبها
   Offset slot(int rel) => center + (seats[rel] - center) * 0.5;
+
+  /// الطاولة البيضاوية: اللاعبين قاعدين على حوافها
+  Rect get table => Rect.fromLTRB(
+        seats.map((s) => s.dx).reduce(min),
+        seats.map((s) => s.dy).reduce(min),
+        seats.map((s) => s.dx).reduce(max),
+        seats.map((s) => s.dy).reduce(max),
+      );
   double get cardH => cardW * cardRatio;
 }
 
@@ -305,13 +310,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     }
     final n = v['players'] as int;
     return Scaffold(
-      backgroundColor: Colors.black,
       body: Stack(fit: StackFit.expand, children: [
-        // ورا كل شي: المجلس مكبّر وغامق يعبّي الأطراف
-        Positioned.fill(
-          child: Image.asset('assets/images/majlis.png',
-              fit: BoxFit.cover, alignment: const Alignment(0, 0.3), color: Colors.black.withValues(alpha: 0.35), colorBlendMode: BlendMode.darken),
-        ),
+        // الخلفية: حصير قديم (حليبي غامق قريب من لون المخدات) بدون زخرفة، شبه 3D
+        const RepaintBoundary(child: CustomPaint(painter: _MatPainter())),
         SafeArea(
           child: LayoutBuilder(builder: (context, box) {
             final b = _Board(box.biggest, n);
@@ -326,11 +327,41 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                 behavior: HitTestBehavior.translucent,
                 onTap: _selected == null ? null : () => setState(() => _selected = null), // لمسة على مكان فاضي تنزّل الورقة
                 child: Stack(key: _boardKey, fit: StackFit.expand, clipBehavior: Clip.none, children: [
-                  if (b.bgRect != null)
-                    Positioned.fromRect(rect: b.bgRect!, child: Image.asset('assets/images/majlis.png', fit: BoxFit.fill, filterQuality: FilterQuality.medium)),
-                  if (_bawanActive(v)) Positioned.fill(child: IgnorePointer(child: _GoldGlow(center: b.center, radius: b.size.shortestSide * 0.5))),
-                  _centerInfo(v, b),
+                  // الطاولة: بيضاوية بحافة خشب، وسطها رمادي بتدرج أبيض بنفس شكلها، وتصير ذهبية في الباون
+                  Positioned.fromRect(
+                    rect: b.table.inflate(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(b.size.longestSide),
+                        gradient: const LinearGradient(
+                          begin: Alignment(-1, -1),
+                          end: Alignment(1, 1),
+                          stops: [0, 0.18, 0.32, 0.5, 0.66, 0.82, 1],
+                          colors: [Color(0xFFA56F3E), Color(0xFF7A4A22), Color(0xFF94602F), Color(0xFF6B3E1B), Color(0xFF8D5A2B), Color(0xFF6A3C19), Color(0xFF51300F)],
+                        ),
+                        border: Border.all(color: const Color(0xFF3A2209), width: 1.5),
+                        boxShadow: [
+                          const BoxShadow(color: Color(0x88000000), blurRadius: 22, offset: Offset(0, 10)),
+                          if (_bawanActive(v)) BoxShadow(color: KoutColors.gold.withValues(alpha: 0.55), blurRadius: 30),
+                        ],
+                      ),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 600),
+                        decoration: BoxDecoration(
+                          gradient: _bawanActive(v)
+                              ? const RadialGradient(colors: [Color(0xFFF3D98A), Color(0xFFC9A030)], radius: 0.72, transform: _Ellipse())
+                              : const RadialGradient(
+                                  colors: [Color(0xFFF7F8F9), Color(0xFFB9BCC0), Color(0xFF7A7F85)], stops: [0, 0.55, 1], radius: 0.72, transform: _Ellipse()),
+                          borderRadius: BorderRadius.circular(b.size.longestSide),
+                          // لمعة على حافة الخشب من جوا
+                          border: Border.all(color: const Color(0xFFC08A55), width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ),
                   ..._trickLayer(v, b, n),
+                  _centerInfo(v, b), // فوق الأوراق عشان ما تغطيها
                   for (var seat = 0; seat < n; seat++) _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar)),
                   _dealLayer(b, n),
                   if (_dragOver) _dropTarget(b),
@@ -364,26 +395,23 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final buyer = v['buyer'] as int?;
     if (trump == null || buyer == null) return const SizedBox.shrink();
     final bawan = _bawanActive(v);
+    // أكبر، وكل شي بحد أسود
     return Positioned(
-      left: b.center.dx - 60,
-      top: b.center.dy - 26,
-      width: 120,
+      left: b.center.dx - 90,
+      top: b.center.dy - 42,
+      width: 180,
       child: IgnorePointer(
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(12)),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                SuitIcon(trump, size: 24, color: isRedSuit(trump) ? const Color(0xFFFF4D4D) : Colors.white),
-                const SizedBox(width: 6),
-                Text(bawan ? 'باون' : '${v['currentBid']}',
-                    style: TextStyle(fontSize: 22, color: bawan ? KoutColors.gold : Colors.white, height: 1.1)),
-              ]),
-              Text(c.seatName(buyer), style: TextStyle(fontSize: 12, color: KoutColors.team(buyer % 2), height: 1.1)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Stack(alignment: Alignment.center, children: [
+              SuitIcon(trump, size: 40, color: Colors.black),
+              SuitIcon(trump, size: 34, color: isRedSuit(trump) ? const Color(0xFFFF4D4D) : const Color(0xFF2B2B2B)),
             ]),
-          ),
-        ),
+            const SizedBox(width: 6),
+            OutlinedText(bawan ? 'باون' : '${v['currentBid']}', size: 36, color: bawan ? KoutColors.gold : Colors.white),
+          ]),
+          OutlinedText(c.seatName(buyer), size: 17, color: KoutColors.team(buyer % 2)),
+        ]),
       ),
     );
   }
@@ -589,7 +617,8 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   // الإشارات: بدون نافذة، صف رموز صغير فوق اليد (بالعرضي عمود يمين تحت جنب اليد)
   Widget _signalRow(Map<String, dynamic> v, _Board b) {
     if (b.landscape) return Positioned(right: 6, bottom: 6, child: _SignalBar(client: c, view: v, vertical: true));
-    return Positioned(left: 0, right: 0, bottom: b.size.height - b.handTop + 2, child: Center(child: _SignalBar(client: c, view: v)));
+    // بالطولي المربع على يمين شخصيتي فوق اليد
+    return Positioned(right: 14, bottom: b.size.height - b.handTop + 4, child: _SignalBar(client: c, view: v));
   }
 
   // كف الجوكر الكبير: ينزل من جهة صاحبه ويضرب ورقته على الطاولة
@@ -709,43 +738,117 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   }
 }
 
-/// توهج ذهبي على الطاولة وقت الباون أو 9
-class _GoldGlow extends StatelessWidget {
-  final Offset center;
-  final double radius;
-  const _GoldGlow({required this.center, required this.radius});
+/// كتابة بحد أسود عريض (حد مرسوم تحت الكتابة)
+class OutlinedText extends StatelessWidget {
+  final String text;
+  final double size;
+  final Color color;
+  const OutlinedText(this.text, {super.key, required this.size, required this.color});
 
   @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 600),
-        builder: (_, t, _) => CustomPaint(
-          painter: _GlowPainter(center, radius, t),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final style = TextStyle(fontSize: size, height: 1.15);
+    return Stack(children: [
+      Text(text,
+          maxLines: 1,
+          style: style.copyWith(
+              foreground: Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = max(3, size * 0.12)
+                ..strokeJoin = StrokeJoin.round
+                ..color = Colors.black)),
+      Text(text, maxLines: 1, style: style.copyWith(color: color)),
+    ]);
+  }
 }
 
-class _GlowPainter extends CustomPainter {
-  final Offset center;
-  final double radius, t;
-  _GlowPainter(this.center, this.radius, this.t);
+/// يخلي التدرج الدائري بيضاوي بنفس شكل الطاولة
+class _Ellipse extends GradientTransform {
+  const _Ellipse();
+
+  @override
+  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
+    final s = bounds.shortestSide;
+    return Matrix4.identity()
+      ..translateByDouble(bounds.center.dx, bounds.center.dy, 0, 1)
+      ..scaleByDouble(bounds.width / s, bounds.height / s, 1, 1)
+      ..translateByDouble(-bounds.center.dx, -bounds.center.dy, 0, 1);
+  }
+}
+
+/// حصير قديم بدون زخرفة: شرايط خوص مضفورة بالعرض، كل شريطة خيوطها مايلة وعكس اللي جنبها
+/// (مثل ضفيرة السعف)، وكل خيط له لمعة بالنص وظل على الحواف (شبه 3D)،
+/// وبقع باهتة خفيفة، وضوء من فوق يسار والأطراف أغمق.
+class _MatPainter extends CustomPainter {
+  const _MatPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawCircle(
-      center,
-      radius * 1.3,
-      Paint()
-        ..shader = RadialGradient(colors: [
-          KoutColors.gold.withValues(alpha: 0.38 * t),
-          KoutColors.gold.withValues(alpha: 0.12 * t),
-          KoutColors.gold.withValues(alpha: 0),
-        ], stops: const [0, 0.6, 1]).createShader(Rect.fromCircle(center: center, radius: radius * 1.3)),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF7E7054)); // الفراغات بين الشرايط
+    final rnd = Random(7);
+    const bandH = 22.0, strand = 8.0;
+    for (var row = 0; row * bandH < size.height + bandH; row++) {
+      final y = row * bandH;
+      final slant = (row.isEven ? 1 : -1) * bandH * 0.75;
+      canvas.save();
+      canvas.clipRect(Rect.fromLTWH(0, y + 1, size.width, bandH - 2));
+      for (var x = -bandH; x < size.width + bandH; x += strand) {
+        // كل خيط لونه يختلف شوي (خوص قديم)
+        final tone = 0.88 + rnd.nextDouble() * 0.18;
+        Color c(int r, int g, int b) => Color.fromARGB(255, (r * tone).clamp(0, 255).round(), (g * tone).clamp(0, 255).round(), (b * tone).clamp(0, 255).round());
+        final path = Path()
+          ..moveTo(x, y + bandH)
+          ..lineTo(x + strand - 0.8, y + bandH)
+          ..lineTo(x + strand - 0.8 + slant, y)
+          ..lineTo(x + slant, y)
+          ..close();
+        canvas.drawPath(
+          path,
+          Paint()
+            ..shader = LinearGradient(
+              colors: [c(0x9A, 0x8A, 0x68), c(0xD4, 0xC7, 0xA8), c(0xB3, 0xA4, 0x82)],
+              stops: const [0, 0.45, 1],
+            ).createShader(Rect.fromLTWH(min(x, x + slant), y, strand + slant.abs(), bandH)),
+        );
+      }
+      // الشريطة منفوخة شوي: لمعة فوق وظل تحت
+      final band = Rect.fromLTWH(0, y + 1, size.width, bandH - 2);
+      canvas.drawRect(
+          band,
+          Paint()
+            ..shader = const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x26FFFFFF), Color(0x00FFFFFF), Color(0x40000000)],
+              stops: [0, 0.4, 1],
+            ).createShader(band));
+      canvas.restore();
+    }
+    // بقع قديمة باهتة
+    for (var i = 0; i < 14; i++) {
+      final p = Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
+      final rad = 30 + rnd.nextDouble() * 70;
+      canvas.drawCircle(
+          p,
+          rad,
+          Paint()
+            ..shader = RadialGradient(colors: [const Color(0x1A3B2A10), const Color(0x003B2A10)]).createShader(Rect.fromCircle(center: p, radius: rad)));
+    }
+    // ضوء من فوق يسار، والأطراف أغمق (عمق)
+    final all = Offset.zero & size;
+    canvas.drawRect(
+        all,
+        Paint()
+          ..shader = const RadialGradient(
+            center: Alignment(-0.4, -0.5),
+            radius: 1.3,
+            colors: [Color(0x26FFFFFF), Color(0x00FFFFFF), Color(0x66000000)],
+            stops: [0, 0.5, 1],
+          ).createShader(all));
   }
 
   @override
-  bool shouldRepaint(_GlowPainter old) => old.t != t || old.center != center;
+  bool shouldRepaint(_MatPainter old) => false;
 }
 
 class _DashedBox extends CustomPainter {
@@ -1317,15 +1420,17 @@ class _Effect extends StatelessWidget {
                     alignment: Alignment(sin(i * 1.7) * t * 1.2, -1 + ((i * 0.37 + t * 1.6) % 2.2)),
                     child: Icon(Icons.star, color: KoutColors.gold.withValues(alpha: 0.9), size: 14 + (i % 4) * 6.0),
                   ),
+              // وصول أخضر وخسارة أحمر، أكبر، وبحد أسود
               Transform.scale(
                 scale: 0.3 + 0.7 * pop,
-                child: Text(
-                  word,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: kind == 'bawan' ? 120 : 64,
-                    color: switch (kind) { 'bawan' => KoutColors.gold, 'bawanFail' => KoutColors.lose, _ => Colors.white },
-                    shadows: [Shadow(color: color, blurRadius: 30), const Shadow(color: Colors.black, blurRadius: 8)],
+                child: FittedBox(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: OutlinedText(
+                      word,
+                      size: switch (kind) { 'bawan' => 120, 'bawanFail' => 72, _ => 100 },
+                      color: switch (kind) { 'bawan' => KoutColors.gold, 'win' => const Color(0xFF3FD067), _ => const Color(0xFFFF3B3B) },
+                    ),
                   ),
                 ),
               ),
@@ -1374,7 +1479,7 @@ class _SignalBarState extends State<_SignalBar> {
               : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            margin: widget.vertical ? const EdgeInsets.symmetric(vertical: 3) : const EdgeInsets.symmetric(horizontal: 3),
+            margin: widget.vertical ? const EdgeInsets.symmetric(vertical: 3) : const EdgeInsets.all(3),
             width: 30,
             height: 30,
             alignment: Alignment.center,
@@ -1390,8 +1495,15 @@ class _SignalBarState extends State<_SignalBar> {
       );
     }
 
-    final chips = [for (final s in options) chip(s)];
-    if (widget.vertical) return Column(mainAxisSize: MainAxisSize.min, children: chips);
-    return Directionality(textDirection: TextDirection.ltr, child: Row(mainAxisSize: MainAxisSize.min, children: chips));
+    if (widget.vertical) return Column(mainAxisSize: MainAxisSize.min, children: [for (final s in options) chip(s)]);
+    // بالطولي مربع: فوق هاس وسبيت، تحت كلفس وديمن (الألوان متقابلة)، والجوكر فوقهم بالنص
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (options.contains('J')) chip('J'),
+        Row(mainAxisSize: MainAxisSize.min, children: [chip('H'), chip('S')]),
+        Row(mainAxisSize: MainAxisSize.min, children: [chip('C'), chip('D')]),
+      ]),
+    );
   }
 }

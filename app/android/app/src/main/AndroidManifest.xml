@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- اللعب أونلاين: بدونها نسخة الـ APK ما تقدر تتصل بالسيرفر -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="بتّه"
         android:name="${applicationName}"

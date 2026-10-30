@@ -80,6 +80,12 @@ function lobbyInfo(room) {
 
 function broadcast(room) {
   room.touched = Date.now();
+  // إشارة جوكر تحددت مع الورقة (صاحب الجوكرين): توصل قبل الحالة عشان الكف يلحق الورقة
+  const resolved = room.game?.resolvedSignal;
+  if (resolved) {
+    room.game.resolvedSignal = null;
+    emitAll(room, { t: 'signal', ...resolved });
+  }
   const info = lobbyInfo(room);
   const turnMsLeft = room.deadline ? Math.max(0, room.deadline - Date.now()) : null;
   room.seats.forEach((s, seat) => {
@@ -224,7 +230,7 @@ function handle(ws, msg) {
       case 'bawan': E.answerBawan(game(room), seat, !!msg.accept); break;
       case 'signal': {
         const sig = E.signal(game(room), seat, msg.suits ?? msg.suit);
-        emitAll(room, { t: 'signal', ...sig });
+        if (sig.suits.length) emitAll(room, { t: 'signal', ...sig });
         return broadcast(room); // عشان تتحدث لوحة الإشارة عند صاحبها
       }
       case 'rematch':

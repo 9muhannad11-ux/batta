@@ -377,6 +377,26 @@ test('signals: only on your turn, several at once, joker signal rules', () => {
   assert.deepStrictEqual(E.signal(s, 2, ['J', 'H']), { seat: 2, suits: ['J', 'H'], big: false });
 });
 
+test('both jokers: the joker signal waits for the card — small joker = big signal, other card = small signal', () => {
+  const setup = () => {
+    const s = E.createMatch({ khabis: 5 });
+    s.phase = 'playing'; s.trump = 'S'; s.turn = 2; s.signalsThisTurn = 0; s.greyPlayed = false;
+    s.trick = [{ seat: 1, card: 'H-3' }];
+    s.hands[2] = [E.BLUE, E.GREY, 'H-2', 'C-5'];
+    return s;
+  };
+  let s = setup();
+  // يقدر يستخدم إشارة الجوكر حتى والصغير ما نزل، بس ما تبين الحين
+  assert.deepStrictEqual(E.signal(s, 2, ['J', 'H']), { seat: 2, suits: ['H'], big: false });
+  assert.strictEqual(s.resolvedSignal, null);
+  E.playCard(s, 2, E.GREY);
+  assert.deepStrictEqual(s.resolvedSignal, { seat: 2, suits: ['J'], big: true }); // كف الكبير
+  s = setup();
+  assert.deepStrictEqual(E.signal(s, 2, ['J']).suits, []);
+  E.playCard(s, 2, 'H-2');
+  assert.deepStrictEqual(s.resolvedSignal, { seat: 2, suits: ['J'], big: false }); // إشارة الصغير
+});
+
 test('trump timeout picks the longest suit, ties go to the stronger cards', () => {
   const Bot = require('../src/bot');
   assert.strictEqual(Bot.mostSuit(['H-2', 'H-3', 'H-4', 'S-14', 'S-13', E.BLUE]), 'H');
@@ -453,6 +473,21 @@ test('bot leads: highest trump when own team bought, lowest trump on 3rd trick b
   // الشاري من الخصم: ما يفتتح بحكم
   s.buyer = 1; s.trickNo = 4; s.greyPlayed = true;
   assert.strictEqual(Bot.decide(s, 0).card, 'H-14');
+});
+
+test('bot stops leading trump once only the teammate buyer followed its trump lead', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 2, greyPlayed: true, trickNo: 4, turn: 0, trick: [] });
+  s.hands[0] = ['S-13', 'S-4', 'H-14', 'D-9'];
+  // افتتح بحكم وكلهم رموا حكم: يكمل بالحكم
+  s.tricks = [{ winner: 0, cards: [{ seat: 0, card: 'S-14' }, { seat: 1, card: 'S-2' }, { seat: 2, card: 'S-3' }, { seat: 3, card: 'S-5' }, { seat: 4, card: 'S-6' }, { seat: 5, card: 'S-7' }] }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-13');
+  // افتتح بحكم ومحد رمى حكم غير الشاري (مقعد 2): يفتتح من غير الحكم
+  s.tricks.push({ winner: 0, cards: [{ seat: 0, card: 'S-12' }, { seat: 1, card: 'H-2' }, { seat: 2, card: 'S-8' }, { seat: 3, card: 'D-2' }, { seat: 4, card: 'C-2' }, { seat: 5, card: 'H-3' }] });
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-14');
+  // الشاري نفسه ما تنطبق عليه القاعدة
+  s.buyer = 0;
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-13');
 });
 
 test('bot: never misses a winnable trick (void suit: lowest winning trump over the opponent)', () => {

@@ -113,7 +113,10 @@ function startRound(state, rng = Math.random) {
   state.bawan = false; // هل الفريق المزايد ملتزم بكل اللمّات
   state.lastTrick = null;
   state.played = []; // كل الأوراق اللي نزلت في اللمّات المكتملة هالجولة
+  state.tricks = []; // اللمّات المكتملة هالجولة بالترتيب [{cards, winner}]
   state.signalsThisTurn = 0;
+  state.bothJokerSignal = null; // مقعد اللي معه الجوكرين وأرسل إشارة الجوكر (تتحدد بورقته الجاية)
+  state.resolvedSignal = null; // إشارة الجوكر بعد ما تحددت، يرسلها السيرفر مع الورقة
   return state;
 }
 
@@ -224,6 +227,11 @@ function playCard(state, seat, card) {
   hand.splice(hand.indexOf(card), 1);
   state.trick.push({ seat, card });
   state.signalsThisTurn = 0;
+  // إشارة الجوكر من صاحب الجوكرين: إذا لعب الصغير تصير إشارة الكبير (الكف)، وإذا لعب غيره تصير إشارة الصغير
+  if (state.bothJokerSignal === seat) {
+    state.bothJokerSignal = null;
+    state.resolvedSignal = { seat, suits: [JOKER_SIGNAL], big: card === GREY };
+  }
 
   if (card === BLUE) {
     const loses = blueLosesMatch(state, seat);
@@ -241,6 +249,7 @@ function playCard(state, seat, card) {
   state.tricksWon[teamOf(winner)] += 1;
   state.trickNo += 1;
   state.lastTrick = { cards: state.trick, winner };
+  (state.tricks ||= []).push(state.lastTrick);
   state.played.push(...state.trick.map((t) => t.card));
   state.trick = [];
   state.turn = winner;
@@ -306,10 +315,12 @@ function nextRound(state, rng = Math.random) {
   return startRound(state, rng);
 }
 
-// إشارة الجوكر: لازم يكون عندك جوكر، وحامل الكبير ما يستخدمها لين ينزل الصغير
+// إشارة الجوكر: لازم يكون عندك جوكر، وحامل الكبير بس ما يستخدمها لين ينزل الصغير.
+// اللي معه الجوكرين يقدر (وتتحدد بورقته الجاية)
 function canSignalJoker(state, seat) {
   const hand = state.hands[seat] || [];
   if (!hand.some(isJoker)) return false;
+  if (hand.includes(BLUE) && hand.includes(GREY)) return true;
   return !(hand.includes(BLUE) && !state.greyPlayed);
 }
 
@@ -324,8 +335,14 @@ function signal(state, seat, suits) {
   if (!list.length || list.some((s) => !SUITS.includes(s) && s !== JOKER_SIGNAL)) fail('إشارة غير معروفة');
   if (list.includes(JOKER_SIGNAL) && !canSignalJoker(state, seat)) fail('ما تقدر تستخدم إشارة الجوكر');
   state.signalsThisTurn += 1;
+  const hand = state.hands[seat];
+  if (list.includes(JOKER_SIGNAL) && hand.includes(BLUE) && hand.includes(GREY)) {
+    // معه الجوكرين: إشارة الجوكر ما تبين الحين، تنحفظ وتتحدد لما يلعب ورقته
+    state.bothJokerSignal = seat;
+    return { seat, suits: list.filter((s) => s !== JOKER_SIGNAL), big: false };
+  }
   // big: إشارة الجوكر من صاحب الكبير (التطبيق يعرضها كف يضرب ورقته بدل الفقاعة)
-  return { seat, suits: list, big: list.includes(JOKER_SIGNAL) && state.hands[seat].includes(BLUE) };
+  return { seat, suits: list, big: list.includes(JOKER_SIGNAL) && hand.includes(BLUE) };
 }
 
 // ما يشوفه كل لاعب: أوراقه فقط، وعدد أوراق البقية

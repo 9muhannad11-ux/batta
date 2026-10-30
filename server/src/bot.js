@@ -90,6 +90,11 @@ function decidePlay(state, seat) {
       const pool = nonTrumps.length ? nonTrumps : plain;
       return thirdBeforeGrey ? lowest(pool, trump) : highest(pool, trump);
     }
+    // زميله الشاري، والبوت افتتح بحكم قبل ومحد رمى حكم غير الشاري: الباقين خلص حكمهم، يوقف الافتتاح بحكم
+    const trumpDry = seat !== state.buyer && nonTrumps.length && (state.tricks || []).some((t) =>
+      t.cards[0].seat === seat && t.cards[0].card[0] === trump &&
+      t.cards.every((x) => x.seat === seat || x.seat === state.buyer || x.card[0] !== trump));
+    if (trumpDry) return thirdBeforeGrey ? lowest(nonTrumps, trump) : highest(nonTrumps, trump);
     // الشاري من فريقه: يفتتح بأكبر حكم، إلا اللمّة الثالثة والصغير ما نزل فيفتتح بأصغر حكم
     if (trumps.length) return thirdBeforeGrey ? lowest(trumps, trump) : highest(trumps, trump);
     return thirdBeforeGrey ? lowest(plain, trump) : highest(plain, trump);

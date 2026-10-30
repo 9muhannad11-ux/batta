@@ -60,8 +60,10 @@ class GameClient extends ChangeNotifier {
   Future<void> loadPrefs() async {
     final p = await SharedPreferences.getInstance();
     name = p.getString('name') ?? '';
-    // على الويب السيرفر دايماً هو نفس الموقع، فما نعتمد على رابط محفوظ قديم
-    serverUrl = kIsWeb ? defaultServerUrl() : (p.getString('server') ?? defaultServerUrl());
+    // على الويب السيرفر دايماً هو نفس الموقع. وعلى الجوال نستخدم رابط النسخة، إلا إذا اللاعب كتب رابط ثاني بنفسه
+    // (المفتاح القديم 'server' ما نقرأه: نسخ قديمة حفظت فيه روابط غلط وكانت تمنع الاتصال)
+    serverUrl = kIsWeb ? defaultServerUrl() : (p.getString('serverCustom') ?? defaultServerUrl());
+    await p.remove('server');
   }
 
   static String defaultServerUrl() {
@@ -82,7 +84,11 @@ class GameClient extends ChangeNotifier {
   Future<void> _savePrefs() async {
     final p = await SharedPreferences.getInstance();
     await p.setString('name', name);
-    await p.setString('server', serverUrl);
+    if (serverUrl.isEmpty || serverUrl == defaultServerUrl()) {
+      await p.remove('serverCustom');
+    } else {
+      await p.setString('serverCustom', serverUrl);
+    }
     if (code != null && token != null) {
       await p.setString('room', code!);
       await p.setString('token', token!);
@@ -102,28 +108,48 @@ class GameClient extends ChangeNotifier {
     _open(() => _send({'t': 'join', 'code': roomCode, 'name': name, 'token': ?savedToken}));
   }
 
-  void _open(void Function() onOpen) {
+  /// يحاول يتصل لين دقيقة ونص: سيرفر Render المجاني ينام إذا ما أحد يلعب، ويحتاج 30-60 ثانية يصحى
+  static const _connectTries = 30;
+  bool connecting = false;
+
+  void _open(void Function() onOpen, {int attempt = 0}) {
     _wantConnection = true;
     error = null;
     kicked = false;
+    connecting = true;
     _sub?.cancel();
     _ch?.sink.close();
+    final WebSocketChannel ch;
     try {
-      _ch = WebSocketChannel.connect(Uri.parse(serverUrl));
+      ch = WebSocketChannel.connect(Uri.parse(serverUrl));
     } catch (e) {
+      connecting = false;
       error = 'رابط السيرفر غير صحيح';
       notifyListeners();
       return;
     }
-    _ch!.ready.then((_) {
+    _ch = ch;
+    notifyListeners();
+    ch.ready.timeout(const Duration(seconds: 15)).then((_) {
+      if (_ch != ch) return;
       connected = true;
+      connecting = false;
       onOpen();
       notifyListeners();
     }).catchError((_) {
-      error = 'ما قدرت أتصل بالسيرفر';
-      notifyListeners();
+      if (_ch != ch || !_wantConnection) return;
+      if (attempt + 1 < _connectTries) {
+        // نعيد المحاولة: كل محاولة تصحّي السيرفر لين يرد
+        Future.delayed(const Duration(seconds: 3), () {
+          if (_wantConnection && !connected && _ch == ch) _open(onOpen, attempt: attempt + 1);
+        });
+      } else {
+        connecting = false;
+        error = 'ما قدرت أتصل بالسيرفر، تأكد من الإنترنت وحاول مرة ثانية';
+        notifyListeners();
+      }
     });
-    _sub = _ch!.stream.listen(_onMessage, onDone: _onDone, onError: (_) => _onDone());
+    _sub = ch.stream.listen(_onMessage, onDone: () { if (_ch == ch) _onDone(); }, onError: (_) { if (_ch == ch) _onDone(); });
   }
 
   void _onDone() {
@@ -207,6 +233,7 @@ class GameClient extends ChangeNotifier {
     _ch?.sink.close();
     _ch = null;
     connected = false;
+    connecting = false;
     room = null;
     view = null;
     code = null;

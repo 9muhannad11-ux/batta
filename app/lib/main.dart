@@ -15,6 +15,9 @@ void main() async {
 /// خط المسيري الغامق لكل نصوص اللعبة
 const appFont = 'ElMessiri';
 
+/// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
+const appVersion = '1.0.1';
+
 class KoutApp extends StatelessWidget {
   final GameClient client;
   const KoutApp({super.key, required this.client});
@@ -208,8 +211,18 @@ class _HomeScreenState extends State<HomeScreen> {
             maxLength: 20,
           ),
           const SizedBox(height: 4),
+          if (c.connecting)
+            // السيرفر المجاني ينام إذا ما أحد يلعب، ويصحى خلال دقيقة
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                SizedBox(width: 8),
+                Flexible(child: Text('جاري الاتصال بالسيرفر... (أول مرة تاخذ لين دقيقة)', style: TextStyle(fontSize: 13, color: Color(0xFFDDDDDD)))),
+              ]),
+            ),
           FilledButton(
-            onPressed: () { if (_apply()) c.createRoom(); },
+            onPressed: c.connecting ? null : () { if (_apply()) c.createRoom(); },
             style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
             child: const Text('سوّ غرفة جديدة', style: TextStyle(fontSize: 19)),
           ),
@@ -229,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 8),
           OutlinedButton(
-            onPressed: () { if (_apply() && _code.text.trim().isNotEmpty) c.joinRoom(_code.text.trim()); },
+            onPressed: c.connecting ? null : () { if (_apply() && _code.text.trim().isNotEmpty) c.joinRoom(_code.text.trim()); },
             style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22)),
             child: const Text('ادخل'),
           ),
@@ -252,6 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: const InputDecoration(labelText: 'رابط السيرفر (ws://...)'),
           ),
         ),
+      const Text('نسخة $appVersion', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF4A4D52))),
     ]);
     return Scaffold(
       body: ChromeBackground(

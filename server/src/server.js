@@ -22,11 +22,12 @@ const CHARACTERS = [
   { id: 'khusaib', name: 'خصيب' },
   { id: 'marhoon', name: 'مرهون' },
   { id: 'musabbah', name: 'مصبّح' },
-  { id: 'salloum', name: 'سلوم العرج' },
   { id: 'bodhirs', name: 'محمد بو ضرس' },
   { id: 'abdo', name: 'عبدو اليابس' },
   { id: 'sadiq', name: 'صديق' },
   { id: 'mundaghit', name: 'المنضغط' },
+  { id: 'wadamtih', name: 'ود عمتيه' },
+  { id: 'buhamdan', name: 'بو حمدان' },
 ];
 
 const rooms = new Map(); // code -> room

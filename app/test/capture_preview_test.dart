@@ -24,7 +24,8 @@ Map<String, dynamic> _view() => {
       'bawanOffer': false, 'turnMsLeft': 8000,
     };
 
-Future<void> _capture(WidgetTester tester, Size size, String out) async {
+/// result: 'made' أو 'failed' يصوّر لحظة نهاية الجولة (الطاولة خضراء/حمراء)
+Future<void> _capture(WidgetTester tester, Size size, String out, {String? result}) async {
   tester.view.physicalSize = size * 2;
   tester.view.devicePixelRatio = 2;
   final c = _Client()
@@ -32,7 +33,7 @@ Future<void> _capture(WidgetTester tester, Size size, String out) async {
     ..room = {
       't': 'room', 'code': '1234', 'mode': 6, 'started': true, 'you': 0, 'isHost': true,
       'seats': [
-        for (final (n, ch) in [('مهند', 'musabbah'), ('خصيب', 'khusaib'), ('مرهون', 'marhoon'), ('سلوم العرج', 'sadiq'), ('خلفان التفق', 'khalfan'), ('عبدو اليابس', 'mundaghit')])
+        for (final (n, ch) in [('مهند', 'musabbah'), ('خصيب', 'khusaib'), ('مرهون', 'marhoon'), ('بو حمدان', 'buhamdan'), ('خلفان التفق', 'khalfan'), ('ود عمتيه', 'wadamtih')])
           {'name': n, 'bot': n != 'مهند', 'connected': true, 'char': ch},
       ],
     }
@@ -47,6 +48,18 @@ Future<void> _capture(WidgetTester tester, Size size, String out) async {
     }
   });
   await tester.pump(const Duration(milliseconds: 600));
+  if (result != null) {
+    c.view = _view()
+      ..['phase'] = 'roundEnd'
+      ..['trick'] = []
+      ..['legalCards'] = []
+      ..['canSignal'] = false
+      ..['lastRound'] = {'type': result, 'team': 1, 'points': 6, 'buyer': 3, 'bid': 6, 'majbur': false, 'tricksWon': [3, 6]};
+    c.notifyListeners();
+    // الأنميشن يبدأ بأول فريم، وبعدها نروح لوسط التأثير
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 700));
+  }
   await tester.runAsync(() async {
     final ro = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('shot')));
     final img = await ro.toImage(pixelRatio: 2);
@@ -70,5 +83,14 @@ void main() {
   testWidgets('landscape preview', (tester) async {
     addTearDown(tester.view.reset);
     await _capture(tester, const Size(844, 390), 'build/preview_landscape.png');
+  });
+
+  testWidgets('win / lose table flash', (tester) async {
+    addTearDown(tester.view.reset);
+    await _capture(tester, const Size(390, 844), 'build/preview_win.png', result: 'made');
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpWidget(const SizedBox()); // شاشة جديدة للصورة الثانية
+    await _capture(tester, const Size(390, 844), 'build/preview_lose.png', result: 'failed');
+    await tester.pump(const Duration(seconds: 3));
   });
 }

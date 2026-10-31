@@ -34,6 +34,13 @@
       "runtimeArgs": ["tools/sound-candidates/preview-server.js"],
       "env": { "DIR": "app/assets/cards", "PORT": "8096" },
       "port": 8096
+    },
+    {
+      "name": "voice-preview",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["tools/sound-candidates/preview-server.js"],
+      "env": { "DIR": "tools/voices", "PORT": "8095" },
+      "port": 8095
     }
   ]
 }

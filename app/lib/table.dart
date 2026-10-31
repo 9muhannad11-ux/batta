@@ -45,7 +45,7 @@ class _Board {
       final edge = avatar / 2 + 16;
       final handW = min(80.0, h * 0.21);
       final handTop = h - handW * cardRatio * 0.66; // الأوراق تطلع من تحت الشاشة (يبين ثلثينها)
-      final topY = avatar / 2 + 10;
+      final topY = avatar * 0.78 + 8; // مكان للراس اللي يطلع فوق الإطار
       final me = Offset(edge, h - avatar / 2 - 30);
       final seats = players == 4
           ? [me, Offset(w - edge, h * 0.42), Offset(w / 2, topY), Offset(edge, h * 0.42)]
@@ -53,7 +53,7 @@ class _Board {
           : [me, Offset(w - edge, h * 0.57), Offset(w - edge, h * 0.24), Offset(w / 2, topY), Offset(edge, h * 0.24), Offset(edge, h * 0.57)];
       // الطاولة تاخذ الطول كله تقريباً بين اللي فوق واليد
       final table = Rect.fromLTRB(edge + avatar * 1.25, topY + avatar * 0.7, w - edge - avatar * 1.25, h * 0.82);
-      return _Board._(size, true, handTop, handW, min(64.0, h * 0.16), avatar, edge + avatar * 1.4, w - 215, table, seats, tilts);
+      return _Board._(size, true, handTop, handW, min(64.0, h * 0.16), avatar, edge + avatar * 1.4, w - 225, table, seats, tilts);
     }
     final s = (w / 380).clamp(0.85, 1.3);
     final avatar = (60 * s).clamp(50.0, 74.0);
@@ -107,6 +107,8 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   int _seenRound = 0;
   int _seenTrickNo = 0;
   int _seenTrickLen = 0;
+  int _seenBids = 0;
+  final Set<int> _talking = {}; // اللاعبين اللي صوت شخصيتهم شغّال (فمهم يتحرك)
   bool _goldOn = false;
   int _resultShownRound = 0;
   String? _effect; // win, lose, bawan
@@ -209,6 +211,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       // لو رجعنا للعبة بنص الجولة، ما نعيد أنميشن التوزيع ولا أصوات اللي فات
       _seenTrickNo = freshDeal ? 0 : trickNo;
       _seenTrickLen = freshDeal ? 0 : trickLen;
+      _seenBids = freshDeal ? 0 : (v['bids'] as List).length;
       _resultShownRound = v['phase'] == 'roundEnd' || v['phase'] == 'matchEnd' ? round : _resultShownRound;
       _selected = null;
       _dragCard = null;
@@ -222,9 +225,19 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       }
     }
 
-    // صوت الورقة اللي نزلت: جوكر، أو كف الجوكر الكبير، أو ورقة عادية
-    void landed(Map<String, dynamic> t) {
+    // صوت الشخصية مع كل مزايدة: 6/7/8، طاف، 6 مجبور
+    final bids = (v['bids'] as List).cast<Map<String, dynamic>>();
+    for (var i = _seenBids; i < bids.length; i++) {
+      final e = switch (bids[i]['bid']) { 6 => VoiceEvent.bid6, 7 => VoiceEvent.bid7, 8 => VoiceEvent.bid8, 'pass' => VoiceEvent.pass, 'majbur' => VoiceEvent.majbur, _ => null };
+      if (e != null) _say(bids[i]['seat'] as int, e);
+    }
+    _seenBids = bids.length;
+
+    // صوت الورقة اللي نزلت: جوكر، أو كف الجوكر الكبير، أو ورقة عادية.
+    // before: أوراق اللمّة اللي نزلت قبلها (عشان نعرف إذا الكبير نزل فوق الصغير)
+    void landed(Map<String, dynamic> t, List<Map<String, dynamic>> before) {
       final seat = t['seat'] as int;
+      if (t['card'] == 'JB' && before.any((x) => x['card'] == 'JG')) _say(seat, VoiceEvent.blueOverGrey);
       if (c.slapPending.remove(seat)) {
         _slapRel = _rel(seat, n);
         _slap.forward(from: 0);
@@ -242,10 +255,11 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _seenTrickNo = trickNo;
       _collecting = v['lastTrick'] as Map<String, dynamic>;
       _collectSound = false;
-      landed((_collecting!['cards'] as List).cast<Map<String, dynamic>>().last);
+      final done = (_collecting!['cards'] as List).cast<Map<String, dynamic>>();
+      landed(done.last, done.sublist(0, done.length - 1));
       _collect.forward(from: 0);
     } else if (trickLen > _seenTrickLen) {
-      landed(trick.last);
+      landed(trick.last, trick.sublist(0, trickLen - 1));
     }
     _seenTrickLen = trickLen;
 
@@ -255,12 +269,20 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     if (gold != _goldOn) {
       _goldOn = gold;
       gold ? Sfx.gold() : Sfx.stopGold();
+      if (gold && v['buyer'] is int) _say(v['buyer'] as int, VoiceEvent.gold);
     }
 
     // نتيجة الجولة: أخضر إذا جابها الشاري، أحمر إذا ما جابها، وذهبي للباون
     if ((phase == 'roundEnd' || phase == 'matchEnd') && v['lastRound'] != null && round != _resultShownRound) {
       _resultShownRound = round;
-      final type = (v['lastRound'] as Map)['type'];
+      final last = v['lastRound'] as Map;
+      final type = last['type'];
+      final breaker = (v['lastTrick'] as Map?)?['winner'];
+      if (type == 'made' || type == 'bawanWin') {
+        _say(last['buyer'] as int, VoiceEvent.made);
+      } else if ((type == 'failed' || type == 'bawanFail') && breaker is int) {
+        _say(breaker, VoiceEvent.oppFailed);
+      }
       final effect = switch (type) { 'made' => 'win', 'bawanWin' => 'bawan', 'bawanFail' => 'bawanFail', _ => 'lose' };
       switch (effect) {
         case 'win': Sfx.win();
@@ -279,7 +301,32 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     setState(() {});
   }
 
+  /// صوت شخصية اللاعب لحدث (إذا لها صوت)، وفمها يتحرك لين يخلص
+  void _say(int seat, int event) {
+    final char = c.seatInfo(seat)?['char'] as String?;
+    if (!Sfx.hasVoice(char, event)) return;
+    setState(() => _talking.add(seat));
+    Sfx.voice(seat, char!, event).whenComplete(() {
+      if (mounted) setState(() => _talking.remove(seat));
+    });
+  }
+
   bool _bawanActive(Map v) => v['bawan'] == true || (v['currentBid'] == 9 && v['phase'] != 'bidding');
+
+  /// لون الطاولة: لحظة النتيجة أخضر للوصول وأحمر للخسارة (مع تأثير الكلمة)، وإلا ذهبي للباون، وإلا رمادي (null)
+  ({RadialGradient felt, Color glow})? _tableTone(Map v) {
+    switch (_effect) {
+      case 'win':
+        return (felt: const RadialGradient(colors: [Color(0xFFB8F2C4), Color(0xFF3FAE5C), Color(0xFF1E6B33)], stops: [0, 0.6, 1], radius: 0.72, transform: _Ellipse()), glow: const Color(0xFF3FD067));
+      case 'lose':
+      case 'bawanFail':
+        return (felt: const RadialGradient(colors: [Color(0xFFF7B4B4), Color(0xFFD23C3C), Color(0xFF7E1515)], stops: [0, 0.6, 1], radius: 0.72, transform: _Ellipse()), glow: const Color(0xFFFF3B3B));
+    }
+    if (_bawanActive(v)) {
+      return (felt: const RadialGradient(colors: [Color(0xFFF3D98A), Color(0xFFC9A030)], radius: 0.72, transform: _Ellipse()), glow: KoutColors.gold);
+    }
+    return null;
+  }
 
   int _rel(int seat, int n) => (seat - c.mySeat + n) % n;
 
@@ -355,15 +402,14 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                         border: Border.all(color: const Color(0xFF3A2209), width: 1.5),
                         boxShadow: [
                           const BoxShadow(color: Color(0x88000000), blurRadius: 22, offset: Offset(0, 10)),
-                          if (_bawanActive(v)) BoxShadow(color: KoutColors.gold.withValues(alpha: 0.55), blurRadius: 30),
+                          if (_tableTone(v) != null) BoxShadow(color: _tableTone(v)!.glow.withValues(alpha: 0.6), blurRadius: 30),
                         ],
                       ),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 600),
+                        duration: const Duration(milliseconds: 400),
                         decoration: BoxDecoration(
-                          gradient: _bawanActive(v)
-                              ? const RadialGradient(colors: [Color(0xFFF3D98A), Color(0xFFC9A030)], radius: 0.72, transform: _Ellipse())
-                              : const RadialGradient(
+                          gradient: _tableTone(v)?.felt ??
+                              const RadialGradient(
                                   colors: [Color(0xFFF7F8F9), Color(0xFFB9BCC0), Color(0xFF7A7F85)], stops: [0, 0.55, 1], radius: 0.72, transform: _Ellipse()),
                           borderRadius: BorderRadius.circular(b.size.longestSide),
                           // لمعة على حافة الخشب من جوا
@@ -375,7 +421,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   ..._trickLayer(v, b, n),
                   _centerInfo(v, b), // فوق الأوراق عشان ما تغطيها
                   for (var seat = 0; seat < n; seat++)
-                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2)),
+                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, talking: _talking.contains(seat))),
                   _dealLayer(b, n),
                   ..._handLayer(v, b),
                   _signalRow(v, b),
@@ -569,7 +615,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     // المسافة بين الأوراق ثابتة (محسوبة على يد كاملة 9 أوراق)، فلما تنقص ورقة يتقاربون للوسط ويبقى الشكل مرتب.
     // بالعرضي الأوراق أقرب لبعض
     final slots = max(n, 9);
-    final step = min(min(w + 4, (avail - w) / (slots - 1)), b.landscape ? w * 0.55 : double.infinity);
+    final step = min(min(w + 4, (avail - w) / (slots - 1)), b.landscape ? w * 0.3 : double.infinity);
     final total = w + step * (n - 1);
     final out = <Widget>[];
     final dealFade = _deal.isAnimating ? ((_deal.value - 0.6) / 0.4).clamp(0.0, 1.0) : 1.0;
@@ -578,7 +624,8 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       final ok = legal.contains(card);
       final sel = card == _selected;
       // اليد من اليسار لليمين (هاس، كلفس، ديمن، سبيت، ثم الجوكرين)
-      final left = b.handLeft + (avail - total) / 2 + i * step;
+      // بالعرضي اليد بنص الشاشة، وبالطولي بنص مساحتها
+      final left = (b.landscape ? (b.size.width - total) / 2 : b.handLeft + (avail - total) / 2) + i * step;
       // اليد مقوّسة: الأطراف تميل لبرا وتنزل شوي
       final t = n == 1 ? 0.0 : (i - (n - 1) / 2) / ((n - 1) / 2);
       final angle = t * min(0.22, n * 0.026);
@@ -1242,7 +1289,8 @@ class _Seat extends StatelessWidget {
   final bool me;
   final double size;
   final bool nameLeft;
-  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false});
+  final bool talking;
+  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.talking = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1275,7 +1323,7 @@ class _Seat extends StatelessWidget {
         ),
       Container(
         decoration: isTurn ? BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: teamColor.withValues(alpha: 0.8), blurRadius: 14)]) : null,
-        child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor, background: teamColor),
+        child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor, background: teamColor, talking: talking),
       ),
       if (isBot)
         Positioned(
@@ -1559,9 +1607,8 @@ class _SignalBarState extends State<_SignalBar> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             margin: const EdgeInsets.all(3),
-            // بالعرضي أصغر شوي عشان ما توصل للأوراق
-            width: widget.row ? 32 : 38,
-            height: widget.row ? 32 : 38,
+            width: 44,
+            height: 44,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               gradient: KoutColors.chrome(0.85),
@@ -1569,13 +1616,22 @@ class _SignalBarState extends State<_SignalBar> {
               border: Border.all(color: on ? KoutColors.gold : KoutColors.chromeEdge, width: on ? 2 : 1),
               boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 1))],
             ),
-            child: s == 'J' ? GoldJ(size: widget.row ? 22 : 26) : SuitIcon(s, size: widget.row ? 20 : 24),
+            child: s == 'J' ? const GoldJ(size: 30) : SuitIcon(s, size: 28),
           ),
         ),
       );
     }
 
-    if (widget.row) return Directionality(textDirection: TextDirection.ltr, child: Row(mainAxisSize: MainAxisSize.min, children: [for (final s in options) chip(s)]));
+    // بالعرضي: الأنواع صف، والجوكر فوقهم بالنص
+    if (widget.row) {
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (options.contains('J')) chip('J'),
+          Row(mainAxisSize: MainAxisSize.min, children: [for (final s in suitOrder) chip(s)]),
+        ]),
+      );
+    }
     // بالطولي مربع: فوق هاس وسبيت، تحت كلفس وديمن (الألوان متقابلة)، والجوكر فوقهم بالنص
     return Directionality(
       textDirection: TextDirection.ltr,

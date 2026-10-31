@@ -77,6 +77,52 @@ FakeClient tableClient(Map<String, dynamic> view) {
 void main() {
   setUp(() => Sfx.muted = true);
 
+  testWidgets('character voices: bids, gold table, reaching the bid, big joker over small', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Sfx.voiceLog.clear();
+    final bidding = playingView()
+      ..['phase'] = 'bidding'
+      ..['currentBid'] = 0
+      ..['buyer'] = null
+      ..['trump'] = null
+      ..['legalCards'] = []
+      ..['canSignal'] = false;
+    final c = tableClient(bidding);
+    (c.room!['seats'] as List)[2] = {'name': 'ود عمتيه', 'bot': true, 'connected': true, 'char': 'wadamtih'};
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 400));
+    // مقعد 2 (ود عمتيه) يزايد 7 وبعدين واحد ثاني يطوف (ما له صوت)
+    c.view = Map.of(bidding)..['bids'] = [{'seat': 2, 'bid': 7}, {'seat': 3, 'bid': 'pass'}];
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(Sfx.voiceLog, ['wadamtih_2']);
+    // يطوف بجولة ثانية
+    c.view = Map.of(bidding)..['bids'] = [{'seat': 2, 'bid': 7}, {'seat': 3, 'bid': 'pass'}, {'seat': 2, 'bid': 'pass'}];
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(Sfx.voiceLog.last, 'wadamtih_7');
+    // اللعب: الكبير فوق الصغير من ود عمتيه
+    c.view = playingView()
+      ..['buyer'] = 2
+      ..['trick'] = [{'seat': 1, 'card': 'JG'}, {'seat': 2, 'card': 'JB'}];
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(Sfx.voiceLog.last, 'wadamtih_9');
+    // الشاري ود عمتيه يوصل
+    c.view = playingView()
+      ..['phase'] = 'roundEnd'
+      ..['buyer'] = 2
+      ..['legalCards'] = []
+      ..['canSignal'] = false
+      ..['lastRound'] = {'type': 'made', 'team': 0, 'points': 7, 'buyer': 2, 'bid': 7, 'majbur': false, 'tricksWon': [7, 2]};
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(Sfx.voiceLog.last, 'wadamtih_5');
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   testWidgets('home screen shows create and join', (tester) async {
     await tester.pumpWidget(KoutApp(client: GameClient()));
     expect(find.byType(AppLogo), findsOneWidget);

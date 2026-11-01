@@ -1,0 +1,16 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>أصوات الجوكر</title>
+<style>body{font-family:system-ui,sans-serif;background:#1d1d1f;color:#eee;margin:0;padding:16px;max-width:640px}
+h1{font-size:20px}.s{background:#2b2b2e;border-radius:10px;padding:12px;margin:10px 0}.s b{font-size:17px}
+.s small{display:block;color:#aaa;margin:4px 0 8px;direction:ltr;text-align:right;word-break:break-all}audio{width:100%}a{color:#7cc4ff}</style></head><body>
+<h1>أصوات نزول الجوكر — Mixkit</h1>
+<p>المصدر كله: <a href="https://mixkit.co/free-sound-effects/sword/" target="_blank">mixkit.co/free-sound-effects/sword</a> (مجاني بدون نسب)</p>
+<div id="list"></div>
+<script>
+const L=[["joker_big_55.wav","⭐ الكبير بعد التخفيض (55٪)","https://assets.mixkit.co/active_storage/sfx/2794/2794-preview.mp3"],["joker_big_ready.wav","الكبير قبل (100٪)","https://assets.mixkit.co/active_storage/sfx/2794/2794-preview.mp3"],["current.wav","الحالي (Sword strikes armor)","https://assets.mixkit.co/active_storage/sfx/2765/2765-preview.mp3"],
+[1485,"1. Metal hit woosh"],[1487,"2. Dagger woosh (خنجر)"],[2160,"3. Metallic sword strike"],[2795,"4. Heavy sword smashes metal"],
+[2789,"5. Samurai Sword Impact"],[2766,"6. Medieval metal sword blade"],[2166,"7. Swift Sword Strike"],[2797,"8. Sword hits heavy metal"],
+[2794,"9. Heavy sword hit"],[2793,"10. Quick magic sword slice"]];
+list.innerHTML=L.map(([f,n,u])=>{const file=typeof f=='number'?`mx_${f}.mp3`:f;u=u||`https://assets.mixkit.co/active_storage/sfx/${f}/${f}-preview.mp3`;
+return `<div class="s"><b>${n}</b><small><a href="${u}" target="_blank">${u}</a></small><audio controls preload="auto" src="${file}"></audio></div>`}).join('');
+</script></body></html>

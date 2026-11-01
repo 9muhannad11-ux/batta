@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const DIR = process.env.DIR ? path.resolve(process.env.DIR) : __dirname;
 const PORT = Number(process.env.PORT ?? 8099);
-const MIME = { '.html': 'text/html; charset=utf-8', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.js': 'text/javascript', '.png': 'image/png', '.ogg': 'audio/ogg', '.json': 'application/json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.js': 'text/javascript', '.png': 'image/png', '.ogg': 'audio/ogg', '.json': 'application/json', '.mp4': 'video/mp4' };
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');

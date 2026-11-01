@@ -5,7 +5,7 @@
 <body>
 <!-- تنظيف تسجيلات الشخصيات: ?f=ملف_خام&out=اسم.wav
      1) فك الصوت (ogg/mp3/m4a) وتحويله لقناة وحدة 44.1kHz
-     2) شيل الشوشرة: نقيس طيف الضجة من أهدأ اللحظات، ونخفّض كل تردد قريب منه (spectral gating) بقناع ناعم
+     2) شيل الشوشرة (&nr=2 أقوى): نقيس طيف الضجة من أهدأ اللحظات، ونخفّض كل تردد قريب منه (spectral gating) بقناع ناعم
      3) فلتر يشيل الطنين الواطي (أقل من 90Hz)
      4) قص السكوت قبل الكلام وبعده، وتلاشي قصير بالأطراف
      5) توحيد العلو: نفس قوة الصوت لكل التسجيلات، بدون ما يتجاوز الحد -->
@@ -61,10 +61,16 @@ function denoise(x) {
   for (const f of quiet) for (let k = 0; k < bins; k++) nStd[k] += (mag[f][k] - nMean[k]) ** 2 / quiet.length;
   for (let k = 0; k < bins; k++) nStd[k] = Math.sqrt(nStd[k]);
   // قناع: التردد اللي فوق الضجة بفرق واضح يبقى، والباقي ينخفض
-  const mask = mag.map((m) => Float64Array.from(m, (v, k) => {
-    const thr = nMean[k] + 1.6 * nStd[k];
-    return v <= thr ? 0.03 : Math.min(1, 0.03 + (v - thr) / (thr * 0.8 + 1e-9));
-  }));
+  // &nr=2 تنظيف أقوى: عتبة أعلى، والضجة تنخفض أكثر، والفريمات اللي بس ضجة (بين الكلمات) تسكت
+  const nr = Number(q.get('nr') || 1), floor = 0.03 / (nr * nr);
+  const nEnergy = nMean.reduce((a, v) => a + v * v, 0);
+  const mask = mag.map((m, f) => {
+    const gate = nr > 1 && energy[f] < nEnergy * 4 * nr ? 0.15 : 1;
+    return Float64Array.from(m, (v, k) => {
+      const thr = nMean[k] + 1.6 * nr * nStd[k] + (nr - 1) * nMean[k] * 0.5;
+      return gate * (v <= thr ? floor : Math.min(1, floor + (v - thr) / (thr * 0.8 + 1e-9)));
+    });
+  });
   // نعومة القناع بالوقت والتردد عشان ما يطلع صوت "معدني"
   const sm = mask.map((row, f) => Float64Array.from(row, (_, k) => {
     let s = 0, c = 0;

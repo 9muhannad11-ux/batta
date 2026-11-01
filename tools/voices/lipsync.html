@@ -1,0 +1,32 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>حركة الفم</title>
+<!-- معاينة حركة الفم مع الصوت: الصور من capture_avatar_test (mouth frames) والبيانات من lipsync.js -->
+<style>body{font-family:system-ui,sans-serif;background:#1d1d1f;color:#eee;margin:0;padding:16px;text-align:center}
+img{width:300px;height:300px;border-radius:12px;display:block;margin:0 auto 12px}
+.b{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px;margin:0 auto}
+button{font:inherit;font-size:16px;padding:10px 14px;border:0;border-radius:8px;background:#3a3a3e;color:#fff;cursor:pointer}
+button.on{background:#2f7de1}label{display:block;margin:14px}</style></head><body>
+<h2 id="title"></h2>
+<img id="face">
+<div class="b" id="btns"></div>
+<label><input type="checkbox" id="old"> الحركة القديمة (فتح وتسكير ثابت)</label>
+<script>
+const names={1:'يزايد 6',2:'يزايد 7',3:'يزايد 8',4:'ذهبية',5:'وصول',6:'الخصم خسر',7:'طاف',8:'6 مجبور',9:'الكبير فوق الصغير'};
+const CH=new URLSearchParams(location.search).get('c')||'wadamtih',TITLES={wadamtih:'ود عمتيه',aslam:'أسلم'};
+title.textContent=(TITLES[CH]||CH)+' — الفم مع الصوت';face.src=`mouth_${CH}_0.png`;
+const frames=[...Array(11)].map((_,i)=>{const im=new Image();im.src=`mouth_${CH}_${i}.png`;return im});
+let data,audio=new Audio(),clip=null;
+fetch('lipsync.json').then(r=>r.json()).then(d=>{data=d;
+  btns.innerHTML=Object.keys(names).filter(n=>d.clips[CH+'_'+n]).map(n=>`<button data-n="${n}">${n}. ${names[n]}</button>`).join('');
+  btns.onclick=e=>{const n=e.target.dataset.n;if(!n)return;document.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.target));
+    clip=CH+'_'+n;audio.src=clip+'.wav';audio.play();};
+});
+function mouthAt(ms){
+  if(old.checked){const t=(ms/2000)%1;return (0.5+0.5*Math.sin(t*2*Math.PI*14))*(0.55+0.45*Math.sin(t*2*Math.PI*3.1+1));}
+  const env=data.clips[clip],x=ms/data.stepMs,i=Math.floor(x);if(i>=env.length-1)return 0;const f=x-i;return (env[i]*(1-f)+env[i+1]*f)/100;
+}
+(function tick(){
+  let m=0;if(clip&&data&&!audio.paused&&!audio.ended)m=mouthAt(audio.currentTime*1000);
+  face.src=frames[Math.round(m*10)].src;requestAnimationFrame(tick);
+})();
+</script></body></html>

@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><title>الجوكرين بالخنجر الجديد</title>
+<style>body{margin:0;background:#1a1a1a;color:#aaa;font:13px sans-serif;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px}.row{display:flex;gap:18px}img{width:300px;border-radius:14px;box-shadow:0 4px 14px #000}</style></head>
+<body>
+<!-- الجوكرين من صورة الخنجر الجديدة (khanjar2_source.webp)، بنفس التوجه الفني:
+     1) نشيل الخلفية (لون الزوايا) بفيضان من الأطراف، وكذلك الفتحات المحبوسة (داخل الحلقات)
+     2) نلوّن حسب الإضاءة عشان تبقى التفاصيل: الكبير مزيج أحمر (المقبض) لأخضر (الغمد) لأحمر فاتح (الطرف) بلمعة، والصغير رمادي كروم
+     3) على ورقة بيضاء 400×580، وكلمة JOKER بالطول فوق يسار ومقلوبة تحت يمين (الكبير أخضر/أحمر بالتناوب، الصغير أسود)
+     يحفظ joker2_big.png و joker2_small.png -->
+<div class="row" id="row"></div>
+<div id="info">…</div>
+<script>
+const W = 400, H = 580;
+const GREEN = [18, 140, 72], RED = [204, 32, 44];
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+async function cutout() {
+  const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = 'khanjar2_source.webp'; });
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), p = d.data, w = c.width, h = c.height;
+  const bg = [p[0], p[1], p[2]];
+  const near = (i, tol) => Math.abs(p[i * 4] - bg[0]) + Math.abs(p[i * 4 + 1] - bg[1]) + Math.abs(p[i * 4 + 2] - bg[2]) < tol;
+  const out = new Uint8Array(w * h), st = [];
+  for (let x = 0; x < w; x++) st.push(x, (h - 1) * w + x);
+  for (let y = 0; y < h; y++) st.push(y * w, y * w + w - 1);
+  while (st.length) {
+    const i = st.pop();
+    if (out[i] || !near(i, 40)) continue;
+    out[i] = 1;
+    const x = i % w, y = (i / w) | 0;
+    if (x > 0) st.push(i - 1); if (x < w - 1) st.push(i + 1); if (y > 0) st.push(i - w); if (y < h - 1) st.push(i + w);
+  }
+  // الفتحات المحبوسة بلون الخلفية (داخل الحلقات): بقع كبيرة تنشال بعد
+  const seen = new Uint8Array(w * h);
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (out[s0] || seen[s0] || !near(s0, 30)) continue;
+    const q = [s0], part = []; seen[s0] = 1;
+    while (q.length) {
+      const i = q.pop(); part.push(i);
+      const x = i % w, y = (i / w) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !seen[j] && !out[j] && near(j, 30)) { seen[j] = 1; q.push(j); }
+    }
+    if (part.length > 400) for (const i of part) out[i] = 1;
+  }
+  // حدود ناعمة + مربع القص
+  let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (out[i]) { p[i * 4 + 3] = 0; continue; }
+    const x = i % w, y = (i / w) | 0;
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    let edge = false;
+    for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < w && yy < h && out[yy * w + xx]) { edge = true; break; } }
+    if (edge) p[i * 4 + 3] = 150;
+  }
+  g.putImageData(d, 0, 0);
+  const crop = document.createElement('canvas'); crop.width = x1 - x0 + 1; crop.height = y1 - y0 + 1;
+  crop.getContext('2d').drawImage(c, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+  return crop;
+}
+
+// بنفس توجه باقي الأوراق: ألوان مسطحة بدون تدرج ولا لمعة، وخطوط كحلية واضحة
+// الإضاءة تتقسم لثلاث درجات (فاتح = أبيض، وسط = لون المنطقة، غامق = لون المنطقة الغامق)
+// والخطوط الغامقة تصير كحلي، وتنشال النقط الصغيرة عشان ما يكون فيه تغبيش
+const NAVY = [30, 42, 107];
+function flat(src, kind) {
+  const w = src.width, h = src.height, N = w * h;
+  const d = src.getContext('2d').getImageData(0, 0, w, h), p = d.data;
+  let lo = 255, hi = 0;
+  for (let i = 0; i < p.length; i += 4) if (p[i + 3] > 200) { const l = (p[i] + p[i + 1] + p[i + 2]) / 3; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  const lum = new Float32Array(N), on = new Uint8Array(N);
+  for (let k = 0; k < N; k++) { on[k] = p[k * 4 + 3] > 0; lum[k] = on[k] ? ((p[k * 4] + p[k * 4 + 1] + p[k * 4 + 2]) / 3 - lo) / (hi - lo || 1) : 1; }
+  const blur = (s, r) => {
+    const a = new Float32Array(N), b = new Float32Array(N);
+    for (let y = 0; y < h; y++) { let t = 0; for (let x = -r; x < w; x++) { if (x + r < w) t += s[y * w + x + r]; if (x - r - 1 >= 0) t -= s[y * w + x - r - 1]; if (x >= 0) a[y * w + x] = t / (2 * r + 1); } }
+    for (let x = 0; x < w; x++) { let t = 0; for (let y = -r; y < h; y++) { if (y + r < h) t += a[(y + r) * w + x]; if (y - r - 1 >= 0) t -= a[(y - r - 1) * w + x]; if (y >= 0) b[y * w + x] = t / (2 * r + 1); } }
+    return b;
+  };
+  const lumS = blur(lum, 1), lumW = blur(lum, 6), tone = blur(lum, 9);
+  // الخطوط: أغمق من اللي حولها بوضوح، أو غامقة بذاتها
+  let line = new Uint8Array(N);
+  for (let k = 0; k < N; k++) if (on[k] && (lumS[k] - lumW[k] < -0.08 || lumS[k] < 0.18)) line[k] = 1;
+  // الملمس (خشب/نقط كثيفة بالألواح) مو خطوط: وين الخطوط كثيفة واجد نشيلها
+  const dens = blur(Float32Array.from(line), 10);
+  for (let k = 0; k < N; k++) if (dens[k] > 0.38) line[k] = 0;
+  // حافة الخنجر من برّا خط بعد
+  for (let k = 0; k < N; k++) if (on[k]) { const x = k % w; if (x === 0 || x === w - 1 || k < w || k >= N - w || !on[k - 1] || !on[k + 1] || !on[k - w] || !on[k + w]) line[k] = 1; }
+  // نشيل النقط الصغيرة (تغبيش الخلفية والملمس)
+  const seen = new Uint8Array(N);
+  for (let s0 = 0; s0 < N; s0++) {
+    if (!line[s0] || seen[s0]) continue;
+    const q = [s0], part = []; seen[s0] = 1;
+    while (q.length) {
+      const i = q.pop(); part.push(i); const x = i % w;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) if (j >= 0 && j < N && line[j] && !seen[j]) { seen[j] = 1; q.push(j); }
+    }
+    if (part.length < 120) for (const i of part) line[i] = 0;
+  }
+  // نعرّض الخطوط شوي عشان تبين بعد التصغير
+  const thick = blur(Float32Array.from(line), 2);
+  // الحلقات الأربع بيضاء
+  const RINGS = [[335, 955, 64, 80], [527, 875, 56, 72], [705, 822, 54, 72], [905, 803, 58, 76]];
+  const sx = w / 992, sy = h / 1369;
+  const inRing = (x, y) => RINGS.some(([cx, cy, r0, r1]) => { const r = Math.hypot(x - cx * sx, y - cy * sy); return r >= (r0 - 4) * sx && r <= (r1 + 4) * sx; });
+  // كل منطقة محصورة بين الخطوط تنصبغ بلون واحد مسطح حسب متوسط إضاءتها ومكانها
+  const reg = new Int32Array(N).fill(-1), stats = [];
+  const free = (k) => on[k] && thick[k] < 0.25;
+  for (let s0 = 0; s0 < N; s0++) {
+    if (reg[s0] >= 0 || !free(s0)) continue;
+    const id = stats.length, st = [s0]; let n = 0, sl = 0, sxx = 0, syy = 0; reg[s0] = id;
+    while (st.length) {
+      const i = st.pop(), x = i % w; n++; sl += lum[i]; sxx += x; syy += (i / w) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) if (j >= 0 && j < N && reg[j] < 0 && free(j)) { reg[j] = id; st.push(j); }
+    }
+    stats.push({ n, l: sl / n, cx: sxx / n / w, cy: syy / n / h });
+  }
+  // داخل الحلقتين اللي على الأطراف فاضي (شفاف)
+  const holeOf = (s) => [RINGS[0], RINGS[3]].some(([cx, cy, r0]) => Math.hypot(s.cx * w - cx * sx, s.cy * h - cy * sy) < r0 * 0.75 * sx);
+  const colorOf = (s, x, y) => {
+    if (s.n > 200 && holeOf(s)) return null;
+    if (inRing(x, y) || (s.n >= 40 && s.l > 0.8)) return [255, 255, 255];
+    const l = s.n < 40 ? 0 : s.l; // النقط الصغيرة تاخذ اللون الغامق للمنطقة، مو كحلي
+    if (kind !== 'big') return l > 0.45 ? [168, 172, 180] : [104, 109, 118];
+    // المقبض أحمر، الغمد أخضر، وطرف الغمد أحمر
+    const red = y / h < 0.31 || (x / w < 0.42 && y / h > 0.74);
+    return l > 0.45 ? (red ? [212, 42, 42] : [31, 138, 76]) : (red ? [150, 24, 30] : [20, 92, 51]);
+  };
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  const og = out.getContext('2d'), od = og.createImageData(w, h), q = od.data;
+  for (let k = 0; k < N; k++) {
+    if (!on[k]) continue;
+    const x = k % w, y = (k / w) | 0;
+    // بكسلات الخط تاخذ لون أقرب منطقة تحتها، والخط الكحلي يغطيها
+    let r = reg[k];
+    for (let dd = 1; r < 0 && dd < 6; dd++) for (const j of [k - dd, k + dd, k - dd * w, k + dd * w]) if (j >= 0 && j < N && reg[j] >= 0) { r = reg[j]; break; }
+    let col = r >= 0 ? colorOf(stats[r], x, y) : NAVY;
+    if (!col) continue;
+    col = mix(col, NAVY, smooth(0.25, 0.6, thick[k]));
+    q[k * 4] = col[0]; q[k * 4 + 1] = col[1]; q[k * 4 + 2] = col[2]; q[k * 4 + 3] = p[k * 4 + 3];
+  }
+  og.putImageData(od, 0, 0);
+  return out;
+}
+
+// تلوين حسب الإضاءة: الظل غامق واللمعة فاتحة، والتفاصيل تبقى
+function recolor(src, kind) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d'); g.drawImage(src, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), p = d.data, w = c.width, h = c.height;
+  // نمدّد الإضاءة على كامل المدى عشان التباين يكون قوي
+  let lo = 255, hi = 0;
+  for (let i = 0; i < p.length; i += 4) if (p[i + 3] > 200) { const l = (p[i] + p[i + 1] + p[i + 2]) / 3; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  const N = w * h, lum = new Float32Array(N), alpha = new Float32Array(N);
+  for (let k = 0; k < N; k++) { alpha[k] = p[k * 4 + 3] / 255; lum[k] = alpha[k] ? ((p[k * 4] + p[k * 4 + 1] + p[k * 4 + 2]) / 3 - lo) / (hi - lo || 1) : 0; }
+  const blur = (src, r) => {
+    const a = new Float32Array(N), b = new Float32Array(N);
+    for (let y = 0; y < h; y++) { let s = 0; for (let x = -r; x < w; x++) { if (x + r < w) s += src[y * w + x + r]; if (x - r - 1 >= 0) s -= src[y * w + x - r - 1]; if (x >= 0) a[y * w + x] = s / (2 * r + 1); } }
+    for (let x = 0; x < w; x++) { let s = 0; for (let y = -r; y < h; y++) { if (y + r < h) s += a[(y + r) * w + x]; if (y - r - 1 >= 0) s -= a[(y - r - 1) * w + x]; if (y >= 0) b[y * w + x] = s / (2 * r + 1); } }
+    return b;
+  };
+  // النقوش: الفرق بين الإضاءة ومتوسطها القريب (الخطوط الفاتحة تصير بيضاء)، بعد تنعيم خفيف عشان الخطوط تكون ناعمة
+  const lumB = blur(lum, 3), lumS = blur(lum, 1), lumW = blur(lum, 4);
+  // الحلقات الأربع: فيضان من نقاط على كل حلقة، محصور بالحلقة وما يعدي الخطوط الغامقة
+  // (المراكز وأنصاف الأقطار بإحداثيات صورة الخنجر المقصوصة 992×1369)
+  const RINGS = [[335, 955, 64, 80], [527, 875, 56, 72], [705, 822, 54, 72], [905, 803, 58, 76]];
+  const ring = new Uint8Array(N), sx = w / 992, sy = h / 1369;
+  for (const [cx0, cy0, r0, r1] of RINGS) {
+    const cx = cx0 * sx, cy = cy0 * sy, rin = (r0 - 6) * sx, rout = (r1 + 6) * sx;
+    const inside = (q) => { const dx = q % w - cx, dy = ((q / w) | 0) - cy, r = Math.hypot(dx, dy); return r >= rin && r <= rout; };
+    const st = [];
+    for (let a = 0; a < 64; a++) {
+      const r = (r0 + r1) / 2 * sx, q = Math.round(cy + Math.sin(a / 64 * Math.PI * 2) * r) * w + Math.round(cx + Math.cos(a / 64 * Math.PI * 2) * r);
+      if (q >= 0 && q < N) st.push(q);
+    }
+    while (st.length) {
+      const q = st.pop();
+      if (ring[q] || !alpha[q] || lumS[q] < 0.45 || !inside(q)) continue;
+      ring[q] = 1;
+      const x = q % w;
+      if (x > 0) st.push(q - 1); if (x < w - 1) st.push(q + 1); if (q >= w) st.push(q - w); if (q < N - w) st.push(q + w);
+    }
+  }
+  const ringS = blur(Float32Array.from(ring), 1);
+  // الـ3D: ارتفاع من الشفافية (حواف مدورة) + شوي من الإضاءة، والضوء من فوق يسار
+  const hgt = blur(alpha, 9), hgt2 = blur(alpha, 3);
+  const nx0 = -0.55, ny0 = -0.65, nz0 = 0.52;
+  for (let i = 0; i < p.length; i += 4) {
+    if (!p[i + 3]) continue;
+    const k = i / 4, x = k % w, y = (k / w) | 0;
+    let L = lum[k];
+    L = Math.pow(L, 0.9);
+    const xm = Math.max(0, x - 1), xp = Math.min(w - 1, x + 1), ym = Math.max(0, y - 1), yp = Math.min(h - 1, y + 1);
+    const H = (q) => hgt[q] * 0.7 + hgt2[q] * 0.5 + lumB[q] * 0.15;
+    const gx = (H(y * w + xp) - H(y * w + xm)) * 9, gy = (H(yp * w + x) - H(ym * w + x)) * 9;
+    const nl = Math.hypot(gx, gy, 1), nx = -gx / nl, ny = -gy / nl, nz = 1 / nl;
+    const diff = nx * nx0 + ny * ny0 + nz * nz0; // 0.52 = سطح مستوي
+    const hz = Math.hypot(nx0, ny0, nz0 + 1), spec = Math.pow(Math.max(0, (nx * nx0 + ny * ny0 + nz * (nz0 + 1)) / hz), 40);
+    const detail = lumS[k] - lumW[k];
+    let base;
+    if (kind === 'big') {
+      // من المقبض (فوق) أحمر، للغمد أخضر، وطرف الغمد (تحت يسار) أحمر فاتح
+      const t = y / h, tip = smooth(0.55, 0.05, x / w) * smooth(0.6, 0.85, t);
+      base = mix(mix([140, 22, 34], GREEN, smooth(0.3, 0.6, t)), [196, 28, 42], smooth(0.74, 0.97, t));
+      base = mix(base, [222, 52, 62], smooth(0.4, 0.15, x / w) * smooth(0.7, 0.8, t));
+    } else {
+      base = [118, 122, 128];
+    }
+    // الظل يغمق اللون، والإضاءة العالية تقرب للأبيض (لمعة)
+    let col = base.map((v) => v * (0.35 + 0.8 * L) * (0.45 + 1.05 * diff));
+    const shine = smooth(0.78, 1, L);
+    col = mix(col, [255, 255, 255], shine * 0.6);
+    // الحلقات بيضاء فضية بنفس التجسيم
+    col = mix(col, [242, 242, 246].map((v) => v * (0.62 + 0.5 * diff)), ringS[k]);
+    // النقوش بالأبيض
+    col = mix(col, [255, 255, 255], smooth(0.03, 0.15, detail) * 0.85 * (1 - ringS[k]));
+    // تحديد الرسم: الخطوط الغامقة تصير خط كحلي ناعم، والحافة الخارجية محددة
+    const ink = Math.max(smooth(0.05, 0.22, -detail), smooth(0.9, 0.5, hgt2[k]));
+    col = mix(col, kind === 'big' ? [22, 30, 26] : [28, 30, 34], ink * 0.8);
+    // لمعة الحواف المدورة
+    col = mix(col, [255, 255, 255], spec * 0.7);
+    // لمعة وحدة بوسط الخنجر
+    const dd = (x / w - 0.5) * 0.7 + (y / h - 0.5);
+    col = mix(col, [255, 255, 255], 0.6 * Math.exp(-(dd * dd) / 0.006) * (1 - ink));
+    if (kind === 'small') col = col.map((v, k) => v + (k === 2 ? 6 : 0)); // لمسة زرقة كروم
+    p[i] = Math.min(255, col[0]); p[i + 1] = Math.min(255, col[1]); p[i + 2] = Math.min(255, col[2]);
+  }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+
+function card(khanjar, kind) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.beginPath(); g.roundRect(1, 1, W - 2, H - 2, 18); g.fill();
+  g.strokeStyle = '#c8c8c8'; g.lineWidth = 2; g.stroke();
+  // الخنجر بالنص، بعيد عن كلمة JOKER (تصغير بجودة عالية عشان الحواف تكون حادة وناعمة)
+  const maxW = 290, maxH = 450, sc = Math.min(maxW / khanjar.width, maxH / khanjar.height);
+  const kw = khanjar.width * sc, kh = khanjar.height * sc;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(khanjar, (W - kw) / 2 + 8, (H - kh) / 2 + 4, kw, kh);
+  // JOKER بالطول: الحروف فوق بعض
+  const letters = [...'JOKER'];
+  const draw = () => letters.forEach((ch, i) => {
+    g.fillStyle = kind === 'big' ? (i % 2 ? `rgb(${RED})` : `rgb(${GREEN})`) : '#111';
+    g.fillText(ch, 30, 50 + i * 33);
+  });
+  // نفس خط الأرقام بباقي الأوراق (سيرف عريض)
+  g.font = 'bold 32px "Times New Roman", Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  draw();
+  g.save(); g.translate(W, H); g.rotate(Math.PI); draw(); g.restore();
+  return c;
+}
+
+(async () => {
+  const k = await cutout();
+  const row = document.getElementById('row');
+  for (const [kind, name] of [['big', 'joker2_big.png'], ['small', 'joker2_small.png']]) {
+    const cv = card(flat(k, kind), kind);
+    const png = await new Promise((r) => cv.toBlob(r, 'image/png'));
+    await fetch('/save?name=' + name, { method: 'POST', body: png });
+    const im = new Image(); im.src = URL.createObjectURL(png); row.appendChild(im);
+  }
+  document.title = 'done';
+  document.getElementById('info').textContent = 'saved joker2_big.png + joker2_small.png';
+})().catch((e) => { document.title = 'error'; document.getElementById('info').textContent = 'error ' + e; });
+</script>
+</body>
+</html>

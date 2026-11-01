@@ -19,11 +19,36 @@ const _chars = [
   ('musabbah', 'مصبّح'),
   ('bodhirs', 'محمد بو ضرس'),
   ('abdo', 'عبدو اليابس'),
-  ('sadiq', 'صديق'),
+  ('aslam', 'أسلم'),
   ('mundaghit', 'المنضغط'),
 ];
 
 void main() {
+  // معاينة حركة الفم: 11 صورة لفتحة الفم (0..1) لكل شخصية لها صوت، تستخدمها tools/voices/lipsync.html
+  testWidgets('mouth frames', (tester) async {
+    tester.view.physicalSize = const Size(300, 300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    for (final id in ['wadamtih', 'aslam']) {
+      for (var i = 0; i <= 10; i++) {
+        await tester.pumpWidget(RepaintBoundary(
+          key: const ValueKey('m'),
+          child: Container(
+            color: const Color(0xFFBDAE8D),
+            alignment: const Alignment(0, 0.5),
+            child: CharacterAvatar(charId: id, size: 220, ring: KoutColors.teamBlue, background: KoutColors.teamBlue, mouth: i / 10),
+          ),
+        ));
+        await tester.runAsync(() async {
+          final ro = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('m')));
+          final img = await ro.toImage(pixelRatio: 1);
+          final png = await img.toByteData(format: ui.ImageByteFormat.png);
+          File('../tools/voices/mouth_${id}_$i.png').writeAsBytesSync(png!.buffer.asUint8List());
+        });
+      }
+    }
+  });
+
   testWidgets('single character, big', (tester) async {
     tester.view.physicalSize = const Size(460, 460);
     tester.view.devicePixelRatio = 1;
@@ -33,7 +58,7 @@ void main() {
       child: Container(
         color: const Color(0xFFBDAE8D),
         alignment: Alignment.center,
-        child: const CharacterAvatar(charId: 'buhamdan', size: 420, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
+        child: const CharacterAvatar(charId: 'aslam', size: 420, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
       ),
     ));
     await tester.runAsync(() async {

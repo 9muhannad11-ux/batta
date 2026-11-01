@@ -67,7 +67,7 @@ FakeClient tableClient(Map<String, dynamic> view) {
       {'name': 'أنا', 'bot': false, 'connected': true, 'char': 'musabbah'},
       {'name': 'خصيب', 'bot': true, 'connected': true, 'char': 'khusaib'},
       {'name': 'مرهون', 'bot': true, 'connected': true, 'char': 'marhoon'},
-      {'name': 'صديق', 'bot': true, 'connected': true, 'char': 'sadiq'},
+      {'name': 'أسلم', 'bot': true, 'connected': true, 'char': 'aslam'},
     ],
   };
   c.view = view;

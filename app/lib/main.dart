@@ -16,7 +16,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.4';
+const appVersion = '1.0.5';
 
 class KoutApp extends StatelessWidget {
   final GameClient client;

@@ -10,3 +10,8 @@ app/ios/Pods/
 *.iml
 .idea/
 .claude/settings.local.json
+
+# ملفات كبيرة أو خاصة ما تنرفع
+tools/termux/batta-phone.tar.gz
+tools/voices/aslam_src.mp4
+tools/voices/aslam_take1.wav

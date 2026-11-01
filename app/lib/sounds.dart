@@ -27,7 +27,8 @@ class Sfx {
   }
 
   static void play() => _play('play');
-  static void joker() => _play('joker'); // بدل صوت الورقة لما ينرمى جوكر
+  static void joker() => _play('joker'); // بدل صوت الورقة لما ينرمى الجوكر الصغير
+  static void jokerBig() => _play('joker_big', volume: 0.55); // الجوكر الكبير (أوطى من الصغير)
   static void signalBig() => _play('signal_big'); // كف الجوكر الكبير
   static void deal() => _play('deal', volume: 0.8);
   static void start() => _play('start'); // بداية المباراة
@@ -45,6 +46,7 @@ class Sfx {
   /// أصوات الشخصيات الموجودة: `assets/voices/{id}_{رقم}.wav` (الأحداث من 1 لـ 9، شوف VoiceEvent)
   static const voices = <String, Set<int>>{
     'wadamtih': {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    'aslam': {1, 2, 3, 4, 5, 6, 7, 8, 9},
   };
 
   static bool hasVoice(String? char, int event) => voices[char]?.contains(event) ?? false;
@@ -52,7 +54,7 @@ class Sfx {
   /// يشغّل صوت الشخصية، ويخلص لما يخلص الصوت (عشان الفم يوقف معه). كل لاعب له مشغّل.
   static final voiceLog = <String>[]; // آخر الأصوات المطلوبة (للاختبارات)
 
-  static Future<void> voice(int seat, String char, int event) async {
+  static Future<void> voice(int seat, String char, int event, {void Function()? onStart}) async {
     if (!hasVoice(char, event)) return;
     voiceLog.add('${char}_$event');
     if (muted) return;
@@ -63,6 +65,7 @@ class Sfx {
       await p.setVolume(1);
       final done = p.onPlayerComplete.first;
       await p.play(AssetSource('voices/${char}_$event.wav'));
+      onStart?.call(); // الفم يبدأ مع الصوت بالضبط
       await done.timeout(const Duration(seconds: 4), onTimeout: () {});
     } catch (e) {
       debugPrint('voice $char $event failed: $e');

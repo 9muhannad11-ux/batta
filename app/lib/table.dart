@@ -108,7 +108,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   int _seenTrickNo = 0;
   int _seenTrickLen = 0;
   int _seenBids = 0;
-  final Set<int> _talking = {}; // اللاعبين اللي صوت شخصيتهم شغّال (فمهم يتحرك)
+  final Map<int, String> _talking = {}; // اللاعب → الصوت الشغّال له (فمه يتحرك معه)
   bool _goldOn = false;
   int _resultShownRound = 0;
   String? _effect; // win, lose, bawan
@@ -244,7 +244,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         _shake.value = 0;
         // قمة الضربة بالصوت (90ms) توافق لحظة لمس الكف (170ms)
         Future.delayed(const Duration(milliseconds: 80), Sfx.signalBig);
-      } else if (isJokerCard(t['card'] as String)) {
+      } else if (t['card'] == 'JB') {
+        Sfx.jokerBig();
+      } else if (t['card'] == 'JG') {
         Sfx.joker();
       } else {
         Sfx.play();
@@ -305,9 +307,11 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   void _say(int seat, int event) {
     final char = c.seatInfo(seat)?['char'] as String?;
     if (!Sfx.hasVoice(char, event)) return;
-    setState(() => _talking.add(seat));
-    Sfx.voice(seat, char!, event).whenComplete(() {
-      if (mounted) setState(() => _talking.remove(seat));
+    final clip = '${char}_$event';
+    Sfx.voice(seat, char!, event, onStart: () {
+      if (mounted) setState(() => _talking[seat] = clip);
+    }).whenComplete(() {
+      if (mounted && _talking[seat] == clip) setState(() => _talking.remove(seat));
     });
   }
 
@@ -421,7 +425,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   ..._trickLayer(v, b, n),
                   _centerInfo(v, b), // فوق الأوراق عشان ما تغطيها
                   for (var seat = 0; seat < n; seat++)
-                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, talking: _talking.contains(seat))),
+                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat])),
                   _dealLayer(b, n),
                   ..._handLayer(v, b),
                   _signalRow(v, b),
@@ -1289,8 +1293,8 @@ class _Seat extends StatelessWidget {
   final bool me;
   final double size;
   final bool nameLeft;
-  final bool talking;
-  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.talking = false});
+  final String? voice; // الصوت الشغّال للشخصية
+  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.voice});
 
   @override
   Widget build(BuildContext context) {
@@ -1323,7 +1327,7 @@ class _Seat extends StatelessWidget {
         ),
       Container(
         decoration: isTurn ? BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: teamColor.withValues(alpha: 0.8), blurRadius: 14)]) : null,
-        child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor, background: teamColor, talking: talking),
+        child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor, background: teamColor, voice: voice),
       ),
       if (isBot)
         Positioned(

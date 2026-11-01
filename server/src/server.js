@@ -24,7 +24,7 @@ const CHARACTERS = [
   { id: 'musabbah', name: 'مصبّح' },
   { id: 'bodhirs', name: 'محمد بو ضرس' },
   { id: 'abdo', name: 'عبدو اليابس' },
-  { id: 'sadiq', name: 'صديق' },
+  { id: 'aslam', name: 'أسلم' },
   { id: 'mundaghit', name: 'المنضغط' },
   { id: 'wadamtih', name: 'ود عمتيه' },
   { id: 'buhamdan', name: 'بو حمدان' },

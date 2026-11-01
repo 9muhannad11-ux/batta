@@ -87,6 +87,41 @@ test('a human khabis can choose «6 مجبور» over websockets', async () => {
   ws.close();
 });
 
+test('a player can choose a character in the lobby (a bot holding it gets another)', async () => {
+  await ready();
+  const ws = new WebSocket(`ws://localhost:${server.address().port}`);
+  const sendMsg = (m) => ws.send(JSON.stringify(m));
+  const rooms6 = [];
+  const errors = [];
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), 5000);
+    let step = 0;
+    ws.on('open', () => sendMsg({ t: 'create', name: 'مختبر', char: 'aslam' }));
+    ws.on('message', (raw) => {
+      const m = JSON.parse(raw);
+      if (m.t === 'error') errors.push(m.msg);
+      if (m.t !== 'room') return;
+      rooms6.push(m);
+      if (step === 0) { step = 1; return sendMsg({ t: 'addBots' }); }
+      if (step === 1) {
+        step = 2;
+        const botChar = m.seats[1].char;
+        rooms6.botChar = botChar;
+        return sendMsg({ t: 'char', char: botChar }); // ناخذ شخصية بوت
+      }
+      if (step === 2) { step = 3; sendMsg({ t: 'char', char: 'nobody' }); setTimeout(() => { clearTimeout(timer); resolve(); }, 200); }
+    });
+  });
+  assert.strictEqual(rooms6[0].seats[0].char, 'aslam', 'chosen character on create');
+  const last = rooms6[rooms6.length - 1];
+  assert.strictEqual(last.seats[0].char, rooms6.botChar, 'took the bot character');
+  assert.notStrictEqual(last.seats[1].char, rooms6.botChar, 'bot got another character');
+  const chars = last.seats.map((s) => s.char);
+  assert.strictEqual(new Set(chars).size, chars.length, 'no duplicate characters');
+  assert.ok(errors.some((e) => /الشخصية/.test(e)), 'unknown character is rejected');
+  ws.close();
+});
+
 test('an idle player is played for by the turn timer, and seats get characters', async () => {
   await ready();
   const ws = new WebSocket(`ws://localhost:${server.address().port}`);

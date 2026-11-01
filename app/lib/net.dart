@@ -21,6 +21,7 @@ class GameClient extends ChangeNotifier {
   StreamSubscription? _sub;
   String serverUrl = '';
   String name = '';
+  String? char; // الشخصية اللي اختارها اللاعب (تنحفظ وتنرسل مع كل دخول)
   String? code;
   String? token;
   bool connected = false;
@@ -60,6 +61,7 @@ class GameClient extends ChangeNotifier {
   Future<void> loadPrefs() async {
     final p = await SharedPreferences.getInstance();
     name = p.getString('name') ?? '';
+    char = p.getString('char');
     // على الويب السيرفر دايماً هو نفس الموقع. وعلى الجوال نستخدم رابط النسخة، إلا إذا اللاعب كتب رابط ثاني بنفسه
     // (المفتاح القديم 'server' ما نقرأه: نسخ قديمة حفظت فيه روابط غلط وكانت تمنع الاتصال)
     serverUrl = kIsWeb ? defaultServerUrl() : (p.getString('serverCustom') ?? defaultServerUrl());
@@ -97,7 +99,7 @@ class GameClient extends ChangeNotifier {
 
   Future<void> createRoom() async {
     await _savePrefs();
-    _open(() => _send({'t': 'create', 'name': name}));
+    _open(() => _send({'t': 'create', 'name': name, 'char': ?char}));
   }
 
   Future<void> joinRoom(String roomCode) async {
@@ -105,7 +107,7 @@ class GameClient extends ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     // لو نفس الغرفة اللي كنا فيها، نرجع لمقعدنا
     final savedToken = p.getString('room') == roomCode ? p.getString('token') : null;
-    _open(() => _send({'t': 'join', 'code': roomCode, 'name': name, 'token': ?savedToken}));
+    _open(() => _send({'t': 'join', 'code': roomCode, 'name': name, 'token': ?savedToken, 'char': ?char}));
   }
 
   /// يحاول يتصل لين دقيقة ونص: سيرفر Render المجاني ينام إذا ما أحد يلعب، ويحتاج 30-60 ثانية يصحى
@@ -214,6 +216,12 @@ class GameClient extends ChangeNotifier {
 
   // أوامر اللوبي
   void sit(int seat) => _send({'t': 'sit', 'seat': seat});
+  Future<void> chooseChar(String id) async {
+    char = id;
+    _send({'t': 'char', 'char': id});
+    final p = await SharedPreferences.getInstance();
+    await p.setString('char', id);
+  }
   void addBots() => _send({'t': 'addBots'});
   void kick(int seat) => _send({'t': 'kick', 'seat': seat});
   void start() => _send({'t': 'start'});

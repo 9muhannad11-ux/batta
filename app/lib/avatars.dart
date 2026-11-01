@@ -45,6 +45,20 @@ class _Look {
   });
 }
 
+/// الشخصيات اللي يقدر اللاعب يختارها (نفس CHARACTERS بـ server/src/server.js)
+const characterNames = <String, String>{
+  'khalfan': 'خلفان التفق',
+  'khusaib': 'خصيب',
+  'marhoon': 'مرهون',
+  'musabbah': 'مصبّح',
+  'bodhirs': 'محمد بو ضرس',
+  'abdo': 'عبدو اليابس',
+  'aslam': 'أسلم',
+  'mundaghit': 'المنضغط',
+  'wadamtih': 'ود عمتيه',
+  'buhamdan': 'بو حمدان',
+};
+
 const _looks = <String, _Look>{
   // خلفان التفق: ملامح عمانية ومصر أحمر، شنب كثيف
   'khalfan': _Look(skin: Color(0xFFC68E5E), robe: Color(0xFFB7C7D6), head: 'turban', headColor: Color(0xFFC62828), mustache: 'thick', beard: 'stubble', mouth: 'smile'),

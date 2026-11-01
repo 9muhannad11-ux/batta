@@ -60,8 +60,10 @@ function freeCharacter(room) {
   return free[Math.floor(Math.random() * free.length)];
 }
 
-function newSeat(room, { name, ws = null, bot = false }) {
-  const ch = freeCharacter(room);
+// want: الشخصية اللي اختارها اللاعب (إذا موجودة وما أحد ماخذها)، وإلا وحدة عشوائية
+function newSeat(room, { name, ws = null, bot = false, want = null }) {
+  const taken = room.seats.some((s) => s && s.char === want);
+  const ch = (!taken && CHARACTERS.find((c) => c.id === want)) || freeCharacter(room);
   return { name: bot ? ch.name : name, token: crypto.randomUUID(), bot, ws, char: ch.id };
 }
 
@@ -152,7 +154,7 @@ function handle(ws, msg) {
   switch (msg.t) {
     case 'create': {
       const room = createRoom();
-      const seat = newSeat(room, { name: cleanName(msg.name), ws });
+      const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
       room.seats[0] = seat;
       room.host = seat.token;
       ctx.room = room; ctx.token = seat.token;
@@ -172,7 +174,7 @@ function handle(ws, msg) {
       if (room.game) return send(ws, { t: 'error', msg: 'اللعبة بدأت' });
       const free = room.seats.findIndex((s) => !s);
       if (free < 0) return send(ws, { t: 'error', msg: 'الغرفة مليانة' });
-      const seat = newSeat(room, { name: cleanName(msg.name), ws });
+      const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
       room.seats[free] = seat;
       ctx.room = room; ctx.token = seat.token;
       send(ws, { t: 'joined', code: room.code, token: seat.token });
@@ -195,6 +197,20 @@ function handle(ws, msg) {
         if (other && !other.bot) throw illegal('المقعد محجوز');
         room.seats[to] = room.seats[seat];
         room.seats[seat] = other || null;
+        break;
+      }
+      case 'char': { // اختيار الشخصية في اللوبي: إذا معاها بوت ياخذ غيرها، وإذا معاها لاعب ما ينفع
+        const ch = CHARACTERS.find((c) => c.id === msg.char);
+        if (room.game || !ch) throw illegal('ما تقدر تغير الشخصية');
+        const holder = room.seats.find((s) => s && s.char === ch.id);
+        if (holder && holder !== room.seats[seat] && !holder.bot) throw illegal('الشخصية ماخذها لاعب ثاني');
+        room.seats[seat].char = ch.id;
+        if (holder && holder.bot) {
+          holder.char = null;
+          const other = freeCharacter(room);
+          holder.char = other.id;
+          holder.name = other.name;
+        }
         break;
       }
       case 'mode': { // 6 أو 4 لاعبين

@@ -49,6 +49,15 @@
 ## معتمدة (تنتظر «طبّق»)
 (ولا شي)
 
+## مطبّق على localhost ومرفوع على Render القديم (batta-8vdq) — 2026-11-02، نسخة 1.0.6
+- **اختيار الشخصية باللوبي:** تضغط على مقعدك وتطلع كل الشخصيات بأسمائها (showCharacterPicker بـ app/lib/main.dart، والأسماء characterNames بـ avatars.dart). اللي ماخذها لاعب ثاني باهتة وما تنضغط، واللي مع بوت تنفع والبوت ياخذ غيرها (واسمه يتغير معها). السيرفر: رسالة {t:'char'} وتنقبل بس قبل البداية، و create/join تاخذ char المحفوظ إذا محد ماخذه. الاختيار ينحفظ بالجوال (prefs 'char'). اختبار السيرفر: «a player can choose a character in the lobby». المعاينة: app/test/capture_picker_test.dart.
+- **أصوات الشخصيات أوضح (ducking):** الأصوات تشتغل مع بعض، بس وقت كلام أي شخصية باقي الأصوات تنزل لـ 35٪ (Sfx.duck) وترجع بعده. للسماع: tools/voices/duck_before.wav و duck_after.wav (بصفحة aslam.html).
+- **علامة طاف بدل الكلمة:** دائرة رمادية (#5E636B) بحد أبيض وكف أبيض (Icons.front_hand) جنب الشخصية من جهة الطاولة (_PassSign، _Board.toward)، بالوضعين، وقت المزايدة. باقي المزايدات مكتوبة مثل قبل.
+- **العرضي: اللي فوق أعلى ما يمكن** (topY = avatar*0.78 - 6، راسه عند حافة الشاشة)، ونجمة الشاري حقه تحت يمين، وإشاراته على يمينه (عشان ما تطلع برا الشاشة).
+- **العرضي: الطاولة بنص الشاشة بالضبط** (نفس المسافة فوق وتحت: من topY + avatar*0.45 لين h - نفسها).
+- المعاينة: app/test/capture_preview_test.dart («pass sign» و «landscape preview»)، والاختبار صار يحمّل خط أيقونات Material.
+- APK جديد (server/public/batta.apk) متصل بـ wss://batta-8vdq.onrender.com.
+
 ## مطبّق على localhost ومرفوع على Render القديم (batta-8vdq) — 2026-11-02، نسخة 1.0.5
 - **الجوكرين joker4:** الكبير أحمر أكثر (اللوح المنقّط اليسار وإطار اللوح اليمين أحمر #b01f1f، وخطوط الأحزمة الصغيرة حمراء)، ولمعة كروم على الجوكرين (خطين ضوء مايلين وظل خفيف بينهم، source-atop على الخنجر بس). tools/joker-art/joker4.html → joker4_big.png (JB) و joker4_small.png (JG).
 - **الشعار والأيقونات بالجوكر الجديد:** tools/logo-art/joker_big.png = joker4_big، logo.html يغطي حروف الورقة الصغيرة (200 بدل 150). منه: app/assets/images/logo.png و Icon-maskable (مربعة)، و Icon-192/512 و favicon و ic_launcher (mipmap 48–192) بحواف مدوّرة 22٪.

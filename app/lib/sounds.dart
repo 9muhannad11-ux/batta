@@ -2,9 +2,22 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
 /// أصوات اللعبة. كل صوت له مشغّل خاص عشان تقدر تشتغل مع بعض.
+/// وقت ما تتكلم شخصية، باقي الأصوات تنخفض (ducking) عشان الكلام يكون أوضح، وترجع بعده.
 class Sfx {
   static final Map<String, AudioPlayer> _players = {};
+  static final Map<String, double> _volumes = {}; // القوة الأصلية لكل صوت (قبل الخفض)
+  static final Map<int, Object> _speaking = {}; // اللاعبين اللي صوت شخصيتهم شغّال
+  static const duck = 0.35; // قوة باقي الأصوات وقت الكلام
   static bool muted = false;
+
+  static double get _duckFactor => _speaking.isEmpty ? 1 : duck;
+
+  static void _applyDuck() {
+    for (final e in _players.entries) {
+      if (e.key.startsWith('voice')) continue;
+      e.value.setVolume((_volumes[e.key] ?? 1) * _duckFactor).catchError((_) {});
+    }
+  }
 
   static Future<void> _play(String name, {double volume = 1, bool loop = false}) async {
     if (muted) return;
@@ -12,7 +25,8 @@ class Sfx {
       final p = _players.putIfAbsent(name, () => AudioPlayer());
       await p.stop();
       await p.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
-      await p.setVolume(volume);
+      _volumes[name] = volume;
+      await p.setVolume(volume * _duckFactor);
       await p.play(AssetSource('sounds/$name.wav'));
     } catch (e) {
       // المتصفح أحياناً يمنع الصوت قبل أول ضغطة، نتجاهلها
@@ -58,6 +72,7 @@ class Sfx {
     if (!hasVoice(char, event)) return;
     voiceLog.add('${char}_$event');
     if (muted) return;
+    final me = Object();
     try {
       final p = _players.putIfAbsent('voice$seat', () => AudioPlayer());
       await p.stop();
@@ -65,10 +80,18 @@ class Sfx {
       await p.setVolume(1);
       final done = p.onPlayerComplete.first;
       await p.play(AssetSource('voices/${char}_$event.wav'));
+      _speaking[seat] = me;
+      _applyDuck();
       onStart?.call(); // الفم يبدأ مع الصوت بالضبط
       await done.timeout(const Duration(seconds: 4), onTimeout: () {});
     } catch (e) {
       debugPrint('voice $char $event failed: $e');
+    } finally {
+      // نرجّع باقي الأصوات (إلا إذا نفس اللاعب بدأ صوت ثاني بعده)
+      if (_speaking[seat] == me) {
+        _speaking.remove(seat);
+        _applyDuck();
+      }
     }
   }
 }

@@ -16,7 +16,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.5';
+const appVersion = '1.0.6';
 
 class KoutApp extends StatelessWidget {
   final GameClient client;
@@ -369,7 +369,7 @@ class LobbyScreen extends StatelessWidget {
     ]);
     final seats = Column(children: [
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [team(0), const SizedBox(width: 10), team(1)]),
-      const Text('اضغط على مقعد فاضي عشان تنتقل له', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 12)),
+      const Text('اضغط على مقعد فاضي عشان تنتقل له، وعلى مقعدك عشان تختار شخصيتك', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 12)),
     ]);
     final actions = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (c.isHost) ...[
@@ -437,6 +437,68 @@ class LobbyScreen extends StatelessWidget {
   }
 }
 
+/// اختيار الشخصية: كل الشخصيات بأسمائها، واللي ماخذها لاعب ثاني باهتة وما تنضغط
+/// (اللي مع بوت تنفع، والبوت ياخذ غيرها)
+void showCharacterPicker(BuildContext context, GameClient c) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1B1C1F),
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+    builder: (ctx) => ListenableBuilder(
+      listenable: c,
+      builder: (ctx, _) {
+        final mine = c.seats[c.mySeat]?['char'] as String?;
+        final team = KoutColors.team(c.mySeat % 2);
+        final byPlayer = {
+          for (var i = 0; i < c.seats.length; i++)
+            if (i != c.mySeat && c.seats[i] != null && c.seats[i]!['bot'] != true) c.seats[i]!['char'] as String?: true,
+        };
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('اختر شخصيتك', style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 14, children: [
+                    for (final e in characterNames.entries)
+                      Opacity(
+                        opacity: byPlayer.containsKey(e.key) ? 0.35 : 1,
+                        child: GestureDetector(
+                          onTap: byPlayer.containsKey(e.key)
+                              ? null
+                              : () {
+                                  c.chooseChar(e.key);
+                                  Navigator.pop(ctx);
+                                },
+                          child: SizedBox(
+                            width: 104,
+                            child: Column(children: [
+                              const SizedBox(height: 18), // الراس يطلع فوق الإطار
+                              CharacterAvatar(charId: e.key, size: 70, ring: e.key == mine ? Colors.white : team, background: team),
+                              const SizedBox(height: 4),
+                              Text(e.value,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 13, color: e.key == mine ? Colors.white : const Color(0xFFCCCCCC), fontWeight: e.key == mine ? FontWeight.w700 : FontWeight.w400)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        );
+      },
+    ),
+  );
+}
+
 class _SeatTile extends StatelessWidget {
   final GameClient client;
   final int seat;
@@ -458,7 +520,7 @@ class _SeatTile extends StatelessWidget {
         boxShadow: me ? [BoxShadow(color: teamColor.withValues(alpha: 0.5), blurRadius: 8)] : null,
       ),
       child: InkWell(
-        onTap: canMove && !me ? () => client.sit(seat) : null,
+        onTap: me ? () => showCharacterPicker(context, client) : (canMove ? () => client.sit(seat) : null),
         child: SizedBox(
           height: 60,
           child: Row(children: [

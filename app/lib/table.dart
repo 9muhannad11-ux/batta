@@ -45,14 +45,15 @@ class _Board {
       final edge = avatar / 2 + 16;
       final handW = min(80.0, h * 0.21);
       final handTop = h - handW * cardRatio * 0.66; // الأوراق تطلع من تحت الشاشة (يبين ثلثينها)
-      final topY = avatar * 0.78 + 8; // مكان للراس اللي يطلع فوق الإطار
+      final topY = avatar * 0.78 - 6; // اللي فوق أعلى ما يمكن: راسه يوصل لحافة الشاشة
       final me = Offset(edge, h - avatar / 2 - 30);
       final seats = players == 4
           ? [me, Offset(w - edge, h * 0.42), Offset(w / 2, topY), Offset(edge, h * 0.42)]
           // الجنبين بنفس المستوى: فوق 0.24 وتحت 0.57 (شخصيتي تحت يسار تحتهم)
           : [me, Offset(w - edge, h * 0.57), Offset(w - edge, h * 0.24), Offset(w / 2, topY), Offset(edge, h * 0.24), Offset(edge, h * 0.57)];
-      // الطاولة تاخذ الطول كله تقريباً بين اللي فوق واليد
-      final table = Rect.fromLTRB(edge + avatar * 1.25, topY + avatar * 0.7, w - edge - avatar * 1.25, h * 0.82);
+      // الطاولة بنص الشاشة بالضبط (نفس المسافة فوق وتحت ويمين ويسار)
+      final ty = topY + avatar * 0.45;
+      final table = Rect.fromLTRB(edge + avatar * 1.25, ty, w - edge - avatar * 1.25, h - ty);
       return _Board._(size, true, handTop, handW, min(64.0, h * 0.16), avatar, edge + avatar * 1.4, w - 225, table, seats, tilts);
     }
     final s = (w / 380).clamp(0.85, 1.3);
@@ -83,6 +84,12 @@ class _Board {
     return center + spots[rel];
   }
   double get cardH => cardW * cardRatio;
+
+  /// اتجاه الطاولة من اللاعب (طوله 1)
+  Offset toward(int rel) {
+    final d = center - seats[rel];
+    return d / d.distance;
+  }
 }
 
 class TableScreen extends StatefulWidget {
@@ -425,7 +432,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   ..._trickLayer(v, b, n),
                   _centerInfo(v, b), // فوق الأوراق عشان ما تغطيها
                   for (var seat = 0; seat < n; seat++)
-                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat])),
+                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat], toward: b.toward(_rel(seat, n)))),
                   _dealLayer(b, n),
                   ..._handLayer(v, b),
                   _signalRow(v, b),
@@ -1294,7 +1301,8 @@ class _Seat extends StatelessWidget {
   final double size;
   final bool nameLeft;
   final String? voice; // الصوت الشغّال للشخصية
-  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.voice});
+  final Offset toward; // اتجاه الطاولة (لعلامة طاف)
+  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.voice, this.toward = Offset.zero});
 
   @override
   Widget build(BuildContext context) {
@@ -1305,7 +1313,8 @@ class _Seat extends StatelessWidget {
     final isKhabis = v['khabis'] == seat;
     final teamColor = KoutColors.team(seat % 2);
     final bids = (v['bids'] as List).where((b) => b['seat'] == seat).toList();
-    final bidLabel = bids.isEmpty ? null : bidName(bids.last['bid'] as Object);
+    final passed = phase == 'bidding' && bids.isNotEmpty && bids.last['bid'] == 'pass';
+    final bidLabel = bids.isEmpty || passed ? null : bidName(bids.last['bid'] as Object);
     final sig = client.signals[seat];
     final info = client.seatInfo(seat);
     final isBot = info?['bot'] == true;
@@ -1340,16 +1349,21 @@ class _Seat extends StatelessWidget {
           ),
         ),
       if (isBuyer)
-        const Positioned(
-          top: -12,
+        Positioned(
+          // اللي فوق لاصق بحافة الشاشة: النجمة تحت يمين
+          top: nameLeft ? null : -12,
+          bottom: nameLeft ? -6 : null,
           right: -10,
-          child: Icon(Icons.star, size: 28, color: KoutColors.gold, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+          child: const Icon(Icons.star, size: 28, color: KoutColors.gold, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
         ),
       if (offline) const Positioned(top: -4, left: -4, child: Icon(Icons.wifi_off, size: 14, color: KoutColors.lose)),
-      // الإشارات: تظهر كلها مع بعض فوق اللاعب
+      // طاف: علامة كف رمادية جنب الشخصية من جهة الطاولة
+      if (passed) Transform.translate(offset: toward * (size * 0.5 + 14), child: _PassSign(size: size * 0.46)),
+      // الإشارات: تظهر كلها مع بعض فوق اللاعب (واللي فوق على يمينه لأنه لاصق بحافة الشاشة)
       if (sig != null)
         Positioned(
-          top: -size * 0.5 - 22,
+          top: nameLeft ? null : -size * 0.5 - 22,
+          left: nameLeft ? size + 14 : null,
           child: TweenAnimationBuilder<double>(
             key: ValueKey(sig.at),
             tween: Tween(begin: 0.4, end: 1),
@@ -1402,6 +1416,30 @@ class _Seat extends StatelessWidget {
       Wrap(spacing: 6, alignment: WrapAlignment.center, children: tags),
     ]);
   }
+}
+
+/// علامة طاف: دائرة رمادية بكف أبيض (مثل اللي يلوّح بيده: ما أبي)
+class _PassSign extends StatelessWidget {
+  final double size;
+  const _PassSign({required this.size});
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.4, end: 1),
+        duration: const Duration(milliseconds: 180),
+        builder: (_, s, child) => Transform.scale(scale: s, child: child),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF5E636B),
+            border: Border.all(color: Colors.white, width: max(1.5, size * 0.07)),
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2))],
+          ),
+          child: Icon(Icons.front_hand, size: size * 0.6, color: Colors.white),
+        ),
+      );
 }
 
 /// اسم المزايدة اللي يشوفه اللاعب

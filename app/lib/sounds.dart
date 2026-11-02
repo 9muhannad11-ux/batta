@@ -57,8 +57,8 @@ class Sfx {
   static void stopGold() => _stop('gold');
   static void bawan() => _play('bawan');
 
-  /// أصوات الشخصيات الموجودة: `assets/voices/{id}_{رقم}.wav` (الأحداث من 1 لـ 9، شوف VoiceEvent)
-  static const voices = <String, Set<int>>{
+  /// أصوات الشخصيات الموجودة: `assets/voices/{id}_{رقم}.wav` (الأحداث من 1 لـ 13، شوف VoiceEvent)
+  static final voices = <String, Set<int>>{ // final (مو const) عشان الاختبارات تقدر تضيف
     'wadamtih': {1, 2, 3, 4, 5, 6, 7, 8, 9},
     'aslam': {1, 2, 3, 4, 5, 6, 7, 8, 9},
   };
@@ -99,4 +99,6 @@ class Sfx {
 /// أحداث أصوات الشخصيات (نفس ترقيم pending-changes.md)
 class VoiceEvent {
   static const bid6 = 1, bid7 = 2, bid8 = 3, gold = 4, made = 5, oppFailed = 6, pass = 7, majbur = 8, blueOverGrey = 9;
+  // الشاري يختار الحكم
+  static const trumpS = 10, trumpD = 11, trumpC = 12, trumpH = 13;
 }

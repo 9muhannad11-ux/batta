@@ -6,13 +6,13 @@ const fs = require('fs');
 const path = require('path');
 const DIR = process.env.DIR ? path.resolve(process.env.DIR) : __dirname;
 const PORT = Number(process.env.PORT ?? 8099);
-const MIME = { '.html': 'text/html; charset=utf-8', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.js': 'text/javascript', '.png': 'image/png', '.ogg': 'audio/ogg', '.json': 'application/json', '.mp4': 'video/mp4' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.js': 'text/javascript', '.png': 'image/png', '.ogg': 'audio/ogg', '.json': 'application/json', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.pdf': 'application/pdf' };
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   if (req.method === 'POST' && url.pathname === '/save') {
     const name = path.basename(url.searchParams.get('name') || '');
-    if (!/^[\w-]+\.(wav|png)$/.test(name)) { res.writeHead(400); return res.end('bad name'); }
+    if (!/^[\w-]+\.(wav|png|jpg)$/.test(name)) { res.writeHead(400); return res.end('bad name'); }
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => { fs.writeFileSync(path.join(DIR, name), Buffer.concat(chunks)); res.end('saved ' + name); });

@@ -104,6 +104,30 @@
         "PORT": "8092"
       },
       "port": 8092
+    },
+    {
+      "name": "print-cards",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": [
+        "tools/sound-candidates/preview-server.js"
+      ],
+      "env": {
+        "DIR": "C:/Users/9muha/AppData/Local/Temp/claude/C--Users-9muha-AppData-Local-Claude-Data-claude-pzs8sxrjxfjjc-scratch-workspaces-97060a04-8684-4c20-9b80-fb8b2c3dfc27-31a0e6b8-3ba7-4bc0-8cdc-5e1cb791706f-scratch-2026-10-26-9e347a/fc94f88a-d1bb-4cde-9e3d-ef46b996091a/scratchpad/print",
+        "PORT": "8091"
+      },
+      "port": 8091
+    },
+    {
+      "name": "kout-preview",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": [
+        "server/src/server.js"
+      ],
+      "env": {
+        "STATIC_DIR": "C:/Users/9muha/flutter-download/batta-preview-web",
+        "PORT": "8089"
+      },
+      "port": 8089
     }
   ]
 }

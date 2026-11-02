@@ -11,7 +11,7 @@ button.on{background:#2f7de1}label{display:block;margin:14px}</style></head><bod
 <div class="b" id="btns"></div>
 <label><input type="checkbox" id="old"> الحركة القديمة (فتح وتسكير ثابت)</label>
 <script>
-const names={1:'يزايد 6',2:'يزايد 7',3:'يزايد 8',4:'ذهبية',5:'وصول',6:'الخصم خسر',7:'طاف',8:'6 مجبور',9:'الكبير فوق الصغير'};
+const names={1:'يزايد 6',2:'يزايد 7',3:'يزايد 8',4:'ذهبية',5:'وصول',6:'الخصم خسر',7:'طاف',8:'6 مجبور',9:'الكبير فوق الصغير',10:'حكم سبيت',11:'حكم ديمن',12:'حكم كلفس',13:'حكم هاس'};
 const CH=new URLSearchParams(location.search).get('c')||'wadamtih',TITLES={wadamtih:'ود عمتيه',aslam:'أسلم'};
 title.textContent=(TITLES[CH]||CH)+' — الفم مع الصوت';face.src=`mouth_${CH}_0.png`;
 const frames=[...Array(11)].map((_,i)=>{const im=new Image();im.src=`mouth_${CH}_${i}.png`;return im});

@@ -102,31 +102,60 @@ class PlayingCard extends StatelessWidget {
   }
 }
 
-/// ظهر الورقة.
+/// ظهر الورقة (للتوزيع والأنميشن): ورقة بيضاء بحواف مدوّرة، وداخلها لوح عنابي بخطوط بيضاء متقاطعة (شبك)
 class CardBack extends StatelessWidget {
   final double width;
   const CardBack({super.key, this.width = 22});
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: width,
-        height: width * cardRatio,
-        decoration: BoxDecoration(
-          color: const Color(0xFF263238),
-          borderRadius: BorderRadius.circular(width * 0.1),
-          border: Border.all(color: const Color(0xFFB0BEC5), width: max(1, width * 0.04)),
-        ),
-        child: Center(
-          child: Container(
-            width: width * 0.6,
-            height: width * 1.0,
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFF90A4AE), width: 1),
-              borderRadius: BorderRadius.circular(width * 0.06),
-            ),
-          ),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final em = width / 14;
+    return Container(
+      width: width,
+      height: width * cardRatio,
+      padding: EdgeInsets.all(em * 0.55),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(em * 0.9),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.1)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1)),
+          BoxShadow(color: Color(0x12000000), blurRadius: 10, offset: Offset(0, 4)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(em * 0.5),
+        child: CustomPaint(painter: _BackPattern(width), child: const SizedBox.expand()),
+      ),
+    );
+  }
+}
+
+class _BackPattern extends CustomPainter {
+  final double width;
+  const _BackPattern(this.width);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = Offset.zero & size;
+    canvas.drawRect(r, Paint()..color = const Color(0xFF9D2C35));
+    // خطوط 45° و -45° (كل 7 بكسل بورقة عرضها 112، وتصغر معها)
+    final gap = max(2.5, width * 7 / 112), line = Paint()
+      ..color = Colors.white.withValues(alpha: 0.16)
+      ..strokeWidth = max(0.6, width * 1.5 / 112);
+    final span = size.width + size.height;
+    for (var d = -size.height; d < span; d += gap) {
+      canvas.drawLine(Offset(d, 0), Offset(d + size.height, size.height), line);
+      canvas.drawLine(Offset(d + size.height, 0), Offset(d, size.height), line);
+    }
+    canvas.drawRRect(RRect.fromRectAndRadius(r.deflate(0.5), Radius.circular(width / 14 * 0.5)),
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.1)
+          ..style = PaintingStyle.stroke);
+  }
+
+  @override
+  bool shouldRepaint(_BackPattern old) => old.width != width;
 }
 
 /// رمز النوع مرسوم (مو خط) بنفس أشكال الأوراق المعتمدة.

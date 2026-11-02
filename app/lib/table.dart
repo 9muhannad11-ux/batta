@@ -46,14 +46,23 @@ class _Board {
       final handW = min(80.0, h * 0.21);
       final handTop = h - handW * cardRatio * 0.66; // الأوراق تطلع من تحت الشاشة (يبين ثلثينها)
       final topY = avatar * 0.78 - 6; // اللي فوق أعلى ما يمكن: راسه يوصل لحافة الشاشة
-      final me = Offset(edge, h - avatar / 2 - 30);
-      final seats = players == 4
-          ? [me, Offset(w - edge, h * 0.42), Offset(w / 2, topY), Offset(edge, h * 0.42)]
-          // الجنبين بنفس المستوى: فوق 0.24 وتحت 0.57 (شخصيتي تحت يسار تحتهم)
-          : [me, Offset(w - edge, h * 0.57), Offset(w - edge, h * 0.24), Offset(w / 2, topY), Offset(edge, h * 0.24), Offset(edge, h * 0.57)];
       // الطاولة بنص الشاشة بالضبط (نفس المسافة فوق وتحت ويمين ويسار)
       final ty = topY + avatar * 0.45;
       final table = Rect.fromLTRB(edge + avatar * 1.25, ty, w - edge - avatar * 1.25, h - ty);
+      // شخصيتي تحت يسار: أوطى ما يمكن (اسمي بس تحتها)، وأبعد يمين ما يمكن قبل ما تلمس إطار الطاولة
+      final myY = h - (avatar + 10) / 2 - 20;
+      var myX = edge;
+      // الإطار، والراس اللي يطلع فوقه (غطا الراس)
+      bool fits(double x) =>
+          _clearOfTable(Offset(x, myY), (avatar + 10) / 2 + 6, table) && _clearOfTable(Offset(x, myY - avatar * 0.62), avatar * 0.36 + 6, table);
+      while (myX < w / 2 && fits(myX + 1)) {
+        myX += 1;
+      }
+      final me = Offset(myX, myY);
+      // الخصم على الجنبين أوطى شوي (بالـ6 اللي تحت يمين ويسار، وبالـ4 اللي يمين ويسار)
+      final seats = players == 4
+          ? [me, Offset(w - edge, h * 0.48), Offset(w / 2, topY), Offset(edge, h * 0.48)]
+          : [me, Offset(w - edge, h * 0.62), Offset(w - edge, h * 0.24), Offset(w / 2, topY), Offset(edge, h * 0.24), Offset(edge, h * 0.62)];
       return _Board._(size, true, handTop, handW, min(64.0, h * 0.16), avatar, edge + avatar * 1.4, w - 225, table, seats, tilts);
     }
     final s = (w / 380).clamp(0.85, 1.3);
@@ -85,6 +94,13 @@ class _Board {
   }
   double get cardH => cardW * cardRatio;
 
+  /// دائرة (مركز ونص قطر) ما تلمس الطاولة: الطاولة شكلها كبسولة (طرفينها نص دائرة)
+  static bool _clearOfTable(Offset c, double r, Rect t) {
+    final rr = t.height / 2;
+    final x = c.dx.clamp(t.left + rr, t.right - rr);
+    return (c - Offset(x, t.center.dy)).distance >= rr + r;
+  }
+
   /// اتجاه الطاولة من اللاعب (طوله 1)
   Offset toward(int rel) {
     final d = center - seats[rel];
@@ -112,6 +128,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   int? _slapRel;
 
   int _seenRound = 0;
+  int _trumpSaidRound = 0; // الجولة اللي انقال فيها صوت اختيار الحكم
   int _seenTrickNo = 0;
   int _seenTrickLen = 0;
   int _seenBids = 0;
@@ -219,6 +236,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _seenTrickNo = freshDeal ? 0 : trickNo;
       _seenTrickLen = freshDeal ? 0 : trickLen;
       _seenBids = freshDeal ? 0 : (v['bids'] as List).length;
+      _trumpSaidRound = v['trump'] != null ? round : 0;
       _resultShownRound = v['phase'] == 'roundEnd' || v['phase'] == 'matchEnd' ? round : _resultShownRound;
       _selected = null;
       _dragCard = null;
@@ -239,6 +257,14 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       if (e != null) _say(bids[i]['seat'] as int, e);
     }
     _seenBids = bids.length;
+
+    // صوت الشاري لما يختار الحكم (مرة وحدة بالجولة)
+    final trumpSuit = v['trump'] as String?;
+    if (trumpSuit != null && _trumpSaidRound != round && v['buyer'] is int) {
+      _trumpSaidRound = round;
+      final e = switch (trumpSuit) { 'S' => VoiceEvent.trumpS, 'D' => VoiceEvent.trumpD, 'C' => VoiceEvent.trumpC, 'H' => VoiceEvent.trumpH, _ => null };
+      if (e != null) _say(v['buyer'] as int, e);
+    }
 
     // صوت الورقة اللي نزلت: جوكر، أو كف الجوكر الكبير، أو ورقة عادية.
     // before: أوراق اللمّة اللي نزلت قبلها (عشان نعرف إذا الكبير نزل فوق الصغير)
@@ -429,10 +455,10 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                       ),
                     ),
                   ),
+                  _centerInfo(v, b), // على الطاولة نفسها: الأوراق (المنزولة والمسحوبة) تغطي عليها
                   ..._trickLayer(v, b, n),
-                  _centerInfo(v, b), // فوق الأوراق عشان ما تغطيها
                   for (var seat = 0; seat < n; seat++)
-                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat], toward: b.toward(_rel(seat, n)))),
+                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat], toward: b.toward(_rel(seat, n)), showSeconds: !(b.landscape && seat == c.mySeat))),
                   _dealLayer(b, n),
                   ..._handLayer(v, b),
                   _signalRow(v, b),
@@ -441,7 +467,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   if (b.landscape)
                     // أصغر وأبعد عن الحافة عشان اللي فوق يمين يكون بمستوى اللي فوق يسار
                     Positioned(
-                      top: 6,
+                      top: 1,
                       right: b.avatar + 70,
                       child: Transform.scale(scale: 0.85, alignment: Alignment.topRight, child: _Scores(view: v)),
                     )
@@ -1302,7 +1328,8 @@ class _Seat extends StatelessWidget {
   final bool nameLeft;
   final String? voice; // الصوت الشغّال للشخصية
   final Offset toward; // اتجاه الطاولة (لعلامة طاف)
-  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.voice, this.toward = Offset.zero});
+  final bool showSeconds; // الرقم تحت الشخصية (الحلقة تبقى دايماً)
+  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.voice, this.toward = Offset.zero, this.showSeconds = true});
 
   @override
   Widget build(BuildContext context) {
@@ -1387,7 +1414,7 @@ class _Seat extends StatelessWidget {
       if (isBuyer && v['majbur'] == true) const OutlinedText('مجبور', size: 13, color: KoutColors.majbur),
       if (phase == 'bidding' && bidLabel != null) OutlinedText(bidLabel, size: 13, color: bidLabel == 'طاف' ? const Color(0xFFCCCCCC) : Colors.white),
       if (isKhabis && phase == 'bidding') const OutlinedText('خابص', size: 11, color: Color(0xFFDDDDDD)),
-      if (left != null) OutlinedText('${left.ceil()}', size: 13, color: left <= 3 ? const Color(0xFFFF5A5A) : Colors.white),
+      if (left != null && showSeconds) OutlinedText('${left.ceil()}', size: 13, color: left <= 3 ? const Color(0xFFFF5A5A) : Colors.white),
     ];
 
     // الاسم بلون فريقه

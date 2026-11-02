@@ -10,7 +10,7 @@
 <body>
 <div id="w"></div>
 <script>
-const O='#1f2d78',Y='#e9b616',B='#141414',R='#d8262b',SK='#e2b08a',SKD='#b98260',W='#fbfbf8',SV='#dcdcdc',WD='#7a4a22',WL='#a9733f',G='#2f7d5c',M='#7a1f3d',T='#1f6f78';
+const O='#111111',Y='#e9b616',B='#141414',R='#d8262b',SK='#e2b08a',SKD='#b98260',W='#fbfbf8',SV='#dcdcdc',WD='#7a4a22',WL='#a9733f',G='#2f7d5c',M='#7a1f3d',T='#1f6f78';
 // الرموز بإحداثيات من -1 لـ 1
 const SUITP={
 H:'<path d="M0,1.02 L-0.8,0.08 C-1.06,-0.2 -1.03,-0.64 -0.76,-0.87 C-0.48,-1.08 -0.12,-0.99 0,-0.64 C0.12,-0.99 0.48,-1.08 0.76,-0.87 C1.03,-0.64 1.06,-0.2 0.8,0.08 Z"/>',
@@ -35,8 +35,21 @@ let n=0;
 function court(half,l,s){const id='c'+(n++);const bp=pip(s,58,72,18,false);
 return frame(`<defs><clipPath id="h${id}"><polygon points="34,30 166,30 166,130 34,160"/></clipPath><clipPath id="f${id}"><rect x="34" y="30" width="132" height="230"/></clipPath></defs><g transform="translate(100,145) scale(.88) translate(-100,-145)"><g clip-path="url(#f${id})"><g clip-path="url(#h${id})">${half}</g><g transform="rotate(180 100 145)"><g clip-path="url(#h${id})">${half}</g></g>${bp}<g transform="rotate(180 100 145)">${bp}</g></g><rect x="34" y="30" width="132" height="230" fill="none" stroke="${O}" stroke-width="1.8"/></g>`,l,s)}
 const LAY={2:[[100,60],[100,230]],3:[[100,60],[100,145],[100,230]],4:[[64,60],[136,60],[64,230],[136,230]],5:[[64,60],[136,60],[100,145],[64,230],[136,230]],6:[[64,60],[136,60],[64,145],[136,145],[64,230],[136,230]],7:[[64,60],[136,60],[100,102],[64,145],[136,145],[64,230],[136,230]],8:[[64,60],[136,60],[100,102],[64,145],[136,145],[100,188],[64,230],[136,230]],9:[[64,60],[136,60],[64,117],[136,117],[100,145],[64,173],[136,173],[64,230],[136,230]],10:[[64,60],[136,60],[100,88],[64,117],[136,117],[64,173],[136,173],[100,202],[64,230],[136,230]]};
+// زخرفة الآص: هالة بسيطة وراء الرمز (توهج ناعم بلون النوع + لمسة ذهبية)، وكل نوع بشكل مختلف
+const ring=(n,r,f)=>{let o='';for(let i=0;i<n;i++){const a=i/n*Math.PI*2-Math.PI/2;o+=f(100+Math.cos(a)*r,145+Math.sin(a)*r,a);}return o};
+const glow=(id,c)=>`<defs><radialGradient id="${id}"><stop offset="0" stop-color="${c}" stop-opacity=".45"/><stop offset=".6" stop-color="${c}" stop-opacity=".14"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient></defs><circle cx="100" cy="145" r="80" fill="url(#${id})"/>`;
+const rays=(n,r1,r2,c,w)=>ring(n,0,(x,y,a)=>`<path d="M${(100+Math.cos(a)*r1).toFixed(1)},${(145+Math.sin(a)*r1).toFixed(1)} L${(100+Math.cos(a)*r2).toFixed(1)},${(145+Math.sin(a)*r2).toFixed(1)}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`);
+const ACE={
+// هاس: توهج وردي وثمان بتلات ذهبية صغيرة حوالين القلب (مثل وردة)
+H:()=>glow('gH','#ff5a5a')+ring(8,0,(x,y,a)=>{const deg=(a*180/Math.PI+90).toFixed(1);return `<path d="M100,85 Q107,77 100,65 Q93,77 100,85Z" transform="rotate(${deg} 100 145)" fill="${Y}"/>`;}),
+// ديمن: توهج وثمان أشعة مدببة قصيرة
+D:()=>glow('gD','#ff5a5a')+ring(8,0,(x,y,a)=>{const p=(r,d)=>`${(100+Math.cos(a+d)*r).toFixed(1)},${(145+Math.sin(a+d)*r).toFixed(1)}`;return `<path d="M${p(52,-0.07)} L${p(72,0)} L${p(52,0.07)}Z" fill="${Y}"/>`;}),
+// كلفس: توهج رمادي و12 شعاع ذهبي متموّج مثل اللهب
+C:()=>glow('gC','#7a7a7a')+ring(12,0,(x,y,a)=>{const deg=(a*180/Math.PI+90).toFixed(1);return `<path d="M100,90 Q104,84 100,78 Q96,72 100,66" transform="rotate(${deg} 100 145)" fill="none" stroke="${Y}" stroke-width="1.8" stroke-linecap="round"/>`;}),
+// سبيت: توهج رمادي وأشعة رفيعة كثيرة مثل الشمس
+S:()=>glow('gS','#7a7a7a')+rays(24,54,70,Y,1.4)};
 function pipCard(r,s){const l=r===1?'A':String(r);let body='';
-if(r===1)body=pip(s,100,145,46,false);else for(const [x,y] of LAY[r])body+=pip(s,x,y,17,y>145);
+if(r===1)body=ACE[s]()+pip(s,100,145,46,false);else for(const [x,y] of LAY[r])body+=pip(s,x,y,r>=9?18:20,y>145); // 9 و10 أصغر شوي عشان ما تتلامس
 return frame(body,l,s)}
 const names={H:'هاس',C:'كلفس',D:'ديمن',S:'سبيت'};
 let h='';for(const s of ['H','C','D','S']){h+=`<div style="font-size:13px;margin:10px 4px 6px">${names[s]}</div><div class="g">`;

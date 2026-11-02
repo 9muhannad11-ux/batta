@@ -123,6 +123,44 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('character voice when the buyer chooses trump (10-13)', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final old = Sfx.voices['wadamtih']!;
+    Sfx.voices['wadamtih'] = {...old, 10, 11, 12, 13};
+    addTearDown(() => Sfx.voices['wadamtih'] = old);
+    Sfx.voiceLog.clear();
+    final choosing = playingView()
+      ..['phase'] = 'trump'
+      ..['buyer'] = 2
+      ..['trump'] = null
+      ..['trick'] = []
+      ..['legalCards'] = []
+      ..['canSignal'] = false;
+    final c = tableClient(choosing);
+    (c.room!['seats'] as List)[2] = {'name': 'ود عمتيه', 'bot': true, 'connected': true, 'char': 'wadamtih'};
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 400));
+    for (final (suit, ev) in [('S', 10), ('D', 11), ('C', 12), ('H', 13)]) {
+      // جولة جديدة لكل نوع: الشاري يختار، والصوت مرة وحدة بس
+      final round = ev;
+      c.view = Map.of(choosing)..['round'] = round;
+      c.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+      c.view = Map.of(choosing)
+        ..['round'] = round
+        ..['phase'] = 'playing'
+        ..['trump'] = suit;
+      c.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+      c.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(Sfx.voiceLog.where((e) => e == 'wadamtih_$ev').length, 1, reason: suit);
+    }
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   testWidgets('home screen shows create and join', (tester) async {
     await tester.pumpWidget(KoutApp(client: GameClient()));
     expect(find.byType(AppLogo), findsOneWidget);

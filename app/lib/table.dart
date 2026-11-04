@@ -119,7 +119,8 @@ class TableScreen extends StatefulWidget {
 class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin {
   // لمّ اللمّة: آخر ورقة توصل، وبعدها الكل ينسحب لصاحبها
   late final AnimationController _collect = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
-  late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
+  late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300), value: 1);
+  late final Animation<double> _handFade = CurvedAnimation(parent: _deal, curve: const Interval(0.6, 1)); // اليد تبين بآخر التوزيع
   // كف الجوكر الكبير: ينزل 170ms ويضرب، وبعدها يرتفع ويختفي
   late final AnimationController _slap = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
   late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
@@ -138,6 +139,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   String? _effect; // win, lose, bawan
   Timer? _effectTimer;
   Timer? _ticker;
+  final _seconds = ValueNotifier<int?>(null); // الثواني الباقية: يتغير مكان الرقم بس، مو الشاشة كلها
   DateTime? _tickedFor; // آخر عداد اشتغل له صوت آخر 5 ثواني
   bool _tickPlaying = false;
 
@@ -166,9 +168,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     _collect.addStatusListener((s) {
       if (s == AnimationStatus.completed && mounted) setState(() => _collecting = null);
     });
-    // اليد تبين بآخر التوزيع، ونافذة المزايدة تطلع أول ما يخلص
-    _deal.addListener(() {
-      if (mounted) setState(() {});
+    // نافذة المزايدة تطلع أول ما يخلص التوزيع
+    _deal.addStatusListener((s) {
+      if (s == AnimationStatus.completed && mounted) setState(() {});
     });
     _slap.addListener(() {
       if (_slap.value >= 170 / 820 && !_shake.isAnimating && _shake.value == 0) _shake.forward(from: 0);
@@ -192,6 +194,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     _shake.dispose();
     _effectTimer?.cancel();
     _ticker?.cancel();
+    _seconds.dispose();
     Sfx.stopGold();
     Sfx.stopTick();
     super.dispose();
@@ -209,6 +212,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     if (!mounted) return;
     final left = c.secondsLeft;
     final deadline = c.deadline;
+    _seconds.value = left?.ceil();
     if (_myTurn && left != null && left > 0 && left <= 5 && _tickedFor != deadline) {
       _tickedFor = deadline;
       _tickPlaying = true;
@@ -217,12 +221,12 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _tickPlaying = false;
       Sfx.stopTick();
     }
-    if (left != null) setState(() {});
   }
 
   void _onChange() {
     final v = c.view;
     if (v == null || !mounted) return;
+    _seconds.value = c.secondsLeft?.ceil();
     final round = v['round'] as int;
     final trickNo = v['trickNo'] as int;
     final trick = (v['trick'] as List).cast<Map<String, dynamic>>();
@@ -408,7 +412,12 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     return Scaffold(
       body: Stack(fit: StackFit.expand, children: [
         // الخلفية: حصير قديم (حليبي غامق قريب من لون المخدات) بدون زخرفة، شبه 3D
-        const RepaintBoundary(child: CustomPaint(painter: _MatPainter())),
+        RepaintBoundary(
+          child: Stack(fit: StackFit.expand, children: [
+            Image(image: matImage, repeat: ImageRepeat.repeat, alignment: Alignment.topLeft, fit: BoxFit.none, filterQuality: FilterQuality.low, gaplessPlayback: true),
+            const CustomPaint(painter: _MatLight()),
+          ]),
+        ),
         SafeArea(
           child: LayoutBuilder(builder: (context, box) {
             final b = _Board(box.biggest, n);
@@ -426,7 +435,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   // الطاولة: بيضاوية بحافة خشب، وسطها رمادي بتدرج أبيض بنفس شكلها، وتصير ذهبية في الباون
                   Positioned.fromRect(
                     rect: b.table.inflate(12),
-                    child: Container(
+                    child: RepaintBoundary(child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(b.size.longestSide),
@@ -453,14 +462,14 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                           border: Border.all(color: const Color(0xFFC08A55), width: 1.5),
                         ),
                       ),
-                    ),
+                    )),
                   ),
                   _centerInfo(v, b), // على الطاولة نفسها: الأوراق (المنزولة والمسحوبة) تغطي عليها
-                  ..._trickLayer(v, b, n),
+                  Positioned.fill(child: RepaintBoundary(child: Stack(clipBehavior: Clip.none, children: _trickLayer(v, b, n)))),
                   for (var seat = 0; seat < n; seat++)
-                    _seatAt(b, _rel(seat, n), _Seat(client: c, view: v, seat: seat, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat], toward: b.toward(_rel(seat, n)), showSeconds: !(b.landscape && seat == c.mySeat))),
+                    _seatAt(b, _rel(seat, n), RepaintBoundary(child: _Seat(client: c, view: v, seat: seat, seconds: _seconds, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat], toward: b.toward(_rel(seat, n)), showSeconds: !(b.landscape && seat == c.mySeat)))),
                   _dealLayer(b, n),
-                  ..._handLayer(v, b),
+                  Positioned.fill(child: RepaintBoundary(child: Stack(clipBehavior: Clip.none, children: _handLayer(v, b)))),
                   _signalRow(v, b),
                   _slapLayer(b),
                   // النتيجة: بالعرضي فوق يمين، وبالطولي فوق بالنص
@@ -571,12 +580,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                     return _cardAt(
                       pos,
                       w,
-                      Opacity(
-                        opacity: 1 - 0.7 * pull,
-                        child: Transform.rotate(
-                          angle: b.tilts[rel] * pi / 180 * (1 - pull),
-                          child: Transform.scale(scale: 1 - 0.45 * pull, child: PlayingCard(card['card'] as String, width: w)),
-                        ),
+                      Transform.rotate(
+                        angle: b.tilts[rel] * pi / 180 * (1 - pull),
+                        child: Transform.scale(scale: 1 - 0.45 * pull, child: PlayingCard(card['card'] as String, width: w, opacity: 1 - 0.7 * pull)),
                       ),
                     );
                   }),
@@ -615,7 +621,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   Widget _dealLayer(_Board b, int n) {
     return Positioned.fill(
       child: IgnorePointer(
-        child: AnimatedBuilder(
+        child: RepaintBoundary(child: AnimatedBuilder(
           animation: _deal,
           builder: (_, _) {
             if (!_deal.isAnimating) return const SizedBox.shrink();
@@ -631,12 +637,12 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                     return _cardAt(
                       Offset.lerp(b.center, b.seats[i], Curves.easeOut.transform(p))!,
                       w,
-                      Transform.rotate(angle: p * pi, child: CardBack(width: w)),
+                      Transform.rotate(angle: p * pi, child: RepaintBoundary(child: CardBack(width: w))),
                     );
                   }),
             ]);
           },
-        ),
+        )),
       ),
     );
   }
@@ -655,7 +661,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final step = min(min(w + 4, (avail - w) / (slots - 1)), b.landscape ? w * 0.3 : double.infinity);
     final total = w + step * (n - 1);
     final out = <Widget>[];
-    final dealFade = _deal.isAnimating ? ((_deal.value - 0.6) / 0.4).clamp(0.0, 1.0) : 1.0;
+    final dealing = _deal.isAnimating;
     for (var i = 0; i < hand.length; i++) {
       final card = hand[i];
       final ok = legal.contains(card);
@@ -673,9 +679,16 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         turns: angle / (2 * pi),
         duration: const Duration(milliseconds: 180),
         alignment: Alignment.bottomCenter,
-        child: PlayingCard(card, width: w, highlight: sel, enabled: !myTurn || ok),
+        child: PlayingCard(
+          card,
+          width: w,
+          highlight: sel,
+          enabled: !myTurn || ok,
+          opacity: _selected != null && !sel ? 0.6 : 1, // الباقي يخفت
+          fade: dealing ? _handFade : null,
+          shadow: !dealing,
+        ),
       );
-      if (_selected != null && !sel) face = Opacity(opacity: 0.6, child: face); // الباقي يخفت
       if (card == _shakeCard) {
         face = TweenAnimationBuilder<double>(
           key: ValueKey('shake$_shakeId'),
@@ -693,7 +706,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         top: top,
         child: Opacity(
           // الورقة اللي تنسحب تبقى بمكانها مخفية (عشان السحب ما ينقطع)، ونسخة منها تلحق الإصبع
-          opacity: card == _dragCard ? 0 : dealFade,
+          opacity: card == _dragCard ? 0 : 1,
           child: AnimatedScale(
             scale: sel ? 1.12 : 1,
             alignment: Alignment.bottomCenter,
@@ -815,7 +828,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final me = c.mySeat;
     final buyer = v['buyer'] as int?;
     if ((v['legalBids'] as List).isNotEmpty && !_deal.isAnimating) {
-      return _ChromePanel(child: _BidPanel(client: c, view: v));
+      return _ChromePanel(child: _BidPanel(client: c, view: v, seconds: _seconds));
     }
     if (phase == 'trump') {
       final left = c.secondsLeft;
@@ -824,7 +837,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
             ? Column(mainAxisSize: MainAxisSize.min, children: [
                 Row(mainAxisSize: MainAxisSize.min, children: [
                   const Text('حكمك؟', style: TextStyle(fontSize: 22, color: KoutColors.ink)),
-                  if (left != null) _Countdown(left: left, total: _trumpSeconds),
+                  if (left != null) _Countdown(seconds: _seconds),
                 ]),
                 const SizedBox(height: 12),
                 Directionality(
@@ -908,65 +921,16 @@ class _Ellipse extends GradientTransform {
   }
 }
 
-/// حصير قديم بدون زخرفة: شرايط خوص مضفورة بالعرض، كل شريطة خيوطها مايلة وعكس اللي جنبها
-/// (مثل ضفيرة السعف)، وكل خيط له لمعة بالنص وظل على الحواف (شبه 3D)،
-/// وبقع باهتة خفيفة، وضوء من فوق يسار والأطراف أغمق.
-class _MatPainter extends CustomPainter {
-  const _MatPainter();
+/// الحصير صورة جاهزة (tools/mat-art/mat.html)، لأن رسم خيوطه آلاف الأشكال بكل إطار.
+/// مقياسها 1.5 عشان خيوطها بنفس الحجم على كل الشاشات.
+const matImage = ExactAssetImage('assets/images/mat.jpg', scale: 1.5);
+
+/// ضوء من فوق يسار، والأطراف أغمق (عمق)
+class _MatLight extends CustomPainter {
+  const _MatLight();
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF7E7054)); // الفراغات بين الشرايط
-    final rnd = Random(7);
-    const bandH = 22.0, strand = 8.0;
-    for (var row = 0; row * bandH < size.height + bandH; row++) {
-      final y = row * bandH;
-      final slant = (row.isEven ? 1 : -1) * bandH * 0.75;
-      canvas.save();
-      canvas.clipRect(Rect.fromLTWH(0, y + 1, size.width, bandH - 2));
-      for (var x = -bandH; x < size.width + bandH; x += strand) {
-        // كل خيط لونه يختلف شوي (خوص قديم)
-        final tone = 0.88 + rnd.nextDouble() * 0.18;
-        Color c(int r, int g, int b) => Color.fromARGB(255, (r * tone).clamp(0, 255).round(), (g * tone).clamp(0, 255).round(), (b * tone).clamp(0, 255).round());
-        final path = Path()
-          ..moveTo(x, y + bandH)
-          ..lineTo(x + strand - 0.8, y + bandH)
-          ..lineTo(x + strand - 0.8 + slant, y)
-          ..lineTo(x + slant, y)
-          ..close();
-        canvas.drawPath(
-          path,
-          Paint()
-            ..shader = LinearGradient(
-              colors: [c(0x9A, 0x8A, 0x68), c(0xD4, 0xC7, 0xA8), c(0xB3, 0xA4, 0x82)],
-              stops: const [0, 0.45, 1],
-            ).createShader(Rect.fromLTWH(min(x, x + slant), y, strand + slant.abs(), bandH)),
-        );
-      }
-      // الشريطة منفوخة شوي: لمعة فوق وظل تحت
-      final band = Rect.fromLTWH(0, y + 1, size.width, bandH - 2);
-      canvas.drawRect(
-          band,
-          Paint()
-            ..shader = const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0x26FFFFFF), Color(0x00FFFFFF), Color(0x40000000)],
-              stops: [0, 0.4, 1],
-            ).createShader(band));
-      canvas.restore();
-    }
-    // بقع قديمة باهتة
-    for (var i = 0; i < 14; i++) {
-      final p = Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height);
-      final rad = 30 + rnd.nextDouble() * 70;
-      canvas.drawCircle(
-          p,
-          rad,
-          Paint()
-            ..shader = RadialGradient(colors: [const Color(0x1A3B2A10), const Color(0x003B2A10)]).createShader(Rect.fromCircle(center: p, radius: rad)));
-    }
-    // ضوء من فوق يسار، والأطراف أغمق (عمق)
     final all = Offset.zero & size;
     canvas.drawRect(
         all,
@@ -980,7 +944,7 @@ class _MatPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MatPainter old) => false;
+  bool shouldRepaint(_MatLight old) => false;
 }
 
 /// الكف (بدون رسغ ولا كم): حدود سودا، أظافر ومفاصل وخطوط كف وظل. نفس tools/sound-candidates/hand-slap.html
@@ -1174,18 +1138,63 @@ class _ChromeButton extends StatelessWidget {
 }
 
 class _Countdown extends StatelessWidget {
-  final double left;
-  final double total;
-  const _Countdown({required this.left, required this.total});
+  final ValueNotifier<int?> seconds;
+  const _Countdown({required this.seconds});
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsetsDirectional.only(start: 10),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.access_time, size: 18, color: left <= 3 ? KoutColors.lose : KoutColors.ink),
-          Text(' ${left.ceil()}', style: TextStyle(fontSize: 18, color: left <= 3 ? KoutColors.lose : KoutColors.ink)),
-        ]),
+        child: ValueListenableBuilder(
+          valueListenable: seconds,
+          builder: (_, left, _) {
+            final s = left ?? 0;
+            return Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.access_time, size: 18, color: s <= 3 ? KoutColors.lose : KoutColors.ink),
+              Text(' $s', style: TextStyle(fontSize: 18, color: s <= 3 ? KoutColors.lose : KoutColors.ink)),
+            ]);
+          },
+        ),
       );
+}
+
+/// حلقة وقت الدور: تنقص بنعومة لحالها، بدون ما تعيد رسم غيرها
+class _TurnRing extends StatefulWidget {
+  final GameClient client;
+  final double total;
+  const _TurnRing({required this.client, required this.total});
+
+  @override
+  State<_TurnRing> createState() => _TurnRingState();
+}
+
+class _TurnRingState extends State<_TurnRing> {
+  // 20 مرة بالثانية تكفي: الحلقة تتحرك أقل من بكسل كل مرة، و60 تعيد تركيب الشاشة كلها
+  late final Timer _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => setState(() {}));
+
+  @override
+  void initState() {
+    super.initState();
+    _timer;
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final left = widget.client.secondsLeft ?? 0;
+    return RepaintBoundary(
+      child: CircularProgressIndicator(
+        value: (left / widget.total).clamp(0.0, 1.0),
+        strokeWidth: 4,
+        color: left <= 3 ? KoutColors.lose : Colors.white,
+        backgroundColor: Colors.black38,
+      ),
+    );
+  }
 }
 
 /// النتائج والكلام الثاني: لوحة غامقة
@@ -1323,13 +1332,14 @@ class _Seat extends StatelessWidget {
   final GameClient client;
   final Map<String, dynamic> view;
   final int seat;
+  final ValueNotifier<int?> seconds;
   final bool me;
   final double size;
   final bool nameLeft;
   final String? voice; // الصوت الشغّال للشخصية
   final Offset toward; // اتجاه الطاولة (لعلامة طاف)
   final bool showSeconds; // الرقم تحت الشخصية (الحلقة تبقى دايماً)
-  const _Seat({required this.client, required this.view, required this.seat, required this.size, this.me = false, this.nameLeft = false, this.voice, this.toward = Offset.zero, this.showSeconds = true});
+  const _Seat({required this.client, required this.view, required this.seat, required this.seconds, required this.size, this.me = false, this.nameLeft = false, this.voice, this.toward = Offset.zero, this.showSeconds = true});
 
   @override
   Widget build(BuildContext context) {
@@ -1351,16 +1361,7 @@ class _Seat extends StatelessWidget {
 
     final avatar = SizedBox.square(dimension: size + 10, child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
       if (left != null)
-        SizedBox(
-          width: size + 10,
-          height: size + 10,
-          child: CircularProgressIndicator(
-            value: (left / total).clamp(0.0, 1.0),
-            strokeWidth: 4,
-            color: left <= 3 ? KoutColors.lose : Colors.white,
-            backgroundColor: Colors.black38,
-          ),
-        ),
+        SizedBox(width: size + 10, height: size + 10, child: _TurnRing(client: client, total: total)),
       Container(
         decoration: isTurn ? BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: teamColor.withValues(alpha: 0.8), blurRadius: 14)]) : null,
         child: CharacterAvatar(charId: info?['char'] as String?, size: size, ring: teamColor, background: teamColor, voice: voice),
@@ -1414,7 +1415,14 @@ class _Seat extends StatelessWidget {
       if (isBuyer && v['majbur'] == true) const OutlinedText('مجبور', size: 13, color: KoutColors.majbur),
       if (phase == 'bidding' && bidLabel != null) OutlinedText(bidLabel, size: 13, color: bidLabel == 'طاف' ? const Color(0xFFCCCCCC) : Colors.white),
       if (isKhabis && phase == 'bidding') const OutlinedText('خابص', size: 11, color: Color(0xFFDDDDDD)),
-      if (left != null && showSeconds) OutlinedText('${left.ceil()}', size: 13, color: left <= 3 ? const Color(0xFFFF5A5A) : Colors.white),
+      if (left != null && showSeconds)
+        ValueListenableBuilder(
+          valueListenable: seconds,
+          builder: (_, s, _) {
+            final n = s ?? left.ceil();
+            return OutlinedText('$n', size: 13, color: n <= 3 ? const Color(0xFFFF5A5A) : Colors.white);
+          },
+        ),
     ];
 
     // الاسم بلون فريقه
@@ -1475,7 +1483,8 @@ String bidName(Object b) => switch (b) { 'pass' => 'طاف', 'majbur' => '6 مج
 class _BidPanel extends StatelessWidget {
   final GameClient client;
   final Map<String, dynamic> view;
-  const _BidPanel({required this.client, required this.view});
+  final ValueNotifier<int?> seconds;
+  const _BidPanel({required this.client, required this.view, required this.seconds});
 
   @override
   Widget build(BuildContext context) {
@@ -1495,7 +1504,7 @@ class _BidPanel extends StatelessWidget {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Row(mainAxisSize: MainAxisSize.min, children: [
         const Text('كم تروح؟', style: TextStyle(fontSize: 22, color: KoutColors.ink)),
-        if (left != null) _Countdown(left: left, total: _turnSeconds),
+        if (left != null) _Countdown(seconds: seconds),
       ]),
       if (legal.contains('majbur'))
         const Padding(
@@ -1602,22 +1611,23 @@ class _Effect extends StatelessWidget {
       builder: (_, t, _) {
         final fade = t < 0.15 ? t / 0.15 : (t > 0.75 ? (1 - t) / 0.25 : 1.0);
         final pop = Curves.elasticOut.transform((t / 0.4).clamp(0.0, 1.0));
-        return Opacity(
-          opacity: fade.clamp(0.0, 1.0),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(colors: [color.withValues(alpha: 0.05), color.withValues(alpha: kind == 'bawan' ? 0.7 : 0.45)], radius: 0.9),
-            ),
-            alignment: Alignment.center,
-            child: Stack(alignment: Alignment.center, children: [
-              if (kind == 'bawan')
-                for (var i = 0; i < 24; i++)
-                  Align(
-                    alignment: Alignment(sin(i * 1.7) * t * 1.2, -1 + ((i * 0.37 + t * 1.6) % 2.2)),
-                    child: Icon(Icons.star, color: KoutColors.gold.withValues(alpha: 0.9), size: 14 + (i % 4) * 6.0),
-                  ),
-              // وصول أخضر وخسارة أحمر، أكبر، وبحد أسود
-              Transform.scale(
+        final a = fade.clamp(0.0, 1.0);
+        return Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(colors: [color.withValues(alpha: 0.05 * a), color.withValues(alpha: (kind == 'bawan' ? 0.7 : 0.45) * a)], radius: 0.9),
+          ),
+          alignment: Alignment.center,
+          child: Stack(alignment: Alignment.center, children: [
+            if (kind == 'bawan')
+              for (var i = 0; i < 24; i++)
+                Align(
+                  alignment: Alignment(sin(i * 1.7) * t * 1.2, -1 + ((i * 0.37 + t * 1.6) % 2.2)),
+                  child: Icon(Icons.star, color: KoutColors.gold.withValues(alpha: 0.9 * a), size: 14 + (i % 4) * 6.0),
+                ),
+            // وصول أخضر وخسارة أحمر، أكبر، وبحد أسود
+            Opacity(
+              opacity: a,
+              child: Transform.scale(
                 scale: 0.3 + 0.7 * pop,
                 child: FittedBox(
                   child: Padding(
@@ -1630,8 +1640,8 @@ class _Effect extends StatelessWidget {
                   ),
                 ),
               ),
-            ]),
-          ),
+            ),
+          ]),
         );
       },
     );
@@ -1664,29 +1674,27 @@ class _SignalBarState extends State<_SignalBar> {
     Widget chip(String s) {
       final on = _sent.contains(s);
       final enabled = can && !on && (s != 'J' || jokerOk);
-      return Opacity(
-        opacity: enabled || on ? 1 : 0.4,
-        child: GestureDetector(
-          onTap: enabled
-              ? () {
-                  widget.client.signal([s]);
-                  setState(() => _sent.add(s));
-                }
-              : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            margin: const EdgeInsets.all(3),
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: KoutColors.chrome(0.85),
-              borderRadius: BorderRadius.circular(7),
-              border: Border.all(color: on ? KoutColors.gold : KoutColors.chromeEdge, width: on ? 2 : 1),
-              boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 3, offset: Offset(0, 1))],
-            ),
-            child: s == 'J' ? const GoldJ(size: 30) : SuitIcon(s, size: 28),
+      final a = enabled || on ? 1.0 : 0.4;
+      return GestureDetector(
+        onTap: enabled
+            ? () {
+                widget.client.signal([s]);
+                setState(() => _sent.add(s));
+              }
+            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.all(3),
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: KoutColors.chrome(0.85 * a),
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: (on ? KoutColors.gold : KoutColors.chromeEdge).withValues(alpha: a), width: on ? 2 : 1),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.38 * a), blurRadius: 3, offset: const Offset(0, 1))],
           ),
+          child: s == 'J' ? GoldJ(size: 30, opacity: a) : SuitIcon(s, size: 28, color: suitColor(s).withValues(alpha: a)),
         ),
       );
     }

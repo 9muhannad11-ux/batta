@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'avatars.dart';
 import 'cards.dart';
 import 'net.dart';
+import 'sounds.dart';
 import 'table.dart';
 
 void main() async {
@@ -16,7 +17,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.7';
+const appVersion = '1.0.8';
 
 class KoutApp extends StatelessWidget {
   final GameClient client;
@@ -179,6 +180,18 @@ class _HomeScreenState extends State<HomeScreen> {
   late final _server = TextEditingController(text: widget.client.serverUrl);
   final _code = TextEditingController();
   bool _showServer = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // نجهّز الورق والأصوات من الشاشة الرئيسية، عشان ما تتأخر أول مرة تظهر باللعب
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Sfx.muted || !mounted) return;
+      precacheImage(matImage, context);
+      precacheCards(context);
+      Sfx.preload();
+    });
+  }
 
   bool _apply() {
     final c = widget.client;

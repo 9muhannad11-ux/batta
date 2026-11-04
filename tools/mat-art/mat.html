@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>بتّه: الحصير</title>
+<canvas id="c"></canvas>
+<script>
+// خلفية الطاولة: حصير قديم بشرايط خوص مضفورة (مثل ما كان يرسمه _MatPainter).
+// بلاطة تتكرر: طولها من مضاعفات شريطتين عشان اتجاه الخيوط يبقى متبادل.
+// ?export: يحفظها tools/mat-art/mat.jpg، وتنسخ إلى app/assets/images/mat.jpg
+const SIZE = 1012, SCALE = 1.5, bandH = 22, strand = 8;
+const cv = document.getElementById('c');
+cv.width = cv.height = SIZE * SCALE;
+const g = cv.getContext('2d');
+g.scale(SCALE, SCALE);
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+g.fillStyle = '#7E7054';
+g.fillRect(0, 0, SIZE, SIZE);
+for (let row = 0; row * bandH < SIZE; row++) {
+  const y = row * bandH, slant = (row % 2 ? -1 : 1) * bandH * 0.75;
+  g.save();
+  g.beginPath();
+  g.rect(0, y + 1, SIZE, bandH - 2);
+  g.clip();
+  for (let x = -bandH; x < SIZE + bandH; x += strand) {
+    const tone = 0.88 + rnd() * 0.18;
+    const c = (r, gr, b) => `rgb(${Math.min(255, r * tone)},${Math.min(255, gr * tone)},${Math.min(255, b * tone)})`;
+    const lg = g.createLinearGradient(Math.min(x, x + slant), 0, Math.min(x, x + slant) + strand + Math.abs(slant), 0);
+    lg.addColorStop(0, c(0x9A, 0x8A, 0x68));
+    lg.addColorStop(0.45, c(0xD4, 0xC7, 0xA8));
+    lg.addColorStop(1, c(0xB3, 0xA4, 0x82));
+    g.fillStyle = lg;
+    g.beginPath();
+    g.moveTo(x, y + bandH);
+    g.lineTo(x + strand - 0.8, y + bandH);
+    g.lineTo(x + strand - 0.8 + slant, y);
+    g.lineTo(x + slant, y);
+    g.closePath();
+    g.fill();
+  }
+  // الشريطة منفوخة شوي: لمعة فوق وظل تحت
+  const lg = g.createLinearGradient(0, y + 1, 0, y + bandH - 1);
+  lg.addColorStop(0, 'rgba(255,255,255,.15)');
+  lg.addColorStop(0.4, 'rgba(255,255,255,0)');
+  lg.addColorStop(1, 'rgba(0,0,0,.25)');
+  g.fillStyle = lg;
+  g.fillRect(0, y + 1, SIZE, bandH - 2);
+  g.restore();
+}
+// بقع قديمة باهتة
+for (let i = 0; i < 40; i++) {
+  const x = rnd() * SIZE, y = rnd() * SIZE, r = 30 + rnd() * 70;
+  const rg = g.createRadialGradient(x, y, 0, x, y, r);
+  rg.addColorStop(0, 'rgba(59,42,16,.1)');
+  rg.addColorStop(1, 'rgba(59,42,16,0)');
+  g.fillStyle = rg;
+  g.fillRect(x - r, y - r, r * 2, r * 2);
+}
+if (location.search.includes('export')) cv.toBlob(async (b) => {
+  await fetch('/save?name=mat.jpg', { method: 'POST', body: b });
+  document.title = 'exported ' + b.size;
+}, 'image/jpeg', 0.82);
+</script>

@@ -1,42 +1,52 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
-/// أصوات اللعبة. كل صوت له مشغّل خاص عشان تقدر تشتغل مع بعض.
+import 'audio_engine.dart';
+
+/// أصوات اللعبة. كل صوت له قناة خاصة عشان تقدر تشتغل مع بعض.
 /// وقت ما تتكلم شخصية، باقي الأصوات تنخفض (ducking) عشان الكلام يكون أوضح، وترجع بعده.
 class Sfx {
-  static final Map<String, AudioPlayer> _players = {};
   static final Map<String, double> _volumes = {}; // القوة الأصلية لكل صوت (قبل الخفض)
   static final Map<int, Object> _speaking = {}; // اللاعبين اللي صوت شخصيتهم شغّال
   static const duck = 0.35; // قوة باقي الأصوات وقت الكلام
   static bool muted = false;
 
+  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'start', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan'];
+
   static double get _duckFactor => _speaking.isEmpty ? 1 : duck;
 
   static void _applyDuck() {
-    for (final e in _players.entries) {
-      if (e.key.startsWith('voice')) continue;
-      e.value.setVolume((_volumes[e.key] ?? 1) * _duckFactor).catchError((_) {});
+    for (final e in _volumes.entries) {
+      AudioEngine.setVolume(e.key, e.value * _duckFactor);
+    }
+  }
+
+  /// يجهّز كل الأصوات قبل اللعب، عشان تشتغل على طول بدون تأخير
+  static Future<void> preload() async {
+    if (muted) return;
+    try {
+      await AudioEngine.preload([for (final n in _names) 'sounds/$n.wav']);
+    } catch (e) {
+      debugPrint('sound preload failed: $e');
     }
   }
 
   static Future<void> _play(String name, {double volume = 1, bool loop = false}) async {
     if (muted) return;
+    final asset = 'sounds/$name.wav';
+    _volumes[asset] = volume;
     try {
-      final p = _players.putIfAbsent(name, () => AudioPlayer());
-      await p.stop();
-      await p.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
-      _volumes[name] = volume;
-      await p.setVolume(volume * _duckFactor);
-      await p.play(AssetSource('sounds/$name.wav'));
+      await AudioEngine.play(asset, asset, volume: volume * _duckFactor, loop: loop);
     } catch (e) {
       // المتصفح أحياناً يمنع الصوت قبل أول ضغطة، نتجاهلها
       debugPrint('sound $name failed: $e');
     }
   }
 
-  static Future<void> _stop(String name) async {
+  static void _stop(String name) {
+    final asset = 'sounds/$name.wav';
+    _volumes.remove(asset);
     try {
-      await _players[name]?.stop();
+      AudioEngine.stop(asset);
     } catch (_) {}
   }
 
@@ -74,16 +84,11 @@ class Sfx {
     if (muted) return;
     final me = Object();
     try {
-      final p = _players.putIfAbsent('voice$seat', () => AudioPlayer());
-      await p.stop();
-      await p.setReleaseMode(ReleaseMode.stop);
-      await p.setVolume(1);
-      final done = p.onPlayerComplete.first;
-      await p.play(AssetSource('voices/${char}_$event.wav'));
-      _speaking[seat] = me;
-      _applyDuck();
-      onStart?.call(); // الفم يبدأ مع الصوت بالضبط
-      await done.timeout(const Duration(seconds: 4), onTimeout: () {});
+      await AudioEngine.play('voice$seat', 'voices/${char}_$event.wav', onStart: () {
+        _speaking[seat] = me;
+        _applyDuck();
+        onStart?.call(); // الفم يبدأ مع الصوت بالضبط
+      }).timeout(const Duration(seconds: 8), onTimeout: () {});
     } catch (e) {
       debugPrint('voice $char $event failed: $e');
     } finally {

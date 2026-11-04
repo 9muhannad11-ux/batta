@@ -118,6 +118,18 @@
       "port": 8091
     },
     {
+      "name": "mat-art",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": [
+        "tools/sound-candidates/preview-server.js"
+      ],
+      "env": {
+        "DIR": "tools/mat-art",
+        "PORT": "8088"
+      },
+      "port": 8088
+    },
+    {
       "name": "kout-preview",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "runtimeArgs": [

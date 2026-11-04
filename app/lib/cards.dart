@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'cached_paint.dart';
+
 /// ألوان الثيم: رمادي على أسود، مع ألوان الفريقين، وكروم الشعار للقوائم والنوافذ.
 class KoutColors {
   static const bg = Color(0xFF000000);
@@ -65,13 +67,18 @@ class PlayingCard extends StatelessWidget {
   final bool enabled;
   final bool highlight;
   final VoidCallback? onTap;
+  final double opacity;
+  final Animation<double>? fade; // ظهور الورقة بأنميشن (بدل opacity)
+  final bool shadow;
 
-  const PlayingCard(this.card, {super.key, this.width = 54, this.enabled = true, this.highlight = false, this.onTap});
+  const PlayingCard(this.card, {super.key, this.width = 54, this.enabled = true, this.highlight = false, this.onTap, this.opacity = 1, this.fade, this.shadow = true});
 
   @override
   Widget build(BuildContext context) {
     final w = width;
     final radius = BorderRadius.circular(w * 0.07);
+    // الشفافية على الصورة نفسها: Opacity يفتح طبقة كاملة لكل ورقة بكل إطار
+    final alpha = opacity * (enabled ? 1 : 0.45);
     final face = AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       width: w,
@@ -79,11 +86,12 @@ class PlayingCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: radius,
         boxShadow: [
-          BoxShadow(
-            color: highlight ? KoutColors.gold.withValues(alpha: 0.7) : Colors.black54,
-            blurRadius: highlight ? 14 : 4,
-            offset: const Offset(0, 2),
-          ),
+          if (shadow)
+            BoxShadow(
+              color: (highlight ? KoutColors.gold : Colors.black).withValues(alpha: (highlight ? 0.7 : 0.54) * alpha),
+              blurRadius: highlight ? 14 : 4,
+              offset: const Offset(0, 2),
+            ),
         ],
       ),
       foregroundDecoration: highlight
@@ -91,14 +99,34 @@ class PlayingCard extends StatelessWidget {
           : null,
       child: ClipRRect(
         borderRadius: radius,
-        child: Image.asset('assets/cards/$card.png', fit: BoxFit.fill, filterQuality: FilterQuality.medium, gaplessPlayback: true),
+        child: Image(
+          image: cardImage(card),
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+          opacity: fade ?? (alpha < 1 ? AlwaysStoppedAnimation(alpha) : null),
+        ),
       ),
     );
 
-    return Opacity(
-      opacity: enabled ? 1 : 0.45,
-      child: GestureDetector(onTap: enabled ? onTap : null, child: face),
-    );
+    return GestureDetector(onTap: enabled ? onTap : null, child: face);
+  }
+}
+
+/// صورة الورقة بحجم يكفي الشاشة (أخف من الأصل بالذاكرة والرسم)
+ImageProvider cardImage(String card) => ResizeImage(AssetImage('assets/cards/$card.png'), width: 300);
+
+/// يجهّز كل صور الورق قبل اللعب، عشان ما تتأخر الورقة أول مرة تظهر
+Future<void> precacheCards(BuildContext context) async {
+  final cards = [
+    for (final s in ['H', 'C', 'D', 'S'])
+      for (var r = 2; r <= 14; r++) '$s-$r',
+    'JB',
+    'JG',
+  ];
+  for (final card in cards) {
+    if (!context.mounted) return;
+    await precacheImage(cardImage(card), context);
   }
 }
 
@@ -118,14 +146,11 @@ class CardBack extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(em * 0.9),
         border: Border.all(color: Colors.black.withValues(alpha: 0.1)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1)),
-          BoxShadow(color: Color(0x12000000), blurRadius: 10, offset: Offset(0, 4)),
-        ],
+        boxShadow: const [BoxShadow(color: Color(0x12000000), blurRadius: 3, offset: Offset(0, 2))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(em * 0.5),
-        child: CustomPaint(painter: _BackPattern(width), child: const SizedBox.expand()),
+        child: CachedPaint(cacheKey: 'back', painter: _BackPattern(width)),
       ),
     );
   }
@@ -244,7 +269,8 @@ class _SuitPainter extends CustomPainter {
 /// حرف J الذهبي اللماع (إشارة الجوكر): خط كلاسيكي عريض، تدرّج ذهبي وحد بني رفيع.
 class GoldJ extends StatelessWidget {
   final double size;
-  const GoldJ({super.key, this.size = 22});
+  final double opacity;
+  const GoldJ({super.key, this.size = 22, this.opacity = 1});
 
   @override
   Widget build(BuildContext context) {
@@ -259,17 +285,18 @@ class GoldJ extends StatelessWidget {
                   foreground: Paint()
                     ..style = PaintingStyle.stroke
                     ..strokeWidth = max(1.5, size * 0.09)
-                    ..color = const Color(0xFF5A3A0A))),
-          ShaderMask(
-            blendMode: BlendMode.srcIn,
-            shaderCallback: (r) => const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              stops: [0, 0.35, 0.5, 0.65, 1],
-              colors: [Color(0xFFFFF4C2), Color(0xFFF5C84A), Color(0xFFFFFBE6), Color(0xFFD9A21E), Color(0xFF8C5E0C)],
-            ).createShader(r),
-            child: Text('J', style: style.copyWith(color: Colors.white)),
-          ),
+                    ..color = const Color(0xFF5A3A0A).withValues(alpha: opacity))),
+          Text('J',
+              style: style.copyWith(
+                  // التدرج على الكتابة نفسها (ShaderMask يفتح طبقة بكل إطار)
+                  foreground: Paint()
+                    ..color = Colors.white.withValues(alpha: opacity)
+                    ..shader = const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      stops: [0, 0.35, 0.5, 0.65, 1],
+                      colors: [Color(0xFFFFF4C2), Color(0xFFF5C84A), Color(0xFFFFFBE6), Color(0xFFD9A21E), Color(0xFF8C5E0C)],
+                    ).createShader(Rect.fromLTWH(0, 0, size * 0.6, size)))),
         ]),
       ),
     );

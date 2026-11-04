@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'cached_paint.dart';
 import 'lipsync.dart';
 
 /// شكل كل شخصية. كلهم بنفس التوجه الفني (مثل ود عمتيه): رسم أقرب للواقعي بتظليل خفيف وحدود سودا رفيعة.
@@ -233,7 +234,11 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final ms = _t.inMicroseconds / 1000;
     final m = widget.mouth ?? (!_moving ? 0.0 : _mouthFromVoice(ms) ?? _mouthAt((ms / 2000) % 1));
-    return CustomPaint(painter: _FacePainter(_looks[widget.charId] ?? _looks['musabbah']!, mouth: m));
+    final look = _looks[widget.charId] ?? _looks['musabbah']!;
+    final painter = _FacePainter(look, mouth: m);
+    if (m != 0) return CustomPaint(painter: painter);
+    // وجه ساكت: صورة جاهزة (الوجه فيه مئات الأشكال). الرسم يطلع برا حدوده، والصورة مكبّرة 1.3
+    return CachedPaint(cacheKey: look, painter: painter, bleed: 0.5, scale: 1.3);
   }
 }
 

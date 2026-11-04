@@ -163,6 +163,56 @@ void main() {
     }
   });
 
+  testWidgets('winning card gathers the trick', (tester) async {
+    addTearDown(tester.view.reset);
+    const size = Size(390, 844);
+    tester.view.physicalSize = size * 2;
+    tester.view.devicePixelRatio = 2;
+    final trick = _view()['trick'] as List;
+    final c = _Client()
+      ..connected = true
+      ..room = {
+        't': 'room', 'code': '1234', 'mode': 6, 'started': true, 'you': 0, 'isHost': true,
+        'seats': [
+          for (final (n, ch) in [('مهند', 'musabbah'), ('خصيب', 'khusaib'), ('مرهون', 'marhoon'), ('بو حمدان', 'buhamdan'), ('خلفان التفق', 'khalfan'), ('فارس', 'fares')])
+            {'name': n, 'bot': n != 'مهند', 'connected': true, 'char': ch},
+        ],
+      }
+      ..view = _view();
+    await tester.pumpWidget(RepaintBoundary(key: const ValueKey('shot'), child: KoutApp(client: c)));
+    await tester.runAsync(() async {
+      final ctx = tester.element(find.byType(KoutApp));
+      for (final card in [..._view()['hand'] as List, 'C-14', 'C-9', 'D-13', 'C-10', 'C-2', 'S-5']) {
+        await precacheImage(cardImage(card), ctx);
+      }
+      await precacheImage(cardImage('back'), ctx);
+      await precacheImage(matImage, ctx);
+    });
+    await tester.pump(const Duration(milliseconds: 400));
+    // أنا آخر واحد ألعب، ورقة بو حمدان (الحكم) تاخذ اللمّة
+    c.view = _view()
+      ..['trick'] = []
+      ..['trickNo'] = 4
+      ..['turn'] = 3
+      ..['legalCards'] = []
+      ..['lastTrick'] = {'cards': [...trick, {'seat': 0, 'card': 'S-5'}], 'winner': 3};
+    c.notifyListeners();
+    await tester.pump(const Duration(milliseconds: 16));
+    var at = 0;
+    for (final ms in const [420, 700, 880, 1100]) {
+      await tester.pump(Duration(milliseconds: ms - at));
+      at = ms;
+      await tester.runAsync(() async {
+        final ro = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('shot')));
+        final img = await ro.toImage(pixelRatio: 1);
+        final png = await img.toByteData(format: ui.ImageByteFormat.png);
+        File('build/preview_gather_$ms.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('win / lose table flash', (tester) async {
     addTearDown(tester.view.reset);
     await _capture(tester, const Size(390, 844), 'build/preview_win.png', result: 'made');

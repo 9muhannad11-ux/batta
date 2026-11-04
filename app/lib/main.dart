@@ -14,14 +14,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final client = GameClient();
   await client.loadPrefs();
-  runApp(KoutApp(client: client, intro: true));
+  await Sfx.loadSettings();
+  runApp(KoutApp(client: client, intro: client.intro));
 }
 
 /// خط المسيري الغامق لكل نصوص اللعبة
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.9';
+const appVersion = '1.0.10';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;
@@ -199,9 +200,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final _name = TextEditingController(text: widget.client.name);
-  late final _server = TextEditingController(text: widget.client.serverUrl);
   final _code = TextEditingController();
-  bool _showServer = false;
   _Page _page = _Page.menu;
   int _mode = 6;
 
@@ -220,7 +219,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _apply() {
     final c = widget.client;
     c.name = _name.text.trim();
-    c.serverUrl = _server.text.trim();
     if (c.name.isEmpty) {
       c.error = 'اكتب اسمك';
       setState(() {});
@@ -237,7 +235,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _practice() {
     final c = widget.client;
     c.name = _name.text.trim();
-    c.serverUrl = _server.text.trim();
     c.practice();
   }
 
@@ -269,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _menu(GameClient c, BoxConstraints box) {
     final wide = box.maxWidth > box.maxHeight;
     final free = box.maxHeight - 132;
-    final w = min(wide ? min((box.maxWidth - 72) / 4, free / cardRatio) : min((box.maxWidth - 40) / 2, (free - 12) / 2 / cardRatio), 240.0);
+    final w = min(wide ? min((box.maxWidth - 72) / 4, free / cardRatio) : min((box.maxWidth - 40) / 2, (free - 12) / 2 / cardRatio), 240.0) * 0.6;
     final off = c.connecting;
     final cards = [
       MenuCard(width: w, suit: 'S', ring: 6, title: '6 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(6)),
@@ -277,10 +274,11 @@ class _HomeScreenState extends State<HomeScreen> {
       MenuCard(width: w, suit: 'C', icon: Icons.vpn_key, title: 'غرفة مخصصة', subtitle: 'ولّف ربعك بكود الغرفة', onTap: () => setState(() => _page = _Page.custom)),
       MenuCard(width: w, suit: 'H', icon: Icons.school, title: 'تدريب', subtitle: 'تمرّن مع البوتات بدون وقت', onTap: off ? null : _practice),
     ];
-    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+    return Stack(fit: StackFit.expand, children: [
+      Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 340),
-        child: Row(children: [const AppLogo(size: 56), const SizedBox(width: 10), Expanded(child: _nameField())]),
+        child: Row(children: [const AppLogo(size: 56), const SizedBox(width: 10), Expanded(child: _nameField()), const SizedBox(width: 10), _charButton(c)]),
       ),
       if (c.connecting) _connecting(),
       const SizedBox(height: 10),
@@ -291,26 +289,37 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [cards[2], const SizedBox(width: 12), cards[3]]),
       ],
-      TextButton(
-        onPressed: withTap(() => setState(() => _showServer = !_showServer)),
-        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(0, 26)),
-        child: const Text('إعدادات السيرفر', style: TextStyle(color: Color(0xFF2B2E33), fontSize: 12, decoration: TextDecoration.underline)),
-      ),
-      if (_showServer)
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
-          child: MenuPanel(
-            child: TextField(
-              controller: _server,
-              textDirection: TextDirection.ltr,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'رابط السيرفر (ws://...)'),
-            ),
-          ),
-        ),
+      const SizedBox(height: 8),
       const Text('نسخة $appVersion', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF4A4D52))),
+      ]),
+      PositionedDirectional(
+        top: 8,
+        end: 8,
+        child: OutlinedButton(
+          onPressed: withTap(() => showSettings(context, c)),
+          style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
+          child: const Icon(Icons.settings, size: 22),
+        ),
+      ),
     ]);
   }
+
+  // شخصيتك قبل بداية اللعبة: تنحفظ وتروح معاك لأي غرفة
+  Widget _charButton(GameClient c) => GestureDetector(
+        onTap: withTap(() => showCharacterPicker(context, c)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          c.char == null
+              ? Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF111111), border: Border.all(color: Colors.white, width: 2)),
+                  child: const Icon(Icons.person_add, color: Colors.white, size: 22),
+                )
+              : CharacterAvatar(charId: c.char, size: 44, ring: KoutColors.team(0), background: KoutColors.team(0)),
+          const SizedBox(height: 2),
+          const Text('شخصيتك', style: TextStyle(fontSize: 11, color: KoutColors.ink, fontWeight: FontWeight.w700)),
+        ]),
+      );
 
   // بعد اختيار عدد اللاعبين: كم نقطة
   Widget _scores(GameClient c, BoxConstraints box) {
@@ -550,8 +559,10 @@ void showCharacterPicker(BuildContext context, GameClient c) {
     builder: (ctx) => ListenableBuilder(
       listenable: c,
       builder: (ctx, _) {
-        final mine = c.seats[c.mySeat]?['char'] as String?;
-        final team = KoutColors.team(c.mySeat % 2);
+        // من القائمة الرئيسية ما فيه غرفة بعد
+        final inRoom = c.room != null;
+        final mine = inRoom ? (c.seats[c.mySeat]?['char'] as String?) : c.char;
+        final team = KoutColors.team(inRoom ? c.mySeat % 2 : 0);
         final byPlayer = {
           for (var i = 0; i < c.seats.length; i++)
             if (i != c.mySeat && c.seats[i] != null && c.seats[i]!['bot'] != true) c.seats[i]!['char'] as String?: true,

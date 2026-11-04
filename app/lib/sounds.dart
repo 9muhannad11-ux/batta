@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio_engine.dart';
 
@@ -16,7 +17,31 @@ class Sfx {
   static final Map<String, double> _volumes = {}; // القوة الأصلية لكل صوت (قبل الخفض)
   static final Map<int, Object> _speaking = {}; // اللاعبين اللي صوت شخصيتهم شغّال
   static const duck = 0.35; // قوة باقي الأصوات وقت الكلام
-  static bool muted = false;
+  static bool muted = false; // للاختبارات
+
+  // إعدادات اللاعب
+  static bool sfxOn = true, voiceOn = true;
+  static double sfxVolume = 1, voiceVolume = 1;
+
+  static double get _sfx => sfxOn ? sfxVolume : 0;
+
+  static Future<void> loadSettings() async {
+    final p = await SharedPreferences.getInstance();
+    sfxOn = p.getBool('sfxOn') ?? true;
+    voiceOn = p.getBool('voiceOn') ?? true;
+    sfxVolume = p.getDouble('sfxVolume') ?? 1;
+    voiceVolume = p.getDouble('voiceVolume') ?? 1;
+  }
+
+  /// يطبّق الإعدادات على الأصوات الشغّالة ويحفظها
+  static Future<void> saveSettings() async {
+    _applyDuck();
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('sfxOn', sfxOn);
+    await p.setBool('voiceOn', voiceOn);
+    await p.setDouble('sfxVolume', sfxVolume);
+    await p.setDouble('voiceVolume', voiceVolume);
+  }
 
   static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap'];
 
@@ -24,7 +49,7 @@ class Sfx {
 
   static void _applyDuck() {
     for (final e in _volumes.entries) {
-      AudioEngine.setVolume(e.key, e.value * _duckFactor);
+      AudioEngine.setVolume(e.key, e.value * _sfx * _duckFactor);
     }
   }
 
@@ -48,11 +73,11 @@ class Sfx {
   }
 
   static Future<void> _play(String name, {double volume = 1, bool loop = false}) async {
-    if (muted) return;
+    if (muted || (_sfx == 0 && !loop)) return; // الصوت المتكرر يشتغل بدون علو، عشان يرجع لما تفتح الصوت
     final asset = 'sounds/$name.wav';
     _volumes[asset] = volume;
     try {
-      await AudioEngine.play(asset, asset, volume: volume * _duckFactor, loop: loop);
+      await AudioEngine.play(asset, asset, volume: volume * _sfx * _duckFactor, loop: loop);
     } catch (e) {
       // المتصفح أحياناً يمنع الصوت قبل أول ضغطة، نتجاهلها
       debugPrint('sound $name failed: $e');
@@ -90,6 +115,7 @@ class Sfx {
   static final voices = <String, Set<int>>{ // final (مو const) عشان الاختبارات تقدر تضيف
     'wadamtih': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
     'aslam': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'fares': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
   };
 
   static bool hasVoice(String? char, int event) => voices[char]?.contains(event) ?? false;
@@ -100,10 +126,10 @@ class Sfx {
   static Future<void> voice(int seat, String char, int event, {void Function()? onStart}) async {
     if (!hasVoice(char, event)) return;
     voiceLog.add('${char}_$event');
-    if (muted) return;
+    if (muted || !voiceOn || voiceVolume == 0) return;
     final me = Object();
     try {
-      await AudioEngine.play('voice$seat', 'voices/${char}_$event.wav', onStart: () {
+      await AudioEngine.play('voice$seat', 'voices/${char}_$event.wav', volume: voiceVolume, onStart: () {
         _speaking[seat] = me;
         _applyDuck();
         onStart?.call(); // الفم يبدأ مع الصوت بالضبط

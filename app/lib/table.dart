@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'avatars.dart';
 import 'cards.dart';
 import 'main.dart' show showErrors;
+import 'menus.dart';
 import 'net.dart';
 import 'sounds.dart';
 
@@ -565,12 +566,15 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final current = (v['trick'] as List).cast<Map<String, dynamic>>();
     final out = <Widget>[];
 
-    // اللمّة اللي قاعدة تنلم: آخر ورقة توصل، وبعدها كلها تروح للفائز
+    // اللمّة اللي قاعدة تنلم: آخر ورقة توصل، والورقة الفايزة تجمع الباقي عندها، وبعدها كلها تروح للفائز
     final last = _collecting;
     if (last != null) {
       final cards = (last['cards'] as List).cast<Map<String, dynamic>>();
       final winner = last['winner'] as int;
-      final winPos = b.seats[_rel(winner, n)];
+      final winRel = _rel(winner, n);
+      final winPos = b.seats[winRel];
+      final winSlot = b.slot(winRel);
+      final winTilt = b.tilts[winRel];
       out.add(Positioned.fill(
         child: IgnorePointer(
           child: AnimatedBuilder(
@@ -578,20 +582,26 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
             builder: (_, _) {
               final t = _collect.value;
               final arrive = Curves.easeOut.transform((t / 0.2).clamp(0.0, 1.0));
-              final pull = Curves.easeIn.transform(((t - 0.45) / 0.55).clamp(0.0, 1.0));
+              final gather = Curves.easeInOut.transform(((t - 0.4) / 0.28).clamp(0.0, 1.0));
+              final pull = Curves.easeIn.transform(((t - 0.68) / 0.32).clamp(0.0, 1.0));
+              // وقت الجمع الورقة الفايزة فوق الكل
+              final order = gather > 0 ? [...cards.where((c) => c['seat'] != winner), ...cards.where((c) => c['seat'] == winner)] : cards;
               return Stack(clipBehavior: Clip.none, children: [
-                for (final card in cards)
+                for (final card in order)
                   Builder(builder: (_) {
                     final rel = _rel(card['seat'] as int, n);
                     final slot = b.slot(rel);
                     var pos = identical(card, cards.last) ? Offset.lerp(_fromFor(card['card'] as String, b, rel), slot, arrive)! : slot;
+                    pos = Offset.lerp(pos, winSlot, gather)!;
                     pos = Offset.lerp(pos, winPos, pull)!;
+                    final tilt = b.tilts[rel] + (winTilt - b.tilts[rel]) * gather;
+                    final pop = rel == winRel ? 0.1 * sin(pi * gather) : 0.0; // الفايزة تكبر شوي وهي تجمعهم
                     return _cardAt(
                       pos,
                       w,
                       Transform.rotate(
-                        angle: b.tilts[rel] * pi / 180 * (1 - pull),
-                        child: Transform.scale(scale: 1 - 0.45 * pull, child: PlayingCard(card['card'] as String, width: w, opacity: 1 - 0.7 * pull)),
+                        angle: tilt * pi / 180 * (1 - pull),
+                        child: Transform.scale(scale: 1 + pop - 0.45 * pull, child: PlayingCard(card['card'] as String, width: w, opacity: 1 - 0.7 * pull)),
                       ),
                     );
                   }),
@@ -1411,6 +1421,11 @@ class _TopActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
         if (!client.connected) const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.wifi_off, size: 20, color: KoutColors.lose)),
+        IconButton(
+          icon: const Icon(Icons.settings, size: 24, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+          tooltip: 'الإعدادات',
+          onPressed: withTap(() => showSettings(context, client)),
+        ),
         IconButton(
           icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
           tooltip: 'رجوع',

@@ -29,6 +29,7 @@ const CHARACTERS = [
   { id: 'mundaghit', name: 'المنضغط' },
   { id: 'wadamtih', name: 'ود عمتيه' },
   { id: 'buhamdan', name: 'بو حمدان' },
+  { id: 'fares', name: 'فارس' },
 ];
 
 const rooms = new Map(); // code -> room

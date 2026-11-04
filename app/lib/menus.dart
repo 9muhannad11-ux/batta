@@ -28,6 +28,117 @@ class PageSwitcher extends StatelessWidget {
       );
 }
 
+/// الإعدادات: من القائمة الرئيسية ومن داخل اللعبة
+void showSettings(BuildContext context, GameClient client) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1B1C1F),
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+    builder: (_) => _SettingsSheet(client: client),
+  );
+}
+
+class _SettingsSheet extends StatefulWidget {
+  final GameClient client;
+  const _SettingsSheet({required this.client});
+
+  @override
+  State<_SettingsSheet> createState() => _SettingsSheetState();
+}
+
+class _SettingsSheetState extends State<_SettingsSheet> {
+  late final _server = TextEditingController(text: widget.client.serverUrl);
+
+  @override
+  void dispose() {
+    _server.dispose();
+    super.dispose();
+  }
+
+  void _voiceSample() {
+    final c = widget.client;
+    Sfx.voice(0, Sfx.hasVoice(c.char, VoiceEvent.pass) ? c.char! : 'fares', VoiceEvent.pass);
+  }
+
+  Widget _sound(String title, bool on, double level, ValueChanged<bool> setOn, ValueChanged<double> setLevel, VoidCallback sample) => Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w700))),
+          Switch(
+            value: on,
+            onChanged: (v) {
+              setState(() => setOn(v));
+              Sfx.saveSettings();
+              if (v) sample();
+            },
+          ),
+        ]),
+        Row(children: [
+          Icon(Icons.volume_down, size: 20, color: on ? Colors.white : const Color(0xFF777777)),
+          Expanded(
+            child: Slider(
+              value: level,
+              onChanged: on ? (v) => setState(() => setLevel(v)) : null,
+              onChangeEnd: (_) {
+                Sfx.saveSettings();
+                sample();
+              },
+            ),
+          ),
+          Icon(Icons.volume_up, size: 20, color: on ? Colors.white : const Color(0xFF777777)),
+        ]),
+      ]);
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.client;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 14, 16, 12 + MediaQuery.viewInsetsOf(context).bottom),
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('الإعدادات', style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                _sound('أصوات اللعبة', Sfx.sfxOn, Sfx.sfxVolume, (v) => Sfx.sfxOn = v, (v) => Sfx.sfxVolume = v, Sfx.tap),
+                _sound('أصوات الشخصيات', Sfx.voiceOn, Sfx.voiceVolume, (v) => Sfx.voiceOn = v, (v) => Sfx.voiceVolume = v, _voiceSample),
+                Row(children: [
+                  const Expanded(child: Text('أنميشن الشعار عند فتح اللعبة', style: TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w700))),
+                  Switch(value: c.intro, onChanged: (v) => setState(() => c.setIntro(v))),
+                ]),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('إعدادات السيرفر', style: TextStyle(fontSize: 14, color: Color(0xFFBBBBBB))),
+                  iconColor: Colors.white,
+                  collapsedIconColor: Colors.white,
+                  children: [
+                    TextField(
+                      controller: _server,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(labelText: 'رابط السيرفر (ws://...)'),
+                      onChanged: (v) => c.serverUrl = v.trim(),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                OutlinedButton.icon(
+                  onPressed: withTap(() => Navigator.pop(context)),
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  label: const Text('رجوع'),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 const _green = Color(0xFF1B8A3A); // العبارات الصغيرة بالقوائم
 
 /// خيار بالقوائم بشكل ورقة خال من نوع معيّن، مثل أوراق الشعار: رمز النوع بالزوايا.

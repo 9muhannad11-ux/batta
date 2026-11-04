@@ -21,6 +21,7 @@ const _chars = [
   ('abdo', 'عبدو اليابس'),
   ('aslam', 'أسلم'),
   ('mundaghit', 'المنضغط'),
+  ('fares', 'فارس'),
 ];
 
 void main() {
@@ -57,8 +58,8 @@ void main() {
       key: const ValueKey('one'),
       child: Container(
         color: const Color(0xFFBDAE8D),
-        alignment: Alignment.center,
-        child: const CharacterAvatar(charId: 'khalfan', size: 420, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
+        alignment: const Alignment(0, 0.7),
+        child: const CharacterAvatar(charId: 'fares', size: 340, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
       ),
     ));
     await tester.runAsync(() async {
@@ -97,10 +98,10 @@ void main() {
             const SizedBox(height: 50),
             Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 0; i < 6; i++) big(_chars[i].$1, _chars[i].$2, i)]),
             const SizedBox(height: 58),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 6; i < 10; i++) big(_chars[i].$1, _chars[i].$2, i)]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 6; i < 11; i++) big(_chars[i].$1, _chars[i].$2, i)]),
             const SizedBox(height: 34),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (var i = 0; i < 10; i++)
+              for (var i = 0; i < 11; i++)
                 Padding(
                   padding: const EdgeInsets.all(5),
                   child: CharacterAvatar(

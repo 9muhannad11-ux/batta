@@ -61,10 +61,19 @@ class GameClient extends ChangeNotifier {
     return ms < 0 ? 0 : ms / 1000;
   }
 
+  bool intro = true; // أنميشن الشعار عند الفتح
+
+  Future<void> setIntro(bool on) async {
+    intro = on;
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('intro', on);
+  }
+
   Future<void> loadPrefs() async {
     final p = await SharedPreferences.getInstance();
     name = p.getString('name') ?? '';
     char = p.getString('char');
+    intro = p.getBool('intro') ?? true;
     // على الويب السيرفر دايماً هو نفس الموقع. وعلى الجوال نستخدم رابط النسخة، إلا إذا اللاعب كتب رابط ثاني بنفسه
     // (المفتاح القديم 'server' ما نقرأه: نسخ قديمة حفظت فيه روابط غلط وكانت تمنع الاتصال)
     serverUrl = kIsWeb ? defaultServerUrl() : (p.getString('serverCustom') ?? defaultServerUrl());
@@ -235,7 +244,8 @@ class GameClient extends ChangeNotifier {
   void sit(int seat) => _send({'t': 'sit', 'seat': seat});
   Future<void> chooseChar(String id) async {
     char = id;
-    _send({'t': 'char', 'char': id});
+    if (room != null) _send({'t': 'char', 'char': id});
+    notifyListeners();
     final p = await SharedPreferences.getInstance();
     await p.setString('char', id);
   }

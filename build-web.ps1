@@ -4,8 +4,9 @@ $ErrorActionPreference = 'Stop'
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
 $src = Join-Path $PSScriptRoot 'app'
 $tmp = Join-Path $env:USERPROFILE 'flutter-download\kb'
-if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp -Confirm:$false }
-New-Item -ItemType Directory $tmp | Out-Null
+# نفضّي المجلد بدل ما نحذفه: أي نافذة واقفة داخله تمنع حذفه هو نفسه
+New-Item -ItemType Directory -Force $tmp | Out-Null
+Get-ChildItem $tmp -Force | Remove-Item -Recurse -Force -Confirm:$false
 foreach ($i in 'lib', 'web', 'assets', 'pubspec.yaml', 'pubspec.lock', 'analysis_options.yaml') { Copy-Item (Join-Path $src $i) -Destination $tmp -Recurse }
 Push-Location $tmp
 $ErrorActionPreference = 'Continue' # flutter يكتب ملاحظات على stderr

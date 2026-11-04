@@ -40,6 +40,9 @@ class GameClient extends ChangeNotifier {
   int get mySeat => (room?['you'] as int?) ?? 0;
   bool get isHost => room?['isHost'] == true;
   bool get started => room?['started'] == true;
+  bool get searching => room?['search'] == true;
+  bool get practicing => room?['practice'] == true;
+  DateTime? searchEnds; // متى يخلص البحث وتكمّل البوتات
   int get mode => (room?['mode'] as int?) ?? 6;
   List get seats => (room?['seats'] as List?) ?? const [];
 
@@ -100,6 +103,18 @@ class GameClient extends ChangeNotifier {
   Future<void> createRoom() async {
     await _savePrefs();
     _open(() => _send({'t': 'create', 'name': name, 'char': ?char}));
+  }
+
+  /// بحث عن لاعبين: mode 6 أو 4، و score هدف المباراة 54 أو 34
+  Future<void> search(int mode, int score) async {
+    await _savePrefs();
+    _open(() => _send({'t': 'search', 'mode': mode, 'score': score, 'name': name, 'char': ?char}));
+  }
+
+  /// تدريب مع البوتات بدون وقت
+  Future<void> practice() async {
+    await _savePrefs();
+    _open(() => _send({'t': 'practice', 'name': name, 'char': ?char}));
   }
 
   Future<void> joinRoom(String roomCode) async {
@@ -176,6 +191,8 @@ class GameClient extends ChangeNotifier {
       case 'room':
         room = m;
         if (m['started'] != true) view = null;
+        final searchMs = m['searchMsLeft'] as int?;
+        searchEnds = searchMs == null ? null : DateTime.now().add(Duration(milliseconds: searchMs));
       case 'state':
         view = m['view'] as Map<String, dynamic>;
         final ms = view!['turnMsLeft'] as int?;

@@ -144,6 +144,15 @@ function decidePlay(state, seat) {
     }
   }
 
+  // آخر واحد من فريقه باللمّة وورق فريقه ما يفوز: يرمي أصغر ورقة تغلب، وإلا الجوكر
+  const later = Array.from({ length: state.players - 1 - state.trick.length }, (_, i) => (seat + 1 + i) % state.players);
+  if (!mateWinning && !later.some((s) => E.teamOf(s) === myTeam)) {
+    const canWin = plain.filter(wins);
+    if (canWin.length) return lowest(canWin, trump);
+    const joker = [E.GREY, E.BLUE].find((j) => legal.includes(j) && wins(j));
+    if (joker) return joker;
+  }
+
   // زميله صاحب أكبر ورقة باللمّة: يرمي أصغر ورقة عنده ويخلي اللمّة له
   if (mateWinning) return lowest(same.length ? same : (nonTrumps.length ? nonTrumps : plain), trump);
 

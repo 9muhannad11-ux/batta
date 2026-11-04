@@ -150,6 +150,14 @@ async function warm(x, bassDb) {
   return (await ctx.startRendering()).getChannelData(0);
 }
 
+// حرف خفيف بآخر الكلمة (س): &tail=1.32 (من أي ثانية) &boost=12 (dB) يرفعه، و&end=1.68 ينهي القص عنده
+function liftTail(x) {
+  const from = Number(q.get('tail') || 0), db = Number(q.get('boost') || 0);
+  if (!from || !db) return x;
+  const start = Math.round(from * RATE), ramp = Math.round(RATE * 0.03), gain = Math.pow(10, db / 20);
+  return x.map((v, i) => (i < start ? v : v * (1 + (gain - 1) * Math.min(1, (i - start) / ramp))));
+}
+
 function trimAndLevel(x) {
   const win = Math.round(RATE * 0.01);
   const env = [];
@@ -162,7 +170,7 @@ function trimAndLevel(x) {
   while (a < env.length - 6 && !loud(a)) a++;
   let b = env.length - 1;
   while (b > a && !(env[b] > thr && env[b - 1] > thr)) b--;
-  a = Math.max(0, a * win - Math.round(RATE * 0.05)); b = Math.min(x.length, (b + 1) * win + Math.round(RATE * 0.12));
+  a = Math.max(0, a * win - Math.round(RATE * 0.05)); b = Math.min(x.length, q.get('end') ? Math.round(Number(q.get('end')) * RATE) : (b + 1) * win + Math.round(RATE * 0.12));
   const y = x.slice(a, b);
   const fade = Math.round(RATE * 0.015);
   for (let i = 0; i < fade && i < y.length; i++) { y[i] *= i / fade; y[y.length - 1 - i] *= i / fade; }
@@ -201,7 +209,7 @@ function draw(id, y) {
   draw('before', raw);
   // &pitch=-1.5 (نصف درجات) و &bass=5 (dB) للتفخيم
   const pitch = Number(q.get('pitch') || 0), bass = Number(q.get('bass') || 0);
-  const clean = trimAndLevel(await warm(pitchDown(highpass(denoise(raw), 90), pitch), bass));
+  const clean = trimAndLevel(liftTail(await warm(pitchDown(highpass(denoise(raw), 90), pitch), bass)));
   draw('after', clean);
   await fetch('/save?name=' + q.get('out'), { method: 'POST', body: wav(clean) });
   document.title = 'done';

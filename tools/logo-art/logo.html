@@ -37,8 +37,55 @@ const jokerCard = (rot, href) => {
   <rect x="${CX}" y="${CY}" width="${CW}" height="${CH}" rx="24" fill="none" stroke="${O}" stroke-width="7"/>
 </g>`; };
 
-function svg(jokerHref) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+// الأنميشن (3.2 ثانية): الأوراق تنزل كومة، تنفتح مروحة والجوكر آخرها، لمعة على الجوكر، و«بتّه» تطلع تحتها
+async function animate(jokerHref, frozen) {
+  await document.fonts.load('700 150px "El Messiri"', 'بتّه'); await document.fonts.ready;
+  document.body.style.cssText = 'margin:0;height:100vh;background:#111;display:flex;align-items:center;justify-content:center;overflow:hidden';
+  document.getElementById('info').remove();
+  const row = document.getElementById('row');
+  row.style.cssText = 'display:block';
+  row.innerHTML = svg(jokerHref).replace('width="1024" height="1024"', 'style="display:block;width:min(92vw,92vh);height:min(92vw,92vh)"');
+  const root = row.querySelector('svg'), fan = root.querySelector('g[filter]');
+  const cards = [...fan.children], rots = [-36, -18, 0, 18, 36];
+  const ns = 'http://www.w3.org/2000/svg', el = (tag, attrs) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  // اللمعة على الجوكر (داخل نفس قصّة الورقة)
+  root.querySelector('defs').insertAdjacentHTML('beforeend', '<linearGradient id="shine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>');
+  const shine = el('rect', { y: CY - 80, width: 110, height: CH + 160, fill: 'url(#shine)', 'clip-path': 'url(#jc)' });
+  cards[4].appendChild(shine);
+  const word = el('text', { x: 512, y: 845, 'text-anchor': 'middle', direction: 'rtl', fill: '#1d1f22', 'font-size': 240, 'font-weight': 700, 'font-family': 'El Messiri', style: 'filter:drop-shadow(0 6px 6px rgba(0,0,0,.35))' });
+  word.textContent = 'بتّه';
+  root.appendChild(word);
+
+  const clamp = (x) => Math.min(1, Math.max(0, x)), span = (t, a, b) => clamp((t - a) / (b - a));
+  const out = (p) => 1 - (1 - p) ** 3, back = (p) => { const c = 1.9; return 1 + (c + 1) * (p - 1) ** 3 + c * (p - 1) ** 2; };
+  const draw = (t) => {
+    const drop = out(span(t, 0.1, 0.5));
+    fan.style.opacity = span(t, 0.1, 0.3);
+    fan.setAttribute('transform', `translate(512,${440 - 90 * (1 - drop)}) scale(${1.1 * (1.35 - 0.35 * drop)}) translate(-512,-560)`);
+    cards.forEach((c, i) => {
+      const p = back(span(t, 0.55 + i * 0.09, 1.05 + i * 0.09));
+      c.setAttribute('transform', `rotate(${rots[i] * p} ${PIV[0]} ${PIV[1]})`);
+    });
+    shine.setAttribute('x', CX - 130 + (CW + 260) * span(t, 1.65, 2.2));
+    const w = back(span(t, 1.35, 1.85));
+    word.style.opacity = span(t, 1.35, 1.6);
+    word.setAttribute('transform', `translate(512,760) scale(${0.7 + 0.3 * w}) translate(-512,-760) translate(0,${40 * (1 - w)})`);
+  };
+  if (frozen !== null) { draw(+frozen); document.title = 'frame ' + frozen; return; }
+  // الصوت (make-logo-sound.js) يبدأ بعد أول ضغطة: المتصفح يمنعه قبلها
+  const sound = new Audio('logo_intro.wav');
+  const hint = document.createElement('div');
+  hint.textContent = 'اضغط لتشغيل الصوت';
+  hint.style.cssText = 'position:fixed;bottom:12px;left:0;right:0;text-align:center;color:#fff;font:700 18px "El Messiri",sans-serif;pointer-events:none';
+  document.body.appendChild(hint);
+  let start = performance.now(), unlocked = false;
+  const restart = (now) => { start = now; if (unlocked) { sound.currentTime = 0; sound.play(); } };
+  addEventListener('click', () => { unlocked = true; hint.remove(); restart(performance.now()); });
+  (function tick(now) { const t = (now - start) / 1000; if (t > 5) restart(now); draw(t > 5 ? 0 : t); requestAnimationFrame(tick); })(start);
+}
+
+function svg(jokerHref, bg = true, px = 1024) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="chr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2f3f5"/><stop offset=".18" stop-color="#c9ccd1"/><stop offset=".5" stop-color="#8e939a"/><stop offset=".52" stop-color="#7b8087"/><stop offset=".8" stop-color="#a9adb3"/><stop offset="1" stop-color="#d9dbdf"/></linearGradient>
     <linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
@@ -47,8 +94,7 @@ function svg(jokerHref) {
     <linearGradient id="thumb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d79f78"/><stop offset=".45" stop-color="#efc29c"/><stop offset="1" stop-color="#cf946c"/></linearGradient>
     <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity=".35"/></filter>
   </defs>
-  <rect width="1024" height="1024" fill="url(#chr)"/>
-  <rect x="80" y="14" width="864" height="10" rx="5" fill="url(#gl)"/>
+  ${bg ? '<rect width="1024" height="1024" fill="url(#chr)"/><rect x="80" y="14" width="864" height="10" rx="5" fill="url(#gl)"/>' : ''}
   <g filter="url(#sh)" transform="translate(512,440) scale(1.1) translate(-512,-560)">
     ${card('H', -36)}${card('C', -18)}${card('D', 0)}${card('S', 18)}${jokerCard(36, jokerHref)}
   </g>
@@ -57,20 +103,65 @@ function svg(jokerHref) {
 
 (async () => {
   // صورة الجوكر الكبير كـ data URL عشان تنرسم داخل الـ SVG
-  const jb = await (await fetch('joker_big.png')).blob();
+  const q0 = new URLSearchParams(location.search), SIZE = +(q0.get('size') || 1024);
+  const jb = await (await fetch(q0.get('joker') || 'joker_big.png')).blob();
   const jokerHref = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(jb); });
-  const blob = new Blob([svg(jokerHref)], { type: 'image/svg+xml' });
+  // ?layers: كل ورقة من المروحة صورة لحالها لأنميشن فتح اللعبة -> intro_H.png ... intro_J.png
+  if (q0.has('layers')) {
+    const parts = [['H', card('H', 0)], ['C', card('C', 0)], ['D', card('D', 0)], ['S', card('S', 0)], ['J', jokerCard(0, jokerHref)]];
+    for (const [id, inner] of parts) {
+      const m = 6, w = (CW + m * 2) * 2, h = (CH + m * 2) * 2;
+      const src = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${CX - m} ${CY - m} ${CW + m * 2} ${CH + m * 2}">${inner}</svg>`;
+      const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml' })); });
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      await fetch(`/save?name=intro_${id}.png`, { method: 'POST', body: await new Promise((r) => cv.toBlob(r, 'image/png')) });
+    }
+    document.title = 'exported layers';
+    return;
+  }
+  // ?anim: معاينة أنميشن الشعار (t=1.2 يوقف عند ثانية معيّنة). ضغطة تعيده
+  if (q0.has('anim')) return animate(jokerHref, q0.get('t'));
+  // ?back: ظهر الورقة بثيم الشعار (نفس الكروم والمروحة و«بتّه» بحد أسود مثل أوراق الشعار) -> back.png
+  if (location.search.includes('back')) {
+    const q = new URLSearchParams(location.search), W = +(q.get('w') || 400), H = +(q.get('h') || 580), K = W / 400, B = 12 * K, R = 28 * K, S = W / 1024 * 0.94, X = (W - 1024 * S) / 2, Y = (H - 930 * S) / 2 - 28 * S;
+    const fan = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = URL.createObjectURL(new Blob([svg(jokerHref, false, Math.ceil(1024 * S))], { type: 'image/svg+xml' })); });
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    const plain = q.has('noframe'); // للطباعة: بدون حد ولا حواف مدوّرة
+    const round = () => { g.beginPath(); if (plain) g.rect(0, 0, W, H); else g.roundRect(B / 2, B / 2, W - B, H - B, R); };
+    round();
+    const chr = g.createLinearGradient(0, 0, 0, H);
+    [[0, '#f2f3f5'], [.18, '#c9ccd1'], [.5, '#8e939a'], [.52, '#7b8087'], [.8, '#a9adb3'], [1, '#d9dbdf']].forEach(([o, c]) => chr.addColorStop(o, c));
+    g.fillStyle = chr; g.fill();
+    g.save(); g.clip();
+    g.drawImage(fan, X, Y, 1024 * S, 1024 * S);
+    await document.fonts.load('700 150px "El Messiri"', 'بتّه'); await document.fonts.ready;
+    g.font = `700 ${240 * S}px "El Messiri"`; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.direction = 'rtl';
+    g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 5 * K; g.shadowOffsetY = 2 * K;
+    g.fillStyle = '#1d1f22'; g.fillText('بتّه', W / 2, Y + 845 * S);
+    g.restore();
+    if (!plain) { round(); g.strokeStyle = O; g.lineWidth = B; g.stroke(); }
+    const png = await new Promise((r) => cv.toBlob(r, 'image/png'));
+    await fetch('/save?name=' + (q.get('out') || 'back.png'), { method: 'POST', body: png });
+    document.getElementById('row').innerHTML = `<img src="${URL.createObjectURL(png)}" width="400">`;
+    document.title = 'exported back';
+    return;
+  }
+  const blob = new Blob([svg(jokerHref, true, SIZE)], { type: 'image/svg+xml' });
   const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = URL.createObjectURL(blob); });
-  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 1024;
+  const cv = document.createElement('canvas'); cv.width = SIZE; cv.height = SIZE;
   const g = cv.getContext('2d');
-  g.drawImage(img, 0, 0);
+  g.scale(SIZE / 1024, SIZE / 1024);
+  g.drawImage(img, 0, 0, 1024, 1024);
   // «بتّه» بخط المسيري (El Messiri) الغامق تحت
   await document.fonts.load('700 150px "El Messiri"', 'بتّه'); await document.fonts.ready;
   g.font = '700 240px "El Messiri"'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.direction = 'rtl';
   g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 12; g.shadowOffsetY = 6;
   g.fillStyle = '#1d1f22'; g.fillText('بتّه', 512, 845);
   const png = await new Promise((r) => cv.toBlob(r, 'image/png'));
-  await fetch('/save?name=logo.png', { method: 'POST', body: png });
+  await fetch('/save?name=' + (q0.get('out') || 'logo.png'), { method: 'POST', body: png });
+  document.title = 'exported logo';
   const url = URL.createObjectURL(png);
   document.getElementById('row').innerHTML = [256, 96, 48].map((s) => `<img src="${url}" width="${s}" height="${s}">`).join('');
   document.getElementById('info').textContent = 'saved logo.png';

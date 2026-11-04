@@ -2,6 +2,14 @@ import 'package:flutter/foundation.dart';
 
 import 'audio_engine.dart';
 
+/// يضيف صوت الضغطة لأي زر قائمة (والمعطّل يبقى معطّل)
+VoidCallback? withTap(VoidCallback? action) => action == null
+    ? null
+    : () {
+        Sfx.tap();
+        action();
+      };
+
 /// أصوات اللعبة. كل صوت له قناة خاصة عشان تقدر تشتغل مع بعض.
 /// وقت ما تتكلم شخصية، باقي الأصوات تنخفض (ducking) عشان الكلام يكون أوضح، وترجع بعده.
 class Sfx {
@@ -10,7 +18,7 @@ class Sfx {
   static const duck = 0.35; // قوة باقي الأصوات وقت الكلام
   static bool muted = false;
 
-  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'start', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan'];
+  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap'];
 
   static double get _duckFactor => _speaking.isEmpty ? 1 : duck;
 
@@ -27,6 +35,15 @@ class Sfx {
       await AudioEngine.preload([for (final n in _names) 'sounds/$n.wav']);
     } catch (e) {
       debugPrint('sound preload failed: $e');
+    }
+  }
+
+  static Future<void> preloadIntro() async {
+    if (muted) return;
+    try {
+      await AudioEngine.preload(['sounds/logo_intro.wav']);
+    } catch (e) {
+      debugPrint('intro sound failed: $e');
     }
   }
 
@@ -50,12 +67,14 @@ class Sfx {
     } catch (_) {}
   }
 
+  static void intro() => _play('logo_intro'); // أنميشن الشعار عند فتح اللعبة
+  static void tap() => _play('tap', volume: 0.6); // أي ضغطة على القوائم
   static void play() => _play('play');
   static void joker() => _play('joker'); // بدل صوت الورقة لما ينرمى الجوكر الصغير
   static void jokerBig() => _play('joker_big', volume: 0.55); // الجوكر الكبير (أوطى من الصغير)
   static void signalBig() => _play('signal_big'); // كف الجوكر الكبير
-  static void deal() => _play('deal', volume: 0.8);
-  static void start() => _play('start'); // بداية المباراة
+  // صوت واحد طول طلعات الورق (tools/sound-candidates/make-deal.js)
+  static void deal() => _play('deal', volume: 0.4);
   static void collect() => _play('collect');
   // تكتكة آخر 5 ثواني (الملف 5 ثواني)، وتوقف أول ما يتحرك اللاعب
   static void tick() => _play('tick');
@@ -69,8 +88,8 @@ class Sfx {
 
   /// أصوات الشخصيات الموجودة: `assets/voices/{id}_{رقم}.wav` (الأحداث من 1 لـ 13، شوف VoiceEvent)
   static final voices = <String, Set<int>>{ // final (مو const) عشان الاختبارات تقدر تضيف
-    'wadamtih': {1, 2, 3, 4, 5, 6, 7, 8, 9},
-    'aslam': {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    'wadamtih': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'aslam': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
   };
 
   static bool hasVoice(String? char, int event) => voices[char]?.contains(event) ?? false;

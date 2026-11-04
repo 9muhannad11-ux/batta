@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kout/cards.dart';
 import 'package:kout/main.dart';
 import 'package:kout/net.dart';
 import 'package:kout/sounds.dart';
+import 'package:kout/table.dart';
 
 class _Client extends GameClient {}
 
@@ -36,7 +38,7 @@ Map<String, dynamic> _biddingView() => _view()
   ..['bids'] = [{'seat': 1, 'bid': 'pass'}, {'seat': 2, 'bid': 7}, {'seat': 3, 'bid': 'pass'}, {'seat': 4, 'bid': 'pass'}, {'seat': 5, 'bid': 'pass'}];
 
 /// result: 'made' أو 'failed' يصوّر لحظة نهاية الجولة (الطاولة خضراء/حمراء)
-Future<void> _capture(WidgetTester tester, Size size, String out, {String? result, bool bidding = false}) async {
+Future<void> _capture(WidgetTester tester, Size size, String out, {String? result, bool bidding = false, bool signals = false}) async {
   tester.view.physicalSize = size * 2;
   tester.view.devicePixelRatio = 2;
   final c = _Client()
@@ -49,14 +51,22 @@ Future<void> _capture(WidgetTester tester, Size size, String out, {String? resul
       ],
     }
     ..view = bidding ? _biddingView() : _view();
+  if (signals) {
+    const sent = [['H'], ['S', 'D'], ['C'], ['D', 'H', 'S'], ['J'], ['S']];
+    for (var s = 0; s < 6; s++) {
+      c.signals[s] = SuitSignal(s, sent[s]);
+    }
+  }
   await tester.pumpWidget(RepaintBoundary(key: const ValueKey('shot'), child: KoutApp(client: c)));
   await tester.pump(const Duration(milliseconds: 600));
   // الصور تنقرى من الملفات خارج الوقت الوهمي
   await tester.runAsync(() async {
     final ctx = tester.element(find.byType(KoutApp));
     for (final card in [..._view()['hand'] as List, 'C-14', 'C-9', 'D-13', 'C-10', 'C-2']) {
-      await precacheImage(AssetImage('assets/cards/$card.png'), ctx);
+      await precacheImage(cardImage(card), ctx);
     }
+    await precacheImage(cardImage('back'), ctx);
+    await precacheImage(matImage, ctx);
   });
   await tester.pump(const Duration(milliseconds: 600));
   if (result != null) {
@@ -107,6 +117,50 @@ void main() {
     addTearDown(tester.view.reset);
     await _capture(tester, const Size(844, 390), 'build/preview_pass_landscape.png', bidding: true);
     await _capture(tester, const Size(390, 844), 'build/preview_pass_portrait.png', bidding: true);
+  });
+
+  testWidgets('signals toward the table', (tester) async {
+    addTearDown(tester.view.reset);
+    await _capture(tester, const Size(844, 390), 'build/preview_signals_landscape.png', signals: true);
+    await _capture(tester, const Size(390, 844), 'build/preview_signals_portrait.png', signals: true);
+  });
+
+  testWidgets('deal into the hand row', (tester) async {
+    addTearDown(tester.view.reset);
+    for (final (size, name) in const [(Size(844, 390), 'landscape'), (Size(390, 844), 'portrait')]) {
+      tester.view.physicalSize = size * 2;
+      tester.view.devicePixelRatio = 2;
+      final c = _Client()
+        ..connected = true
+        ..room = {
+          't': 'room', 'code': '1234', 'mode': 6, 'started': true, 'you': 0, 'isHost': true,
+          'seats': [
+            for (final (n, ch) in [('مهند', 'musabbah'), ('خصيب', 'khusaib'), ('مرهون', 'marhoon'), ('بو حمدان', 'buhamdan'), ('خلفان التفق', 'khalfan'), ('ود عمتيه', 'wadamtih')])
+              {'name': n, 'bot': n != 'مهند', 'connected': true, 'char': ch},
+          ],
+        }
+        ..view = (_biddingView()..['bids'] = []..['legalBids'] = []..['round'] = 1);
+      await tester.pumpWidget(RepaintBoundary(key: const ValueKey('shot'), child: KoutApp(client: c)));
+      await tester.runAsync(() async {
+        final ctx = tester.element(find.byType(KoutApp));
+        await precacheImage(cardImage('back'), ctx);
+        await precacheImage(matImage, ctx);
+      });
+      await tester.pump(const Duration(milliseconds: 16));
+      var at = 0;
+      for (final ms in const [1000, 1350, 1750]) {
+        await tester.pump(Duration(milliseconds: ms - at));
+        at = ms;
+        await tester.runAsync(() async {
+          final ro = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('shot')));
+          final img = await ro.toImage(pixelRatio: 1);
+          final png = await img.toByteData(format: ui.ImageByteFormat.png);
+          File('build/preview_deal_${name}_$ms.png').writeAsBytesSync(png!.buffer.asUint8List());
+        });
+      }
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 
   testWidgets('win / lose table flash', (tester) async {

@@ -58,7 +58,7 @@ void main() {
       child: Container(
         color: const Color(0xFFBDAE8D),
         alignment: Alignment.center,
-        child: const CharacterAvatar(charId: 'aslam', size: 420, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
+        child: const CharacterAvatar(charId: 'khalfan', size: 420, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
       ),
     ));
     await tester.runAsync(() async {

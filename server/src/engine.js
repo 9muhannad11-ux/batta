@@ -10,7 +10,8 @@ const JOKER_SIGNAL = 'J'; // إشارة الجوكر
 const PLAYERS = 6; // الافتراضي
 const MODES = [6, 4];
 const TRICKS = 9;
-const WIN_SCORE = 54;
+const WIN_SCORE = 54; // الافتراضي
+const WIN_SCORES = [54, 34];
 const GREY_PENALTY = 15;
 const GREY_DEADLINE = 3; // لازم ينزل الجوكر الصغير خلال أول 3 لمّات
 const MIN_BID = 6;
@@ -77,10 +78,11 @@ function power(card) {
   return rankOf(card);
 }
 
-function createMatch({ rng = Math.random, khabis, players = PLAYERS } = {}) {
+function createMatch({ rng = Math.random, khabis, players = PLAYERS, winScore = WIN_SCORE } = {}) {
   if (!MODES.includes(players)) throw new Error('عدد لاعبين غير مدعوم');
   const state = {
     players,
+    winScore,
     phase: 'bidding',
     scores: [0, 0],
     khabis: khabis ?? Math.floor(rng() * players),
@@ -298,7 +300,7 @@ function endRound(state, result) {
     state.winReason = result.type;
   } else {
     state.scores[result.team] += result.points;
-    if (state.scores[result.team] >= WIN_SCORE) {
+    if (state.scores[result.team] >= (state.winScore ?? WIN_SCORE)) {
       state.winner = result.team;
       state.winReason = 'score';
     }
@@ -350,6 +352,7 @@ function viewFor(state, seat) {
   return {
     seat,
     players: state.players,
+    winScore: state.winScore ?? WIN_SCORE,
     team: teamOf(seat),
     phase: state.phase,
     round: state.round,
@@ -413,7 +416,7 @@ function sortHand(hand) {
 }
 
 module.exports = {
-  SUITS, BLUE, GREY, JOKER_SIGNAL, PLAYERS, MODES, TRICKS, WIN_SCORE, GREY_PENALTY, GREY_DEADLINE, MIN_BID, BAWAN, MAJBUR,
+  SUITS, BLUE, GREY, JOKER_SIGNAL, PLAYERS, MODES, TRICKS, WIN_SCORE, WIN_SCORES, GREY_PENALTY, GREY_DEADLINE, MIN_BID, BAWAN, MAJBUR,
   nextSeat, teamOf, isJoker, suitOf, power, rankOf, newDeck, shuffle, deal, sortHand,
   createMatch, startRound, legalBids, bid, chooseTrump, legalCards, trickWinner, blueLosesMatch,
   playCard, answerBawan, nextRound, signal, viewFor,

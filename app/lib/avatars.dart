@@ -312,10 +312,32 @@ class _FacePainter extends CustomPainter {
           ..moveTo(cx - s * 0.1, s * 0.79)
           ..quadraticBezierTo(cx, s * 0.86, cx + s * 0.1, s * 0.79),
         line);
-    canvas.drawLine(Offset(cx, s * 0.84), Offset(cx, s * 0.97), line);
-    final tassel = Color.lerp(look.robe, Colors.black, 0.2)!;
-    canvas.drawLine(Offset(cx, s * 0.86), Offset(cx + s * 0.012, s * 0.98), Paint()..color = tassel..strokeWidth = s * 0.012);
-    canvas.drawOval(Rect.fromCenter(center: Offset(cx + s * 0.005, s * 0.99), width: s * 0.03, height: s * 0.05), fill(Color.lerp(tassel, Colors.white, 0.3)!));
+    canvas.drawLine(Offset(cx, s * 0.82), Offset(cx, s * 0.97), line); // خياطة الوسط من الرقبة
+    // الفرفوشة: تتعلق من طرف الفتحة، جزء مبروم منفوخ، وخصر ضيق، وشرابة تنفتح تحته
+    // (تحت 0.9 يغطيها إطار الشخصية)
+    final fx = cx - s * 0.07;
+    final tassel = Color.lerp(look.robe, Colors.black, 0.42)!;
+    final strands = Paint()
+      ..color = Color.lerp(tassel, Colors.white, 0.3)!
+      ..strokeWidth = max(0.5, s * 0.005);
+    final twist = Path()
+      ..moveTo(fx, s * 0.8)
+      ..quadraticBezierTo(fx - s * 0.024, s * 0.82, fx - s * 0.005, s * 0.84)
+      ..lineTo(fx + s * 0.005, s * 0.84)
+      ..quadraticBezierTo(fx + s * 0.024, s * 0.82, fx, s * 0.8)
+      ..close();
+    canvas.drawPath(twist, fill(tassel));
+    final fringe = Path()
+      ..moveTo(fx - s * 0.005, s * 0.84)
+      ..quadraticBezierTo(fx - s * 0.012, s * 0.87, fx - s * 0.034, s * 0.897)
+      ..lineTo(fx + s * 0.034, s * 0.897)
+      ..quadraticBezierTo(fx + s * 0.012, s * 0.87, fx + s * 0.005, s * 0.84)
+      ..close();
+    canvas.drawPath(fringe, fill(tassel));
+    for (final x in [-0.024, -0.008, 0.008, 0.024]) {
+      canvas.drawLine(Offset(fx + s * x * 0.2, s * 0.848), Offset(fx + s * x, s * 0.895), strands);
+    }
+    canvas.drawLine(Offset(fx - s * 0.006, s * 0.84), Offset(fx + s * 0.006, s * 0.84), Paint()..color = Color.lerp(tassel, Colors.black, 0.3)!..strokeWidth = max(0.8, s * 0.01));
     }
 
     // الأذون
@@ -959,13 +981,20 @@ class _FacePainter extends CustomPainter {
       ..cubicTo(cx + half * 1.1, top + s * 0.03, cx + half * 1.22, s * 0.33, cx + half * 0.98, bottom)
       ..quadraticBezierTo(cx, bottom - s * 0.04, cx - half * 0.98, bottom)
       ..close();
+    // الطرف طالع على اليمين: جزء من نفس القماش، فينرسم مع المصر بحد واحد
+    final tail = Path()
+      ..moveTo(cx + half * 0.6, top + s * 0.05)
+      ..quadraticBezierTo(cx + half * 0.98, top + s * 0.005, cx + half * 1.14, top + s * 0.045)
+      ..quadraticBezierTo(cx + half * 1.0, top + s * 0.075, cx + half * 0.84, top + s * 0.1)
+      ..close();
+    final whole = Path.combine(PathOperation.union, shape, tail);
     canvas.drawPath(
-        shape,
+        whole,
         Paint()
           ..shader = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [light, c, dark], stops: const [0, 0.5, 1])
               .createShader(shape.getBounds()));
     canvas.save();
-    canvas.clipPath(shape);
+    canvas.clipPath(whole);
     // اللفات: أشرطة مايلة متداخلة بظل تحت كل لفة
     for (var i = 0; i < 5; i++) {
       final y = bottom - s * (0.03 + i * 0.05);
@@ -994,21 +1023,17 @@ class _FacePainter extends CustomPainter {
       canvas.drawLine(Offset(x, top), Offset(x + s * 0.06, bottom), pat);
     }
     canvas.restore();
-    canvas.drawPath(shape, line);
-    // الطرف (الذيل) طالع على اليمين
-    final tail = Path()
-      ..moveTo(cx + half * 0.6, top + s * 0.05)
-      ..quadraticBezierTo(cx + half * 0.98, top + s * 0.005, cx + half * 1.14, top + s * 0.045)
-      ..quadraticBezierTo(cx + half * 1.0, top + s * 0.075, cx + half * 0.84, top + s * 0.1)
-      ..close();
-    canvas.drawPath(tail, fill(c));
+    canvas.drawPath(whole, line);
+    // ثنية خفيفة عند مدخل الطرف باللون نفسه
     canvas.drawPath(
-        tail,
+        Path()
+          ..moveTo(cx + half * 0.6, top + s * 0.05)
+          ..quadraticBezierTo(cx + half * 0.7, top + s * 0.085, cx + half * 0.84, top + s * 0.1),
         Paint()
-          ..color = dark.withValues(alpha: 0.4)
+          ..color = dark.withValues(alpha: 0.6)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = s * 0.006);
-    canvas.drawPath(tail, line);
+          ..strokeWidth = s * 0.006
+          ..strokeCap = StrokeCap.round);
     // أهداب الطرف
     for (var i = 0; i < 4; i++) {
       final x = cx + half * (1.0 + i * 0.03);

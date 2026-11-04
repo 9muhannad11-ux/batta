@@ -123,6 +123,41 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('bawan win: the winning team says 5; bawan fail: the opposing team says 6', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    for (final char in ['musabbah', 'khusaib', 'marhoon']) {
+      Sfx.voices[char] = {5, 6};
+      addTearDown(() => Sfx.voices.remove(char));
+    }
+    Sfx.voiceLog.clear();
+    final c = tableClient(playingView());
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 400));
+    Future<void> result(int round, String type) async {
+      c.view = playingView()..['round'] = round;
+      c.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+      c.view = playingView()
+        ..['round'] = round
+        ..['phase'] = 'roundEnd'
+        ..['trick'] = []
+        ..['legalCards'] = []
+        ..['canSignal'] = false
+        ..['lastRound'] = {'type': type, 'team': 1, 'points': 54, 'buyer': 1, 'bid': 9, 'majbur': false, 'tricksWon': [0, 9]};
+      c.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    await result(2, 'bawanWin'); // فريق الشاري: مقعد 1 و3 (مقعد 3 بدون أصوات)
+    expect(Sfx.voiceLog, ['khusaib_5']);
+    Sfx.voiceLog.clear();
+    await result(3, 'bawanFail'); // الشاري مقعد 1، والمنافس مقعد 0 و2
+    expect(Sfx.voiceLog, ['musabbah_6', 'marhoon_6']);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
   testWidgets('character voice when the buyer chooses trump (10-13)', (tester) async {
     tester.view.physicalSize = const Size(400, 860);
     tester.view.devicePixelRatio = 1;
@@ -164,6 +199,20 @@ void main() {
   testWidgets('home screen shows create and join', (tester) async {
     await tester.pumpWidget(KoutApp(client: GameClient()));
     expect(find.byType(AppLogo), findsOneWidget);
+    for (final t in ['6 لاعبين', '4 لاعبين', 'غرفة مخصصة', 'تدريب']) {
+      expect(find.text(t), findsOneWidget);
+    }
+    expect(find.text('من 34 نقطة'), findsNothing);
+    await tester.tap(find.text('6 لاعبين'));
+    await tester.pump();
+    expect(find.text('من 54 نقطة'), findsOneWidget);
+    expect(find.text('من 34 نقطة'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300)); // انتقال الصفحة
+    await tester.tap(find.text('غرفة مخصصة'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('سوّ غرفة جديدة'), findsOneWidget);
     expect(find.text('ادخل'), findsOneWidget);
   });
@@ -302,6 +351,61 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('the leftmost tilted card can be tapped on the part you can see (landscape)', (tester) async {
+    tester.view.physicalSize = const Size(844, 390);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final hand = ['H-14', 'H-7', 'C-13', 'C-3', 'D-11', 'D-10', 'D-8', 'S-9', 'S-2'];
+    final c = tableClient(playingView(hand: hand, legal: hand));
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 600));
+    // الزاوية اليسار فوق من الورقة المايلة، وهي الجزء الظاهر منها
+    final box = tester.renderObject<RenderBox>(find.byWidgetPredicate((w) => w is PlayingCard && w.card == 'H-14'));
+    await tester.tapAt(box.localToGlobal(const Offset(8, 14)));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.widget<PlayingCard>(find.byWidgetPredicate((w) => w is PlayingCard && w.card == 'H-14')).highlight, isTrue);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('hand stays face down until my bid turn, and again after it until play', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Map<String, dynamic> stage(String phase, {List<Object> bids = const [], int? buyer}) => playingView()
+      ..['phase'] = phase
+      ..['trick'] = []
+      ..['trump'] = null
+      ..['buyer'] = buyer
+      ..['currentBid'] = 6
+      ..['legalCards'] = []
+      ..['legalBids'] = bids;
+    int faceUp() => tester.widgetList<PlayingCard>(find.byType(PlayingCard)).where((p) => p.card != 'back').length;
+    final c = tableClient(stage('bidding'));
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 100)); // يبدأ التوزيع
+    await tester.pump(const Duration(seconds: 3));
+    expect(faceUp(), 0);
+
+    Future<void> go(Map<String, dynamic> v) async {
+      c.view = v;
+      c.notifyListeners();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    await go(stage('bidding', bids: ['pass', 7, 8, 9])); // دوري
+    expect(faceUp(), 3);
+    await go(stage('bidding')); // خلص دوري
+    expect(faceUp(), 0);
+    await go(stage('trump', buyer: 2)); // غيري يختار الحكم
+    expect(faceUp(), 0);
+    await go(stage('trump', buyer: 0)); // أنا أختار الحكم
+    expect(faceUp(), 3);
+    await go(playingView()); // بدأ اللعب
+    expect(faceUp(), greaterThanOrEqualTo(3));
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   testWidgets('khabis sees «6 مجبور» instead of pass, and the forced buyer is labelled «مجبور» for everyone', (tester) async {
     tester.view.physicalSize = const Size(400, 860);
     tester.view.devicePixelRatio = 1;
@@ -317,7 +421,7 @@ void main() {
       ..['legalBids'] = ['majbur', 6, 7, 8, 9]);
     await tester.pumpWidget(KoutApp(client: c));
     await tester.pump(const Duration(milliseconds: 100)); // يبدأ التوزيع
-    await tester.pump(const Duration(seconds: 2)); // يخلص التوزيع وتطلع نافذة المزايدة
+    await tester.pump(const Duration(seconds: 3)); // يخلص التوزيع وتطلع نافذة المزايدة
     expect(find.text('6 مجبور'), findsOneWidget);
     expect(find.text('طاف'), findsNothing);
 

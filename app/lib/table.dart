@@ -119,8 +119,7 @@ class TableScreen extends StatefulWidget {
 class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin {
   // لمّ اللمّة: آخر ورقة توصل، وبعدها الكل ينسحب لصاحبها
   late final AnimationController _collect = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
-  late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300), value: 1);
-  late final Animation<double> _handFade = CurvedAnimation(parent: _deal, curve: const Interval(0.6, 1)); // اليد تبين بآخر التوزيع
+  late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600), value: 1);
   // كف الجوكر الكبير: ينزل 170ms ويضرب، وبعدها يرتفع ويختفي
   late final AnimationController _slap = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
   late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
@@ -248,7 +247,6 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _releasedAt.clear();
       c.slapPending.clear();
       if (freshDeal) {
-        if (round == 1) Sfx.start(); // بداية المباراة
         _deal.forward(from: 0);
         Sfx.deal();
       }
@@ -317,9 +315,20 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       final last = v['lastRound'] as Map;
       final type = last['type'];
       final breaker = (v['lastTrick'] as Map?)?['winner'];
-      if (type == 'made' || type == 'bawanWin') {
-        _say(last['buyer'] as int, VoiceEvent.made);
-      } else if ((type == 'failed' || type == 'bawanFail') && breaker is int) {
+      final buyer = last['buyer'] as int;
+      if (type == 'bawanWin') {
+        // فوز الباون: كل شخصيات الفريق الفايز
+        for (var seat = 0; seat < n; seat++) {
+          if (seat % 2 == buyer % 2) _say(seat, VoiceEvent.made);
+        }
+      } else if (type == 'bawanFail') {
+        // انقلب الباون: كل الفريق المنافس
+        for (var seat = 0; seat < n; seat++) {
+          if (seat % 2 != buyer % 2) _say(seat, VoiceEvent.oppFailed);
+        }
+      } else if (type == 'made') {
+        _say(buyer, VoiceEvent.made);
+      } else if (type == 'failed' && breaker is int) {
         _say(breaker, VoiceEvent.oppFailed);
       }
       final effect = switch (type) { 'made' => 'win', 'bawanWin' => 'bawan', 'bawanFail' => 'bawanFail', _ => 'lose' };
@@ -468,7 +477,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   Positioned.fill(child: RepaintBoundary(child: Stack(clipBehavior: Clip.none, children: _trickLayer(v, b, n)))),
                   for (var seat = 0; seat < n; seat++)
                     _seatAt(b, _rel(seat, n), RepaintBoundary(child: _Seat(client: c, view: v, seat: seat, seconds: _seconds, me: seat == c.mySeat, size: b.avatar, nameLeft: _rel(seat, n) == n ~/ 2, voice: _talking[seat], toward: b.toward(_rel(seat, n)), showSeconds: !(b.landscape && seat == c.mySeat)))),
-                  _dealLayer(b, n),
+                  _dealLayer(v, b, n),
                   Positioned.fill(child: RepaintBoundary(child: Stack(clipBehavior: Clip.none, children: _handLayer(v, b)))),
                   _signalRow(v, b),
                   _slapLayer(b),
@@ -617,8 +626,41 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
 
   Offset _fromFor(String card, _Board b, int rel) => (rel == 0 ? _releasedAt[card] : null) ?? b.seats[rel];
 
-  // أنميشن التوزيع: أوراق تطير من وسط الطاولة لكل لاعب
-  Widget _dealLayer(_Board b, int n) {
+  // ترتيب اللي ياخذون ورق: يبدأ باللي على يسار الموزع. ورق الموزع عنده أصلاً، إلا إذا الموزع أنا: ورقي ينزل لصف اليد
+  List<int> _dealOrder(int dealer, int n) => [
+        for (var i = 1; i <= n; i++)
+          if ((dealer - i + n) % n != dealer || dealer == 0) (dealer - i + n) % n,
+      ];
+
+  // متى تطلع الورقة رقم k من دفعة اللاعب رقم turn (من 0 لـ 1 من وقت التوزيع)، وتاخذ 0.25 لين توصل
+  double _dealStart(int turn, int k, int players) => (turn + k / 9 * 0.7) * (0.75 / players);
+
+  // مكان الورقة بصف اليد: الأطراف تميل لبرا وتنزل شوي
+  ({double left, double top, double angle}) _handSlot(_Board b, int i, int n) {
+    final w = b.handW;
+    // اليد تنفرد بين handLeft و handRight (بالعرضي فيه مكان لشخصيتي يسار والإشارات يمين)
+    final avail = b.handRight - b.handLeft;
+    // المسافة بين الأوراق ثابتة (محسوبة على يد كاملة 9 أوراق)، فلما تنقص ورقة يتقاربون للوسط ويبقى الشكل مرتب.
+    // بالعرضي الأوراق أقرب لبعض
+    final step = min(min(w + 4, (avail - w) / (max(n, 9) - 1)), b.landscape ? w * 0.3 : double.infinity);
+    final total = w + step * (n - 1);
+    // اليد من اليسار لليمين (هاس، كلفس، ديمن، سبيت، ثم الجوكرين)
+    // بالعرضي اليد بنص الشاشة، وبالطولي بنص مساحتها
+    final left = (b.landscape ? (b.size.width - total) / 2 : b.handLeft + (avail - total) / 2) + i * step;
+    final t = n == 1 ? 0.0 : (i - (n - 1) / 2) / ((n - 1) / 2);
+    // الوسط أعلى والأطراف بنفس مكان اليد القديم
+    return (left: left, top: (t * t - 1) * w * 0.12 + b.handTop, angle: t * min(0.22, n * 0.026));
+  }
+
+  // أنميشن التوزيع: كل لاعب ياخذ 9 أوراق دفعة وحدة بالدور من الموزع.
+  // ورق الخصوم يوقف قدام شخصياتهم، وورقي ينزل لصف اليد ورقة ورقة
+  Widget _dealLayer(Map<String, dynamic> v, _Board b, int n) {
+    final dealer = _rel(v['khabis'] as int, n);
+    final order = _dealOrder(dealer, n);
+    final inHand = (v['hand'] as List).length;
+    final w = b.cardW * 0.6;
+    // قدام الشخصية من جهة الطاولة، عشان الورق الدوّار ما يغطي عليها
+    Offset front(int rel) => b.seats[rel] + b.toward(rel) * (b.avatar * 0.5 + w * 0.9 + 6);
     return Positioned.fill(
       child: IgnorePointer(
         child: RepaintBoundary(child: AnimatedBuilder(
@@ -626,16 +668,26 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
           builder: (_, _) {
             if (!_deal.isAnimating) return const SizedBox.shrink();
             final t = _deal.value;
-            final w = b.cardW * 0.6;
             return Stack(clipBehavior: Clip.none, children: [
-              for (var k = 0; k < 3; k++)
-                for (var i = 0; i < n; i++)
+              for (var i = 0; i < order.length; i++)
+                for (var k = 0; k < 9; k++)
                   Builder(builder: (_) {
-                    final start = (k * n + i) * (0.75 / (3 * n));
-                    final p = ((t - start) / 0.25).clamp(0.0, 1.0);
+                    final p = ((t - _dealStart(i, k, order.length)) / 0.25).clamp(0.0, 1.0);
                     if (p <= 0 || p >= 1) return const SizedBox.shrink();
+                    final e = Curves.easeOut.transform(p);
+                    final rel = order[i];
+                    if (rel == 0 && k < inHand) {
+                      final slot = _handSlot(b, k, inHand);
+                      final size = w + (b.handW - w) * e;
+                      final to = Offset(slot.left + b.handW / 2, slot.top + _dealtDrop(b) + b.handW * cardRatio / 2);
+                      return _cardAt(
+                        Offset.lerp(front(dealer), to, e)!,
+                        size,
+                        Transform.rotate(angle: (2 * pi + slot.angle) * e, child: RepaintBoundary(child: CardBack(width: size))),
+                      );
+                    }
                     return _cardAt(
-                      Offset.lerp(b.center, b.seats[i], Curves.easeOut.transform(p))!,
+                      Offset.lerp(front(dealer), front(rel), e)!,
                       w,
                       Transform.rotate(angle: p * pi, child: RepaintBoundary(child: CardBack(width: w))),
                     );
@@ -647,45 +699,40 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     );
   }
 
+  // نزول ورق اليد وقت ما هو دوري
+  double _dealtDrop(_Board b) => b.landscape ? 12 : 28;
+
   List<Widget> _handLayer(Map<String, dynamic> v, _Board b) {
     final hand = (v['hand'] as List).cast<String>();
     final legal = _legal.toSet();
     final myTurn = legal.isNotEmpty && _deal.isAnimating == false;
     final w = b.handW;
     final n = max(hand.length, 1);
-    // اليد تنفرد بين handLeft و handRight (بالعرضي فيه مكان لشخصيتي يسار والإشارات يمين)
-    final avail = b.handRight - b.handLeft;
-    // المسافة بين الأوراق ثابتة (محسوبة على يد كاملة 9 أوراق)، فلما تنقص ورقة يتقاربون للوسط ويبقى الشكل مرتب.
-    // بالعرضي الأوراق أقرب لبعض
-    final slots = max(n, 9);
-    final step = min(min(w + 4, (avail - w) / (slots - 1)), b.landscape ? w * 0.3 : double.infinity);
-    final total = w + step * (n - 1);
+    final players = v['players'] as int;
+    final order = _dealOrder(_rel(v['khabis'] as int, players), players);
     final out = <Widget>[];
     final dealing = _deal.isAnimating;
+    // الورق مقلوب لين يوصل دورك بالمزايدة (أو تختار الحكم)، ويرجع مقلوب لين يبدأ اللعب
+    final phase = v['phase'];
+    final hidden = dealing || (phase == 'bidding' && (v['legalBids'] as List).isEmpty) || (phase == 'trump' && v['buyer'] != c.mySeat);
     for (var i = 0; i < hand.length; i++) {
       final card = hand[i];
       final ok = legal.contains(card);
       final sel = card == _selected;
-      // اليد من اليسار لليمين (هاس، كلفس، ديمن، سبيت، ثم الجوكرين)
-      // بالعرضي اليد بنص الشاشة، وبالطولي بنص مساحتها
-      final left = (b.landscape ? (b.size.width - total) / 2 : b.handLeft + (avail - total) / 2) + i * step;
-      // اليد مقوّسة: الأطراف تميل لبرا وتنزل شوي
-      final t = n == 1 ? 0.0 : (i - (n - 1) / 2) / ((n - 1) / 2);
-      final angle = t * min(0.22, n * 0.026);
-      final arc = (t * t - 1) * w * 0.12; // الوسط أعلى والأطراف بنفس مكان اليد القديم
-      final top = arc + b.handTop + (b.landscape ? (sel ? -14 : (myTurn && ok ? 4 : 12)) : (sel ? -8 : (myTurn && ok ? 18 : 28)));
-      // الميلان يتحرك بنعومة مع تحرك الورقة لمكانها الجديد
-      Widget face = AnimatedRotation(
-        turns: angle / (2 * pi),
-        duration: const Duration(milliseconds: 180),
-        alignment: Alignment.bottomCenter,
-        child: PlayingCard(
-          card,
+      final slot = _handSlot(b, i, n);
+      final left = slot.left, angle = slot.angle;
+      final top = slot.top + (b.landscape ? (sel ? -14 : (myTurn && ok ? 4 : _dealtDrop(b))) : (sel ? -8 : (myTurn && ok ? 18 : _dealtDrop(b))));
+      // وقت التوزيع الورقة تبين بصف اليد لحظة وصولها
+      final land = order.contains(0) ? _dealStart(order.indexOf(0), i, order.length) + 0.25 : 0.6;
+      Widget face = _FlipCard(
+        faceUp: !hidden,
+        builder: (shown) => PlayingCard(
+          shown ? card : 'back',
           width: w,
           highlight: sel,
           enabled: !myTurn || ok,
           opacity: _selected != null && !sel ? 0.6 : 1, // الباقي يخفت
-          fade: dealing ? _handFade : null,
+          fade: dealing ? _deal.drive(CurveTween(curve: Interval(min(land, 0.98), min(land + 0.02, 1)))) : null,
           shadow: !dealing,
         ),
       );
@@ -704,32 +751,39 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         curve: Curves.easeOut,
         left: left,
         top: top,
-        child: Opacity(
-          // الورقة اللي تنسحب تبقى بمكانها مخفية (عشان السحب ما ينقطع)، ونسخة منها تلحق الإصبع
-          opacity: card == _dragCard ? 0 : 1,
-          child: AnimatedScale(
-            scale: sel ? 1.12 : 1,
-            alignment: Alignment.bottomCenter,
-            duration: const Duration(milliseconds: 180),
-            child: GestureDetector(
-              key: ValueKey('hand-$card'),
-              onTap: () => _tapCard(card),
-              // السحب: الورقة تكبر وتلحق الإصبع (بس إذا دورك)
-              onPanStart: myTurn && v['phase'] == 'playing'
-                  ? (d) => setState(() {
-                        _dragCard = card;
-                        _selected = null;
-                        _dragPos = _local(d.globalPosition);
-                        _dragOver = false;
-                      })
-                  : null,
-              onPanUpdate: myTurn ? (d) => setState(() {
-                    _dragPos = _local(d.globalPosition);
-                    _dragOver = _dragPos.dy < b.handTop - 10;
-                  }) : null,
-              onPanEnd: myTurn ? (_) => _endDrag(card) : null,
-              onPanCancel: myTurn ? () => setState(() => _dragCard = null) : null,
-              child: face,
+        // الميلان يتحرك بنعومة مع تحرك الورقة لمكانها الجديد.
+        // لازم يكون برا الباقي: منطقة الضغط تميل مع الورقة، وإلا الجزء الظاهر من ورقة الطرف ما ينضغط
+        child: AnimatedRotation(
+          turns: angle / (2 * pi),
+          duration: const Duration(milliseconds: 180),
+          alignment: Alignment.bottomCenter,
+          child: Opacity(
+            // الورقة اللي تنسحب تبقى بمكانها مخفية (عشان السحب ما ينقطع)، ونسخة منها تلحق الإصبع
+            opacity: card == _dragCard ? 0 : 1,
+            child: AnimatedScale(
+              scale: sel ? 1.12 : 1,
+              alignment: Alignment.bottomCenter,
+              duration: const Duration(milliseconds: 180),
+              child: GestureDetector(
+                key: ValueKey('hand-$card'),
+                onTap: () => _tapCard(card),
+                // السحب: الورقة تكبر وتلحق الإصبع (بس إذا دورك)
+                onPanStart: myTurn && v['phase'] == 'playing'
+                    ? (d) => setState(() {
+                          _dragCard = card;
+                          _selected = null;
+                          _dragPos = _local(d.globalPosition);
+                          _dragOver = false;
+                        })
+                    : null,
+                onPanUpdate: myTurn ? (d) => setState(() {
+                      _dragPos = _local(d.globalPosition);
+                      _dragOver = _dragPos.dy < b.handTop - 10;
+                    }) : null,
+                onPanEnd: myTurn ? (_) => _endDrag(card) : null,
+                onPanCancel: myTurn ? () => setState(() => _dragCard = null) : null,
+                child: face,
+              ),
             ),
           ),
         ),
@@ -932,6 +986,7 @@ class _MatLight extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final all = Offset.zero & size;
+    canvas.drawRect(all, Paint()..color = const Color(0x38000000)); // الحصير أغمق شوي
     canvas.drawRect(
         all,
         Paint()
@@ -1067,15 +1122,66 @@ class _PalmPainter extends CustomPainter {
   bool shouldRepaint(_PalmPainter old) => false;
 }
 
+/// ورقة تنقلب بين وجهها وظهرها
+class _FlipCard extends StatelessWidget {
+  final bool faceUp;
+  final Widget Function(bool shown) builder;
+  const _FlipCard({required this.faceUp, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    final end = faceUp ? 1.0 : 0.0;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: end, end: end),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      builder: (_, t, _) {
+        final shown = t >= 0.5;
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.002)
+            ..rotateY(pi * (shown ? t - 1 : t)),
+          child: builder(shown),
+        );
+      },
+    );
+  }
+}
+
+/// يكبّر النافذة، ويصغّرها بس إذا ما وسعتها المساحة
+class _Grow extends StatelessWidget {
+  static const _scale = 1.35;
+  final Widget child;
+  const _Grow({required this.child});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (_, box) {
+        final w = box.maxWidth / _scale, h = box.maxHeight / _scale;
+        return Center(
+          child: Transform.scale(
+            scale: _scale,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: w, maxHeight: h),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: ConstrainedBox(constraints: BoxConstraints(maxWidth: w), child: child),
+              ),
+            ),
+          ),
+        );
+      });
+}
+
 /// نافذة كروم شفافة شوي (~82%) بإطار رصاصي غامق وخط لمعة فوق: المزايدة والحكم والباون
 class _ChromePanel extends StatelessWidget {
   final Widget child;
   const _ChromePanel({required this.child});
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) => _Grow(
         child: Container(
-          margin: const EdgeInsets.all(20),
+          margin: const EdgeInsets.all(8),
           constraints: const BoxConstraints(maxWidth: 380),
           decoration: BoxDecoration(
             gradient: KoutColors.chrome(0.82),
@@ -1116,7 +1222,7 @@ class _ChromeButton extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1 : 0.35, // الأرقام اللي ما تجوز باهتة
       child: GestureDetector(
-        onTap: onTap,
+        onTap: withTap(onTap),
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
@@ -1203,9 +1309,9 @@ class _Panel extends StatelessWidget {
   const _Panel({required this.child});
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) => _Grow(
         child: Container(
-          margin: const EdgeInsets.all(20),
+          margin: const EdgeInsets.all(8),
           padding: const EdgeInsets.all(18),
           constraints: const BoxConstraints(maxWidth: 360),
           decoration: BoxDecoration(
@@ -1279,9 +1385,9 @@ class _Scores extends StatelessWidget {
           Row(mainAxisSize: MainAxisSize.min, children: [
             score(0),
             const SizedBox(width: 30),
-            const Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('من', style: TextStyle(fontSize: 9, color: Color(0xFF999999), height: 1.1)),
-              Text('54', style: TextStyle(fontSize: 13, color: Color(0xFFCCCCCC), height: 1.1)),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('من', style: TextStyle(fontSize: 9, color: Color(0xFF999999), height: 1.1)),
+              Text('${v['winScore'] ?? 54}', style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC), height: 1.1)),
             ]),
             const SizedBox(width: 30),
             score(1),
@@ -1306,24 +1412,24 @@ class _TopActions extends StatelessWidget {
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
         if (!client.connected) const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.wifi_off, size: 20, color: KoutColors.lose)),
         IconButton(
-          icon: const Icon(Icons.logout, size: 22, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
-          tooltip: 'اطلع',
-          onPressed: () => showDialog(
+          icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
+          tooltip: 'رجوع',
+          onPressed: withTap(() => showDialog(
             context: context,
             builder: (_) => Directionality(
               textDirection: TextDirection.rtl,
               child: AlertDialog(
                 backgroundColor: const Color(0xFF111111),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.white, width: 2)),
-                title: const Text('تطلع من اللعبة؟'),
-                content: const Text('مقعدك يبقى محجوز وتقدر ترجع بنفس الكود.'),
+                title: const Text('تطلع من اللعبة؟', style: TextStyle(fontSize: 30)),
+                content: const Text('مقعدك يبقى محجوز وتقدر ترجع بنفس الكود.', style: TextStyle(fontSize: 21)),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('لا', style: TextStyle(color: Colors.white))),
-                  TextButton(onPressed: () { Navigator.pop(context); client.leave(); }, child: const Text('اطلع', style: TextStyle(color: Colors.white))),
+                  TextButton(onPressed: withTap(() => Navigator.pop(context)), child: const Text('لا', style: TextStyle(color: Colors.white, fontSize: 22))),
+                  TextButton(onPressed: withTap(() { Navigator.pop(context); client.leave(); }), child: const Text('اطلع', style: TextStyle(color: Colors.white, fontSize: 22))),
                 ],
               ),
             ),
-          ),
+          )),
         ),
       ]);
 }
@@ -1337,7 +1443,7 @@ class _Seat extends StatelessWidget {
   final double size;
   final bool nameLeft;
   final String? voice; // الصوت الشغّال للشخصية
-  final Offset toward; // اتجاه الطاولة (لعلامة طاف)
+  final Offset toward; // اتجاه الطاولة (لعلامة طاف والإشارات)
   final bool showSeconds; // الرقم تحت الشخصية (الحلقة تبقى دايماً)
   const _Seat({required this.client, required this.view, required this.seat, required this.seconds, required this.size, this.me = false, this.nameLeft = false, this.voice, this.toward = Offset.zero, this.showSeconds = true});
 
@@ -1387,23 +1493,26 @@ class _Seat extends StatelessWidget {
       if (offline) const Positioned(top: -4, left: -4, child: Icon(Icons.wifi_off, size: 14, color: KoutColors.lose)),
       // طاف: علامة كف رمادية جنب الشخصية من جهة الطاولة
       if (passed) Transform.translate(offset: toward * (size * 0.5 + 14), child: _PassSign(size: size * 0.46)),
-      // الإشارات: تظهر كلها مع بعض فوق اللاعب (واللي فوق على يمينه لأنه لاصق بحافة الشاشة)
+      // الإشارات: تظهر كلها مع بعض جنب الشخصية من جهة وسط الطاولة
       if (sig != null)
-        Positioned(
-          top: nameLeft ? null : -size * 0.5 - 22,
-          left: nameLeft ? size + 14 : null,
-          child: TweenAnimationBuilder<double>(
-            key: ValueKey(sig.at),
-            tween: Tween(begin: 0.4, end: 1),
-            duration: const Duration(milliseconds: 180),
-            builder: (_, s, child) => Transform.scale(scale: s, child: child),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: teamColor, width: 2)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                for (final s in sig.suits)
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: s == 'J' ? const GoldJ(size: 22) : SuitIcon(s, size: 20)),
-              ]),
+        Transform.translate(
+          // البعد على قد عرض الإشارة، عشان ما تغطي الشخصية
+          offset: toward * (size * 0.5 + 10 + (16 + sig.suits.length * 25) / 2 * toward.dx.abs() + 17 * toward.dy.abs()),
+          child: OverflowBox(
+            maxWidth: 200,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(sig.at),
+              tween: Tween(begin: 0.4, end: 1),
+              duration: const Duration(milliseconds: 180),
+              builder: (_, s, child) => Transform.scale(scale: s, child: child),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: teamColor, width: 2)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  for (final s in sig.suits)
+                    Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: s == 'J' ? const GoldJ(size: 22) : SuitIcon(s, size: 20)),
+                ]),
+              ),
             ),
           ),
         ),
@@ -1414,7 +1523,7 @@ class _Seat extends StatelessWidget {
       if (isBuyer && v['madmoon'] == true) const OutlinedText('مضمون', size: 13, color: KoutColors.madmoon),
       if (isBuyer && v['majbur'] == true) const OutlinedText('مجبور', size: 13, color: KoutColors.majbur),
       if (phase == 'bidding' && bidLabel != null) OutlinedText(bidLabel, size: 13, color: bidLabel == 'طاف' ? const Color(0xFFCCCCCC) : Colors.white),
-      if (isKhabis && phase == 'bidding') const OutlinedText('خابص', size: 11, color: Color(0xFFDDDDDD)),
+      if (isKhabis && phase == 'bidding') const OutlinedText('الموزع', size: 11, color: Color(0xFFDDDDDD)),
       if (left != null && showSeconds)
         ValueListenableBuilder(
           valueListenable: seconds,
@@ -1568,17 +1677,19 @@ class _RoundResult extends StatelessWidget {
         Text('فاز الفريق ${KoutColors.teamName(winner)}', style: TextStyle(fontSize: 26, color: color)),
         Text(winner == myTeam ? 'مبروك! فريقك فاز' : 'هاردلك، فريقك خسر', style: const TextStyle(fontSize: 16)),
         const SizedBox(height: 12),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('${scores[0]}', style: const TextStyle(fontSize: 34, color: KoutColors.teamBlue)),
-          const Text('  –  ', style: TextStyle(fontSize: 26)),
-          Text('${scores[1]}', style: const TextStyle(fontSize: 34, color: KoutColors.teamYellow)),
-        ]),
+        FittedBox(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('${scores[0]}', style: const TextStyle(fontSize: 34, color: KoutColors.teamBlue)),
+            const Text('  –  ', style: TextStyle(fontSize: 26)),
+            Text('${scores[1]}', style: const TextStyle(fontSize: 34, color: KoutColors.teamYellow)),
+          ]),
+        ),
         const SizedBox(height: 8),
         const Text('سبب الفوز', style: TextStyle(fontSize: 13, color: Color(0xFFAAAAAA))),
         Text(reason, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: reasonColor)),
         const SizedBox(height: 14),
         if (client.isHost)
-          FilledButton(onPressed: client.rematch, child: const Text('مباراة جديدة', style: TextStyle(fontSize: 17)))
+          FilledButton(onPressed: withTap(client.rematch), child: const Text('مباراة جديدة', style: TextStyle(fontSize: 17)))
         else
           const Text('بانتظار المضيف...', style: TextStyle(color: Color(0xFFAAAAAA))),
       ]);
@@ -1678,6 +1789,7 @@ class _SignalBarState extends State<_SignalBar> {
       return GestureDetector(
         onTap: enabled
             ? () {
+                Sfx.tap();
                 widget.client.signal([s]);
                 setState(() => _sent.add(s));
               }

@@ -634,3 +634,27 @@ test('bot plays its lowest non-trump under a teammate holding the top card of th
   s.hands[0] = ['S-2', 'D-12', 'C-4'];
   assert.strictEqual(Bot.decide(s, 0).card, 'C-4');
 });
+
+test('the last bot of its team plays to win the trick when its team is losing it', () => {
+  const play = (seat, trick, hand) => {
+    const s = setup({ hands: [[], [], [], [], [], []], buyer: 2 });
+    s.phase = 'playing';
+    s.trump = 'S';
+    s.greyPlayed = true;
+    s.turn = seat;
+    s.trick = trick;
+    s.hands[seat] = hand;
+    return Bot.decide(s, seat).card;
+  };
+  const losing = [{ seat: 1, card: 'H-3' }, { seat: 2, card: 'H-4' }, { seat: 3, card: 'H-5' }, { seat: 4, card: 'H-10' }];
+  // بعده خصم بس: يرمي ورقة تغلب حتى لو مو الأكبر الباقية
+  assert.strictEqual(play(5, losing, ['H-12', 'H-6', 'D-2']), 'H-12');
+  // أصغر ورقة تغلب تكفي
+  assert.strictEqual(play(5, losing, ['H-13', 'H-11', 'H-6']), 'H-11');
+  // ما عنده ورقة تغلب: يرمي الجوكر
+  assert.strictEqual(play(5, losing, ['H-6', 'JG', 'D-2']), 'JG');
+  // زميله فايز باللمّة: ما يضيّع ورقه
+  assert.strictEqual(play(5, [{ seat: 1, card: 'H-3' }, { seat: 2, card: 'H-4' }, { seat: 3, card: 'H-11' }, { seat: 4, card: 'H-5' }], ['H-12', 'H-6']), 'H-6');
+  // باقي زميل بعده: ما يتغير لعبه
+  assert.strictEqual(play(3, [{ seat: 1, card: 'H-3' }, { seat: 2, card: 'H-10' }], ['H-12', 'H-6']), 'H-6');
+});

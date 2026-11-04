@@ -1,7 +1,11 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'avatars.dart';
 import 'cards.dart';
+import 'intro.dart';
+import 'menus.dart';
 import 'net.dart';
 import 'sounds.dart';
 import 'table.dart';
@@ -10,18 +14,27 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final client = GameClient();
   await client.loadPrefs();
-  runApp(KoutApp(client: client));
+  runApp(KoutApp(client: client, intro: true));
 }
 
 /// خط المسيري الغامق لكل نصوص اللعبة
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.8';
+const appVersion = '1.0.9';
 
-class KoutApp extends StatelessWidget {
+class KoutApp extends StatefulWidget {
   final GameClient client;
-  const KoutApp({super.key, required this.client});
+  final bool intro; // أنميشن الشعار عند فتح اللعبة
+  const KoutApp({super.key, required this.client, this.intro = false});
+
+  @override
+  State<KoutApp> createState() => _KoutAppState();
+}
+
+class _KoutAppState extends State<KoutApp> {
+  late bool _intro = widget.intro;
+  GameClient get client => widget.client;
 
   @override
   Widget build(BuildContext context) {
@@ -73,14 +86,25 @@ class KoutApp extends StatelessWidget {
       // كل الكلام أكبر شوي عشان يكون أوضح
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.15)),
-        child: Directionality(textDirection: TextDirection.rtl, child: child!),
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Stack(fit: StackFit.expand, children: [
+            child!,
+            if (_intro) LogoIntro(onDone: () => setState(() => _intro = false)),
+          ]),
+        ),
       ),
       home: ListenableBuilder(
         listenable: client,
         builder: (context, _) {
-          if (client.room == null) return HomeScreen(client: client);
-          if (!client.started) return LobbyScreen(client: client);
-          return TableScreen(client: client);
+          final (id, screen) = client.room == null
+              ? ('home', HomeScreen(client: client))
+              : client.searching
+                  ? ('search', SearchScreen(client: client))
+                  : !client.started
+                      ? ('lobby', LobbyScreen(client: client))
+                      : ('table', TableScreen(client: client) as Widget);
+          return PageSwitcher(id: id, child: screen);
         },
       ),
     );
@@ -92,7 +116,7 @@ void showErrors(BuildContext context, GameClient client) {
   if (err == null) return;
   WidgetsBinding.instance.addPostFrameCallback((_) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(err, style: const TextStyle(color: Colors.black, fontFamily: appFont)),
+      content: Text(err, style: const TextStyle(color: Colors.black, fontFamily: appFont, fontSize: 19)),
       backgroundColor: Colors.white,
       duration: const Duration(seconds: 2),
     ));
@@ -165,8 +189,6 @@ class AppLogo extends StatelessWidget {
       );
 }
 
-const _dim = TextStyle(color: Color(0xFF2B2E33), fontSize: 14);
-
 class HomeScreen extends StatefulWidget {
   final GameClient client;
   const HomeScreen({super.key, required this.client});
@@ -180,6 +202,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late final _server = TextEditingController(text: widget.client.serverUrl);
   final _code = TextEditingController();
   bool _showServer = false;
+  _Page _page = _Page.menu;
+  int _mode = 6;
 
   @override
   void initState() {
@@ -205,111 +229,175 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void _choosePlayers(int mode) => setState(() {
+        _mode = mode;
+        _page = _Page.scores;
+      });
+
+  void _practice() {
     final c = widget.client;
-    showErrors(context, c);
-    final header = Column(mainAxisSize: MainAxisSize.min, children: const [
-      Center(child: AppLogo(size: 190)),
-      SizedBox(height: 8),
-      Text('6 أو 4 لاعبين · فريقين', textAlign: TextAlign.center, style: _dim),
-    ]);
-    final form = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      MenuPanel(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          TextField(
-            controller: _name,
-            style: const TextStyle(fontSize: 18, color: Colors.white),
-            decoration: const InputDecoration(labelText: 'اسمك'),
-            maxLength: 20,
-          ),
-          const SizedBox(height: 4),
-          if (c.connecting)
-            // السيرفر المجاني ينام إذا ما أحد يلعب، ويصحى خلال دقيقة
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                SizedBox(width: 8),
-                Flexible(child: Text('جاري الاتصال بالسيرفر... (أول مرة تاخذ لين دقيقة)', style: TextStyle(fontSize: 13, color: Color(0xFFDDDDDD)))),
-              ]),
-            ),
-          FilledButton(
-            onPressed: c.connecting ? null : () { if (_apply()) c.createRoom(); },
-            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-            child: const Text('سوّ غرفة جديدة', style: TextStyle(fontSize: 19)),
-          ),
+    c.name = _name.text.trim();
+    c.serverUrl = _server.text.trim();
+    c.practice();
+  }
+
+  void _search(int mode, int score) {
+    if (_apply()) widget.client.search(mode, score);
+  }
+
+  Widget _nameField() => MenuPanel(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+        child: TextField(
+          controller: _name,
+          style: const TextStyle(fontSize: 18, color: Colors.white),
+          decoration: const InputDecoration(labelText: 'اسمك', counterText: '', isDense: true),
+          maxLength: 20,
+        ),
+      );
+
+  Widget _connecting() => const Padding(
+        // السيرفر المجاني ينام إذا ما أحد يلعب، ويصحى خلال دقيقة
+        padding: EdgeInsets.only(top: 8),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KoutColors.ink)),
+          SizedBox(width: 8),
+          Flexible(child: Text('جاري الاتصال بالسيرفر... (أول مرة تاخذ لين دقيقة)', style: TextStyle(fontSize: 13, color: KoutColors.ink))),
         ]),
+      );
+
+  // الخيارات الأربعة على شكل ورق
+  Widget _menu(GameClient c, BoxConstraints box) {
+    final wide = box.maxWidth > box.maxHeight;
+    final free = box.maxHeight - 132;
+    final w = min(wide ? min((box.maxWidth - 72) / 4, free / cardRatio) : min((box.maxWidth - 40) / 2, (free - 12) / 2 / cardRatio), 240.0);
+    final off = c.connecting;
+    final cards = [
+      MenuCard(width: w, suit: 'S', ring: 6, title: '6 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(6)),
+      MenuCard(width: w, suit: 'D', ring: 4, title: '4 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(4)),
+      MenuCard(width: w, suit: 'C', icon: Icons.vpn_key, title: 'غرفة مخصصة', subtitle: 'ولّف ربعك بكود الغرفة', onTap: () => setState(() => _page = _Page.custom)),
+      MenuCard(width: w, suit: 'H', icon: Icons.school, title: 'تدريب', subtitle: 'تمرّن مع البوتات بدون وقت', onTap: off ? null : _practice),
+    ];
+    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Row(children: [const AppLogo(size: 56), const SizedBox(width: 10), Expanded(child: _nameField())]),
       ),
-      const SizedBox(height: 12),
-      MenuPanel(
-        child: Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _code,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18, color: Colors.white, letterSpacing: 4),
-              decoration: const InputDecoration(labelText: 'كود الغرفة'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: c.connecting ? null : () { if (_apply() && _code.text.trim().isNotEmpty) c.joinRoom(_code.text.trim()); },
-            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22)),
-            child: const Text('ادخل'),
-          ),
-        ]),
-      ),
-      const SizedBox(height: 12),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        for (final s in suitOrder) Padding(padding: const EdgeInsets.symmetric(horizontal: 5), child: SuitIcon(s, size: 20)),
-      ]),
+      if (c.connecting) _connecting(),
+      const SizedBox(height: 10),
+      if (wide)
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (final card in cards) Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: card)])
+      else ...[
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [cards[0], const SizedBox(width: 12), cards[1]]),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [cards[2], const SizedBox(width: 12), cards[3]]),
+      ],
       TextButton(
-        onPressed: () => setState(() => _showServer = !_showServer),
-        child: const Text('إعدادات السيرفر', style: TextStyle(color: Color(0xFF2B2E33), decoration: TextDecoration.underline)),
+        onPressed: withTap(() => setState(() => _showServer = !_showServer)),
+        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(0, 26)),
+        child: const Text('إعدادات السيرفر', style: TextStyle(color: Color(0xFF2B2E33), fontSize: 12, decoration: TextDecoration.underline)),
       ),
       if (_showServer)
-        MenuPanel(
-          child: TextField(
-            controller: _server,
-            textDirection: TextDirection.ltr,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(labelText: 'رابط السيرفر (ws://...)'),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: MenuPanel(
+            child: TextField(
+              controller: _server,
+              textDirection: TextDirection.ltr,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'رابط السيرفر (ws://...)'),
+            ),
           ),
         ),
       const Text('نسخة $appVersion', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF4A4D52))),
     ]);
+  }
+
+  // بعد اختيار عدد اللاعبين: كم نقطة
+  Widget _scores(GameClient c, BoxConstraints box) {
+    final w = min(min((box.maxWidth - 60) / 2, (box.maxHeight - 90) / cardRatio), 240.0);
+    final off = c.connecting;
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: w * 2 + 16),
+          child: BackRow(title: '$_mode لاعبين', onBack: () => setState(() => _page = _Page.menu)),
+        ),
+        if (c.connecting) _connecting(),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (final (i, score, hint, icon) in const [(0, 54, 'دور كامل', Icons.emoji_events), (1, 34, 'دور على السريع', Icons.bolt)]) ...[
+            if (i > 0) const SizedBox(width: 16),
+            MenuCard(width: w, suit: _mode == 6 ? 'S' : 'D', icon: icon, heading: hint, title: 'من $score نقطة', onTap: off ? null : () => _search(_mode, score)),
+          ],
+        ]),
+      ]),
+    );
+  }
+
+  // الغرفة المخصصة: سوّ غرفة، أو ادخل بكود
+  Widget _custom(GameClient c) => Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              BackRow(title: 'غرفة مخصصة', onBack: () => setState(() => _page = _Page.menu)),
+              const SizedBox(height: 10),
+              _nameField(),
+              const SizedBox(height: 10),
+              if (c.connecting) _connecting(),
+              FilledButton(
+                onPressed: c.connecting ? null : withTap(() { if (_apply()) c.createRoom(); }),
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                child: const Text('سوّ غرفة جديدة', style: TextStyle(fontSize: 19)),
+              ),
+              const SizedBox(height: 12),
+              MenuPanel(
+                child: Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _code,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 18, color: Colors.white, letterSpacing: 4),
+                      decoration: const InputDecoration(labelText: 'كود الغرفة'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: c.connecting ? null : withTap(() { if (_apply() && _code.text.trim().isNotEmpty) c.joinRoom(_code.text.trim()); }),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22)),
+                    child: const Text('ادخل'),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.client;
+    showErrors(context, c);
     return Scaffold(
       body: ChromeBackground(
         child: SafeArea(
-          child: LayoutBuilder(builder: (context, box) {
-            // عرضي: عمودين (الشعار يمين، والخانات يسار)
-            final wide = box.maxWidth > box.maxHeight && box.maxWidth > 560;
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(22),
-                child: wide
-                    ? ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 760),
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                          Expanded(child: header),
-                          const SizedBox(width: 24),
-                          Expanded(child: form),
-                        ]),
-                      )
-                    : ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 380),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [header, const SizedBox(height: 16), form]),
-                      ),
-              ),
-            );
-          }),
+          child: PageSwitcher(
+            id: _page,
+            child: LayoutBuilder(builder: (context, box) => switch (_page) {
+                  _Page.menu => _menu(c, box),
+                  _Page.scores => _scores(c, box),
+                  _Page.custom => _custom(c),
+                }),
+          ),
         ),
       ),
     );
   }
 }
+
+enum _Page { menu, scores, custom }
 
 class LobbyScreen extends StatelessWidget {
   final GameClient client;
@@ -340,9 +428,9 @@ class LobbyScreen extends StatelessWidget {
       const SizedBox(width: 10),
       const Expanded(child: Text('الغرفة', style: TextStyle(fontSize: 24, color: KoutColors.ink))),
       OutlinedButton(
-        onPressed: c.leave,
+        onPressed: withTap(c.leave),
         style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
-        child: const Icon(Icons.logout, size: 20),
+        child: const Icon(Icons.arrow_back, size: 20),
       ),
     ]);
     final codePanel = MenuPanel(
@@ -358,7 +446,7 @@ class LobbyScreen extends StatelessWidget {
       final on = c.mode == m;
       return Expanded(
         child: GestureDetector(
-          onTap: c.isHost && !on ? () => c.setMode(m) : null,
+          onTap: withTap(c.isHost && !on ? () => c.setMode(m) : null),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             color: on ? Colors.white : const Color(0xFF111111),
@@ -388,14 +476,14 @@ class LobbyScreen extends StatelessWidget {
       if (c.isHost) ...[
         if (!full)
           OutlinedButton.icon(
-            onPressed: c.addBots,
+            onPressed: withTap(c.addBots),
             style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
             icon: const Icon(Icons.smart_toy),
             label: const Text('عبّي المقاعد الفاضية', style: TextStyle(fontSize: 16)),
           ),
         const SizedBox(height: 8),
         FilledButton(
-          onPressed: full ? c.start : null,
+          onPressed: withTap(full ? c.start : null),
           style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
           child: Text(full ? 'ابدأ اللعب' : 'بانتظار ${c.seats.where((s) => s == null).length} لاعبين'),
         ),
@@ -423,7 +511,7 @@ class LobbyScreen extends StatelessWidget {
                         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Expanded(
                             child: SingleChildScrollView(
-                              child: Column(children: [bar, const SizedBox(height: 12), codePanel, const SizedBox(height: 12), mode, const SizedBox(height: 12), actions]),
+                              child: Column(children: [if (!full) const WaitBanner(), bar, const SizedBox(height: 12), codePanel, const SizedBox(height: 12), mode, const SizedBox(height: 12), actions]),
                             ),
                           ),
                           const SizedBox(width: 20),
@@ -431,6 +519,7 @@ class LobbyScreen extends StatelessWidget {
                         ]),
                       )
                     : ListView(padding: const EdgeInsets.all(16), children: [
+                        if (!full) const WaitBanner(),
                         bar,
                         const SizedBox(height: 12),
                         codePanel,
@@ -483,6 +572,7 @@ void showCharacterPicker(BuildContext context, GameClient c) {
                           onTap: byPlayer.containsKey(e.key)
                               ? null
                               : () {
+                                  Sfx.tap();
                                   c.chooseChar(e.key);
                                   Navigator.pop(ctx);
                                 },
@@ -503,6 +593,12 @@ void showCharacterPicker(BuildContext context, GameClient c) {
                       ),
                   ]),
                 ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: withTap(() => Navigator.pop(ctx)),
+                icon: const Icon(Icons.arrow_back, size: 20),
+                label: const Text('رجوع'),
               ),
             ]),
           ),
@@ -533,7 +629,7 @@ class _SeatTile extends StatelessWidget {
         boxShadow: me ? [BoxShadow(color: teamColor.withValues(alpha: 0.5), blurRadius: 8)] : null,
       ),
       child: InkWell(
-        onTap: me ? () => showCharacterPicker(context, client) : (canMove ? () => client.sit(seat) : null),
+        onTap: withTap(me ? () => showCharacterPicker(context, client) : (canMove ? () => client.sit(seat) : null)),
         child: SizedBox(
           height: 60,
           child: Row(children: [
@@ -556,7 +652,7 @@ class _SeatTile extends StatelessWidget {
             ),
             if (s != null && s['bot'] == true) const Icon(Icons.smart_toy, size: 17, color: Color(0xFFBBBBBB)),
             if (client.isHost && s != null && !me)
-              IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.white), onPressed: () => client.kick(seat), tooltip: 'طرد'),
+              IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.white), onPressed: withTap(() => client.kick(seat)), tooltip: 'طرد'),
           ]),
         ),
       ),

@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import 'cached_paint.dart';
 
 /// ألوان الثيم: رمادي على أسود، مع ألوان الفريقين، وكروم الشعار للقوائم والنوافذ.
 class KoutColors {
@@ -123,6 +122,7 @@ Future<void> precacheCards(BuildContext context) async {
       for (var r = 2; r <= 14; r++) '$s-$r',
     'JB',
     'JG',
+    'back',
   ];
   for (final card in cards) {
     if (!context.mounted) return;
@@ -130,57 +130,20 @@ Future<void> precacheCards(BuildContext context) async {
   }
 }
 
-/// ظهر الورقة (للتوزيع والأنميشن): ورقة بيضاء بحواف مدوّرة، وداخلها لوح عنابي بخطوط بيضاء متقاطعة (شبك)
+/// ظهر الورقة (للتوزيع والأنميشن): بثيم الشعار، كروم ومروحة أوراق و«بتّه» (tools/logo-art/logo.html?back).
 class CardBack extends StatelessWidget {
   final double width;
   const CardBack({super.key, this.width = 22});
 
   @override
-  Widget build(BuildContext context) {
-    final em = width / 14;
-    return Container(
-      width: width,
-      height: width * cardRatio,
-      padding: EdgeInsets.all(em * 0.55),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(em * 0.9),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.1)),
-        boxShadow: const [BoxShadow(color: Color(0x12000000), blurRadius: 3, offset: Offset(0, 2))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(em * 0.5),
-        child: CachedPaint(cacheKey: 'back', painter: _BackPattern(width)),
-      ),
-    );
-  }
-}
-
-class _BackPattern extends CustomPainter {
-  final double width;
-  const _BackPattern(this.width);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = Offset.zero & size;
-    canvas.drawRect(r, Paint()..color = const Color(0xFF9D2C35));
-    // خطوط 45° و -45° (كل 7 بكسل بورقة عرضها 112، وتصغر معها)
-    final gap = max(2.5, width * 7 / 112), line = Paint()
-      ..color = Colors.white.withValues(alpha: 0.16)
-      ..strokeWidth = max(0.6, width * 1.5 / 112);
-    final span = size.width + size.height;
-    for (var d = -size.height; d < span; d += gap) {
-      canvas.drawLine(Offset(d, 0), Offset(d + size.height, size.height), line);
-      canvas.drawLine(Offset(d + size.height, 0), Offset(d, size.height), line);
-    }
-    canvas.drawRRect(RRect.fromRectAndRadius(r.deflate(0.5), Radius.circular(width / 14 * 0.5)),
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.1)
-          ..style = PaintingStyle.stroke);
-  }
-
-  @override
-  bool shouldRepaint(_BackPattern old) => old.width != width;
+  Widget build(BuildContext context) => Image(
+        image: cardImage('back'),
+        width: width,
+        height: width * cardRatio,
+        fit: BoxFit.fill,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+      );
 }
 
 /// رمز النوع مرسوم (مو خط) بنفس أشكال الأوراق المعتمدة.

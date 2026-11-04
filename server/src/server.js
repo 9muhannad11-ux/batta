@@ -11,10 +11,11 @@ const Bot = require('./bot');
 const PORT = Number(process.env.PORT ?? 8080);
 const BOT_DELAY_MS = Number(process.env.BOT_DELAY_MS ?? 900);
 const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS ?? 1600); // وقت أنميشن لمّ اللمّة
-const DEAL_PAUSE_MS = Number(process.env.DEAL_PAUSE_MS ?? 1500); // وقت أنميشن التوزيع
+const DEAL_PAUSE_MS = Number(process.env.DEAL_PAUSE_MS ?? 2800); // وقت أنميشن التوزيع
 const NEXT_ROUND_MS = Number(process.env.NEXT_ROUND_MS ?? 5000);
 const TURN_MS = Number(process.env.TURN_MS ?? 12500); // وقت كل لاعب للمزايدة واللعب (12.5 ثانية)
 const TRUMP_MS = Number(process.env.TRUMP_MS ?? 10000); // وقت اختيار الحكم
+const SEARCH_MS = Number(process.env.SEARCH_MS ?? 90000); // أقصى وقت بحث عن لاعبين، وبعدها البوتات تكمّل
 
 // الشخصيات: البوت ياخذ اسم الشخصية، واللاعب ياخذ وجهها ويبقى اسمه
 const CHARACTERS = [
@@ -31,6 +32,7 @@ const CHARACTERS = [
 ];
 
 const rooms = new Map(); // code -> room
+const searching = new Map(); // `${mode}-${score}` -> الغرفة اللي تدور لاعبين
 
 function newCode() {
   let code;
@@ -38,12 +40,16 @@ function newCode() {
   return code;
 }
 
-function createRoom() {
+function createRoom(mode = E.PLAYERS, winScore = E.WIN_SCORE) {
   const room = {
     code: newCode(),
-    mode: E.PLAYERS,
-    seats: Array(E.PLAYERS).fill(null), // {name, token, bot, ws, char}
+    mode,
+    winScore,
+    seats: Array(mode).fill(null), // {name, token, bot, ws, char}
     host: null, // token
+    search: null, // مفتاح البحث إذا الغرفة تدور لاعبين
+    searchEnds: null,
+    practice: false, // تدريب: بوتات وبدون وقت
     game: null,
     timer: null,
     deadline: null, // متى يخلص وقت اللاعب الحالي
@@ -77,6 +83,10 @@ function lobbyInfo(room) {
     code: room.code,
     mode: room.mode,
     started: !!room.game,
+    winScore: room.winScore,
+    search: !!room.search,
+    searchMsLeft: room.search ? Math.max(0, room.searchEnds - Date.now()) : null,
+    practice: room.practice,
     seats: room.seats.map((s) => s && { name: s.name, bot: s.bot, connected: s.bot || !!s.ws, char: s.char }),
   };
 }
@@ -134,6 +144,12 @@ function schedule(room) {
     room.timer = setTimeout(() => act({}), BOT_DELAY_MS + pause);
     return;
   }
+  // آخر ورقة باليد ما فيها خيار، فتنرمى لحالها
+  if (g.phase === 'playing' && g.hands[seat].length === 1) {
+    room.timer = setTimeout(() => act({}), BOT_DELAY_MS + pause);
+    return;
+  }
+  if (room.practice) return; // التدريب بدون وقت
   // اللاعب عنده 12.5 ثانية يزايد أو يلعب، وإذا خلص الوقت السيرفر يلعب عنه
   if (g.phase === 'bidding' || g.phase === 'playing') {
     room.deadline = Date.now() + TURN_MS + pause;
@@ -143,6 +159,19 @@ function schedule(room) {
     room.deadline = Date.now() + TRUMP_MS;
     room.timer = setTimeout(() => act({ timeout: true }), TRUMP_MS);
   }
+}
+
+// البحث خلص (الغرفة امتلت أو الوقت انتهى): البوتات تكمّل النقص واللعب يبدأ
+function startSearched(room) {
+  clearTimeout(room.searchTimer);
+  searching.delete(room.search);
+  room.search = null;
+  room.searchEnds = null;
+  room.seats.forEach((s, i) => { if (!s) room.seats[i] = newSeat(room, { bot: true }); });
+  room.host = room.seats.find((s) => !s.bot)?.token ?? null;
+  room.game = E.createMatch({ players: room.mode, winScore: room.winScore });
+  schedule(room);
+  broadcast(room);
 }
 
 function seatOf(room, token) {
@@ -172,12 +201,45 @@ function handle(ws, msg) {
         return broadcast(room);
       }
       if (room.game) return send(ws, { t: 'error', msg: 'اللعبة بدأت' });
+      if (room.search) return send(ws, { t: 'error', msg: 'ما فيه غرفة بهالكود' });
       const free = room.seats.findIndex((s) => !s);
       if (free < 0) return send(ws, { t: 'error', msg: 'الغرفة مليانة' });
       const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
       room.seats[free] = seat;
       ctx.room = room; ctx.token = seat.token;
       send(ws, { t: 'joined', code: room.code, token: seat.token });
+      return broadcast(room);
+    }
+    case 'search': { // بحث عن لاعبين: 6 أو 4، من 54 أو 34
+      const mode = Number(msg.mode), score = Number(msg.score);
+      if (!E.MODES.includes(mode) || !E.WIN_SCORES.includes(score)) return send(ws, { t: 'error', msg: 'خيار غير معروف' });
+      const key = `${mode}-${score}`;
+      let room = searching.get(key);
+      if (!room) {
+        room = createRoom(mode, score);
+        room.search = key;
+        room.searchEnds = Date.now() + SEARCH_MS;
+        room.searchTimer = setTimeout(() => startSearched(room), SEARCH_MS);
+        searching.set(key, room);
+      }
+      const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
+      room.seats[room.seats.findIndex((s) => !s)] = seat;
+      ctx.room = room; ctx.token = seat.token;
+      send(ws, { t: 'joined', code: room.code, token: seat.token });
+      if (room.seats.every(Boolean)) return startSearched(room);
+      return broadcast(room);
+    }
+    case 'practice': { // تدريب: اللاعب مع 5 بوتات
+      const room = createRoom(E.PLAYERS, 34);
+      room.practice = true;
+      const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
+      room.seats[0] = seat;
+      room.host = seat.token;
+      for (let i = 1; i < room.mode; i++) room.seats[i] = newSeat(room, { bot: true });
+      room.game = E.createMatch({ players: room.mode, winScore: room.winScore });
+      ctx.room = room; ctx.token = seat.token;
+      send(ws, { t: 'joined', code: room.code, token: seat.token });
+      schedule(room);
       return broadcast(room);
     }
   }
@@ -239,7 +301,7 @@ function handle(ws, msg) {
       case 'start':
         if (!isHost || room.game) throw illegal('للمضيف قبل البداية');
         if (room.seats.some((s) => !s)) throw illegal(`لازم ${room.mode} لاعبين (أو عبّي بالبوتات)`);
-        room.game = E.createMatch({ players: room.mode });
+        room.game = E.createMatch({ players: room.mode, winScore: room.winScore });
         break;
       case 'bid': E.bid(game(room), seat, msg.value === 'pass' || msg.value === E.MAJBUR ? msg.value : Number(msg.value)); break;
       case 'trump': E.chooseTrump(game(room), seat, msg.suit); break;
@@ -252,7 +314,7 @@ function handle(ws, msg) {
       }
       case 'rematch':
         if (!isHost || room.game?.phase !== 'matchEnd') throw illegal('للمضيف بعد نهاية المباراة');
-        room.game = E.createMatch({ players: room.mode });
+        room.game = E.createMatch({ players: room.mode, winScore: room.winScore });
         break;
       default:
         throw illegal('رسالة غير معروفة');
@@ -315,6 +377,15 @@ wss.on('connection', (ws) => {
     if (!room) return;
     const i = seatOf(room, ws.ctx.token);
     if (i < 0 || room.seats[i].ws !== ws) return;
+    if (room.search) {
+      // طلع من البحث: إذا ما بقى أحد تنشال الغرفة
+      room.seats[i] = null;
+      if (room.seats.some(Boolean)) return broadcast(room);
+      clearTimeout(room.searchTimer);
+      searching.delete(room.search);
+      rooms.delete(room.code);
+      return;
+    }
     if (room.game) room.seats[i].ws = null; // يبقى مقعده محجوز لين يرجع
     else if (ws.ctx.token !== room.host) room.seats[i] = null;
     else room.seats[i].ws = null;
@@ -333,4 +404,4 @@ setInterval(() => {
 
 server.listen(PORT, () => console.log(`kout server listening on :${PORT}`));
 
-module.exports = { server, rooms, CHARACTERS };
+module.exports = { server, rooms, CHARACTERS, schedule };

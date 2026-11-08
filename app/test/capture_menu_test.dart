@@ -57,6 +57,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       await tester.pump(const Duration(milliseconds: 500));
       await _shot(tester, 'build/preview_menu_${name}_settings.png');
+      await tester.ensureVisible(find.text('رجوع')); // بالعرضي تحتاج تمرير
+      await tester.pump();
+      await tester.tap(find.text('رجوع'));
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('تدريب'));
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 500));
+      await _shot(tester, 'build/preview_menu_${name}_training.png');
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
     }

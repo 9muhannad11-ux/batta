@@ -16,3 +16,4 @@ tools/termux/batta-phone.tar.gz
 tools/voices/aslam_src.mp4
 tools/voices/aslam_take1.wav
 server-test.log
+tools/voices/*_raw.mp3

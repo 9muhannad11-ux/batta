@@ -118,13 +118,17 @@ class TableScreen extends StatefulWidget {
 }
 
 class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin {
-  // لمّ اللمّة: آخر ورقة توصل، وبعدها الكل ينسحب لصاحبها
-  late final AnimationController _collect = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
+  // لمّ اللمّة: آخر ورقة توصل، والفايزة تجمعهم وتبقى ظاهرة، وبعدها الكل ينسحب لصاحبها.
+  // آخر لمّة بالجولة تبقى أطول، ونتيجة الجولة تطلع بعدها
+  static const _collectMs = 1900, _lastCollectMs = 3000;
+  late final AnimationController _collect = AnimationController(vsync: this, duration: const Duration(milliseconds: _collectMs));
+  bool _resultWaiting = false; // نتيجة الجولة تنتظر لين تخلص آخر لمّة
   late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600), value: 1);
   // كف الجوكر الكبير: ينزل 170ms ويضرب، وبعدها يرتفع ويختفي
   late final AnimationController _slap = AnimationController(vsync: this, duration: const Duration(milliseconds: 820));
   late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
   Map<String, dynamic>? _collecting;
+  _Board? _board; // آخر مقاسات الطاولة: منها مكان كل شخصية للصوت
   bool _collectSound = false;
   int? _slapRel;
 
@@ -160,13 +164,19 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     super.initState();
     c.addListener(_onChange);
     _collect.addListener(() {
-      if (!_collectSound && _collect.value > 0.35) {
+      if (!_collectSound && _collect.value * _collect.duration!.inMilliseconds > 560) {
         _collectSound = true;
         Sfx.collect();
       }
     });
     _collect.addStatusListener((s) {
-      if (s == AnimationStatus.completed && mounted) setState(() => _collecting = null);
+      if (s != AnimationStatus.completed || !mounted) return;
+      setState(() => _collecting = null);
+      final v = c.view;
+      if (_resultWaiting && v != null) {
+        _resultWaiting = false;
+        _showResult(v);
+      }
     });
     // نافذة المزايدة تطلع أول ما يخلص التوزيع
     _deal.addStatusListener((s) {
@@ -293,6 +303,8 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _seenTrickNo = trickNo;
       _collecting = v['lastTrick'] as Map<String, dynamic>;
       _collectSound = false;
+      final ending = v['phase'] == 'roundEnd' || v['phase'] == 'matchEnd';
+      _collect.duration = const Duration(milliseconds: 1) * (ending ? _lastCollectMs : _collectMs);
       final done = (_collecting!['cards'] as List).cast<Map<String, dynamic>>();
       landed(done.last, done.sublist(0, done.length - 1));
       _collect.forward(from: 0);
@@ -313,36 +325,12 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     // نتيجة الجولة: أخضر إذا جابها الشاري، أحمر إذا ما جابها، وذهبي للباون
     if ((phase == 'roundEnd' || phase == 'matchEnd') && v['lastRound'] != null && round != _resultShownRound) {
       _resultShownRound = round;
-      final last = v['lastRound'] as Map;
-      final type = last['type'];
-      final breaker = (v['lastTrick'] as Map?)?['winner'];
-      final buyer = last['buyer'] as int;
-      if (type == 'bawanWin') {
-        // فوز الباون: كل شخصيات الفريق الفايز
-        for (var seat = 0; seat < n; seat++) {
-          if (seat % 2 == buyer % 2) _say(seat, VoiceEvent.made);
-        }
-      } else if (type == 'bawanFail') {
-        // انقلب الباون: كل الفريق المنافس
-        for (var seat = 0; seat < n; seat++) {
-          if (seat % 2 != buyer % 2) _say(seat, VoiceEvent.oppFailed);
-        }
-      } else if (type == 'made') {
-        _say(buyer, VoiceEvent.made);
-      } else if (type == 'failed' && breaker is int) {
-        _say(breaker, VoiceEvent.oppFailed);
+      // إذا الجولة خلصت بلمّة، النتيجة تطلع بعد ما تخلص (الورقة الفايزة تبقى ظاهرة)
+      if (_collecting != null) {
+        _resultWaiting = true;
+      } else {
+        _showResult(v);
       }
-      final effect = switch (type) { 'made' => 'win', 'bawanWin' => 'bawan', 'bawanFail' => 'bawanFail', _ => 'lose' };
-      switch (effect) {
-        case 'win': Sfx.win();
-        case 'bawan': Sfx.bawan();
-        default: Sfx.lose();
-      }
-      _effectTimer?.cancel();
-      setState(() => _effect = effect);
-      _effectTimer = Timer(Duration(milliseconds: effect == 'bawan' ? 3500 : 2200), () {
-        if (mounted) setState(() => _effect = null);
-      });
     }
 
     final legal = (v['legalCards'] as List).cast<String>();
@@ -350,16 +338,59 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     setState(() {});
   }
 
+  /// نتيجة الجولة: أصوات الشخصيات، وأخضر إذا جابها الشاري، أحمر إذا ما جابها، وذهبي للباون
+  void _showResult(Map<String, dynamic> v) {
+    final n = v['players'] as int;
+    final last = v['lastRound'] as Map;
+    final type = last['type'];
+    final breaker = (v['lastTrick'] as Map?)?['winner'];
+    final buyer = last['buyer'] as int;
+    if (type == 'bawanWin') {
+      // فوز الباون: كل شخصيات الفريق الفايز
+      for (var seat = 0; seat < n; seat++) {
+        if (seat % 2 == buyer % 2) _say(seat, VoiceEvent.made);
+      }
+    } else if (type == 'bawanFail') {
+      // انقلب الباون: كل الفريق المنافس
+      for (var seat = 0; seat < n; seat++) {
+        if (seat % 2 != buyer % 2) _say(seat, VoiceEvent.oppFailed);
+      }
+    } else if (type == 'made') {
+      _say(buyer, VoiceEvent.made);
+    } else if (type == 'failed' && breaker is int) {
+      _say(breaker, VoiceEvent.oppFailed);
+    }
+    final effect = switch (type) { 'made' => 'win', 'bawanWin' => 'bawan', 'bawanFail' => 'bawanFail', _ => 'lose' };
+    switch (effect) {
+      case 'win': Sfx.win();
+      case 'bawan': Sfx.bawan();
+      default: Sfx.lose();
+    }
+    _effectTimer?.cancel();
+    setState(() => _effect = effect);
+    _effectTimer = Timer(Duration(milliseconds: effect == 'bawan' ? 3500 : 2200), () {
+      if (mounted) setState(() => _effect = null);
+    });
+  }
+
   /// صوت شخصية اللاعب لحدث (إذا لها صوت)، وفمها يتحرك لين يخلص
   void _say(int seat, int event) {
     final char = c.seatInfo(seat)?['char'] as String?;
     if (!Sfx.hasVoice(char, event)) return;
     final clip = '${char}_$event';
-    Sfx.voice(seat, char!, event, onStart: () {
+    Sfx.voice(seat, char!, event, pan: _panOf(seat), onStart: () {
       if (mounted) setState(() => _talking[seat] = clip);
     }).whenComplete(() {
       if (mounted && _talking[seat] == clip) setState(() => _talking.remove(seat));
     });
+  }
+
+  /// مكان الشخصية على الشاشة من -1 يسار لـ 1 يمين، وأطرافها 0.8 عشان الصوت ما يختفي من الأذن الثانية
+  double _panOf(int seat) {
+    final b = _board;
+    if (b == null) return 0;
+    final x = b.seats[_rel(seat, b.seats.length)].dx;
+    return ((x / b.size.width) * 2 - 1).clamp(-1.0, 1.0) * 0.8;
   }
 
   bool _bawanActive(Map v) => v['bawan'] == true || (v['currentBid'] == 9 && v['phase'] != 'bidding');
@@ -431,6 +462,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         SafeArea(
           child: LayoutBuilder(builder: (context, box) {
             final b = _Board(box.biggest, n);
+            _board = b;
             return AnimatedBuilder(
               animation: _shake,
               builder: (_, child) {
@@ -482,16 +514,33 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                   Positioned.fill(child: RepaintBoundary(child: Stack(clipBehavior: Clip.none, children: _handLayer(v, b)))),
                   _signalRow(v, b),
                   _slapLayer(b),
-                  // النتيجة: بالعرضي فوق يمين، وبالطولي فوق بالنص
-                  if (b.landscape)
-                    // أصغر وأبعد عن الحافة عشان اللي فوق يمين يكون بمستوى اللي فوق يسار
-                    Positioned(
-                      top: 1,
-                      right: b.avatar + 70,
-                      child: Transform.scale(scale: 0.85, alignment: Alignment.topRight, child: _Scores(view: v)),
-                    )
-                  else
-                    Positioned(top: 6, left: 0, right: 0, child: Center(child: _Scores(view: v))),
+                  // النتيجة فوق يسار، وجنبها زر نشرة الجولات
+                  Positioned(
+                    top: b.landscape ? 1 : 6,
+                    left: b.landscape ? b.size.width * 0.14 : 6,
+                    child: Transform.scale(
+                      scale: b.landscape ? 0.8 : 1,
+                      alignment: Alignment.topLeft,
+                      child: Row(mainAxisSize: MainAxisSize.min, textDirection: TextDirection.ltr, children: [
+                        _Scores(view: v),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: withTap(() => _showRounds(context, c)),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              gradient: KoutColors.chrome(),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: KoutColors.chromeEdge, width: 2),
+                              boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3))],
+                            ),
+                            child: const Icon(Icons.receipt_long, size: 20, color: KoutColors.ink),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
                   Positioned(top: 2, right: 2, child: _TopActions(client: c)),
                   Positioned.fromRect(rect: Rect.fromLTWH(0, 0, b.size.width, b.handTop), child: _overlay(v)),
                 ]),
@@ -580,10 +629,12 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
           child: AnimatedBuilder(
             animation: _collect,
             builder: (_, _) {
-              final t = _collect.value;
-              final arrive = Curves.easeOut.transform((t / 0.2).clamp(0.0, 1.0));
-              final gather = Curves.easeInOut.transform(((t - 0.4) / 0.28).clamp(0.0, 1.0));
-              final pull = Curves.easeIn.transform(((t - 0.68) / 0.32).clamp(0.0, 1.0));
+              // بالملي ثانية: الوصول 260، وقفة لين 600، الجمع لين 960، وبعدها الفايزة تبقى ظاهرة لين آخر 400 تنسحب فيها
+              final total = _collect.duration!.inMilliseconds;
+              final ms = _collect.value * total;
+              final arrive = Curves.easeOut.transform((ms / 260).clamp(0.0, 1.0));
+              final gather = Curves.easeInOut.transform(((ms - 600) / 360).clamp(0.0, 1.0));
+              final pull = Curves.easeIn.transform(((ms - (total - 400)) / 400).clamp(0.0, 1.0));
               // وقت الجمع الورقة الفايزة فوق الكل
               final order = gather > 0 ? [...cards.where((c) => c['seat'] != winner), ...cards.where((c) => c['seat'] == winner)] : cards;
               return Stack(clipBehavior: Clip.none, children: [
@@ -940,7 +991,8 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     if (phase == 'bawanOffer') {
       return _ChromePanel(child: Text('${c.seatName(buyer!)} يفكر يعلن باون...', style: const TextStyle(fontSize: 18, color: KoutColors.ink)));
     }
-    if (phase == 'roundEnd' || phase == 'matchEnd') return _Panel(child: _RoundResult(client: c, view: v));
+    // النتيجة تطلع بعد ما تخلص آخر لمّة
+    if ((phase == 'roundEnd' || phase == 'matchEnd') && _collecting == null) return _Panel(child: _RoundResult(client: c, view: v));
     return const SizedBox.shrink();
   }
 }
@@ -1335,6 +1387,97 @@ class _Panel extends StatelessWidget {
       );
 }
 
+/// لون الفريق على خلفية الكروم (ألوان الفريقين العادية فاتحة عليها)
+Color _teamInk(int t) => t == 0 ? const Color(0xFF0F4FA8) : const Color(0xFFFFD21F);
+
+/// الأصفر فاتح، فيحتاج ظل غامق عشان يبين على الكروم
+const _numShadow = [Shadow(color: Color(0xE6000000), blurRadius: 2.5, offset: Offset(0, 1))];
+List<Shadow>? _teamShadow(int t) => t == 0 ? null : _numShadow;
+
+/// جملة نتيجة الجولة
+String _roundLine(GameClient client, Map r) {
+  final buyerName = r['buyer'] is int ? client.seatName(r['buyer'] as int) : '';
+  final offender = r['offender'] is int ? client.seatName(r['offender'] as int) : '';
+  final majbur = r['majbur'] == true ? ' (مجبور)' : '';
+  return switch (r['type']) {
+    'made' => '$buyerName جاب ${r['bid']}$majbur',
+    'failed' => '$buyerName ما جاب ${r['bid']}$majbur',
+    'greyPenalty' => '$offender خيّس الجوكر الصغير',
+    'bawanWin' => '$buyerName جاب باون: كل اللمّات!',
+    'bawanFail' => 'انقلب الباون',
+    'blueEarly' => '$offender رمى الجوكر الكبير قبل الصغير',
+    _ => '',
+  };
+}
+
+/// نشرة الجولات: نتيجة كل جولة خلصت، الأحدث فوق
+void _showRounds(BuildContext context, GameClient c) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) => ListenableBuilder(
+      listenable: c,
+      builder: (ctx, _) {
+        final v = c.view;
+        final rounds = ((v?['history'] as List?) ?? const []).cast<Map>().reversed.toList();
+        final myTeam = (v?['team'] as int?) ?? 0;
+        return Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.8),
+          decoration: BoxDecoration(
+            gradient: KoutColors.chrome(),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            border: Border.all(color: KoutColors.chromeEdge, width: 2),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('نشرة الجولات', style: TextStyle(fontSize: 20, color: KoutColors.ink, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                if (rounds.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Text('ما خلصت أي جولة بعد', style: TextStyle(fontSize: 15, color: KoutColors.ink)),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: rounds.length,
+                      separatorBuilder: (_, _) => const Divider(height: 14, color: KoutColors.chromeEdge),
+                      itemBuilder: (_, i) {
+                        final r = rounds[i];
+                        final team = r['team'] as int;
+                        final scores = (r['scores'] as List).cast<int>();
+                        return Row(children: [
+                          SizedBox(width: 62, child: Text('الجولة ${r['round']}', style: const TextStyle(fontSize: 12, color: KoutColors.ink))),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(_roundLine(c, r), style: const TextStyle(fontSize: 15, color: KoutColors.ink)),
+                              Text('فريقك ${scores[myTeam]} · الخصم ${scores[1 - myTeam]}', style: const TextStyle(fontSize: 12, color: KoutColors.ink)),
+                            ]),
+                          ),
+                          Text(r['points'] == null ? 'فوز' : '+${r['points']}', style: TextStyle(fontSize: 18, color: _teamInk(team), fontWeight: FontWeight.w700, shadows: _teamShadow(team))),
+                        ]);
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: withTap(() => Navigator.pop(ctx)),
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  label: const Text('رجوع'),
+                ),
+              ]),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
 /// النتيجة: الأزرق يسار والأصفر يمين، وبالنص عداد اللمّات المشترك:
 /// 9 نقاط، الأزرق يعبّي من اليسار والأصفر من اليمين، والنقطة البيضاء هدف الفريقين بهالجولة
 /// (مثلاً الشاري الأزرق بـ 6: الأزرق يحتاج 6 نقاط والأصفر 4 من الجهة الثانية، ويلتقون عندها).
@@ -1359,16 +1502,16 @@ class _Scores extends StatelessWidget {
     final goal = playing ? (buyer % 2 == 0 ? [need, _tricks - need + 1] : [_tricks - need + 1, need]) : [0, 0];
 
     Widget score(int t) => Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(t == myTeam ? 'فريقك' : 'الخصم', style: TextStyle(fontSize: 9, color: KoutColors.team(t), height: 1.1)),
-          Text('${scores[t]}', style: TextStyle(fontSize: 19, color: KoutColors.team(t), height: 1.05)),
+          Text(t == myTeam ? 'فريقك' : 'الخصم', style: TextStyle(fontSize: 9, color: _teamInk(t), height: 1.1, shadows: _teamShadow(t))),
+          Text('${scores[t]}', style: TextStyle(fontSize: 19, color: _teamInk(t), height: 1.05, shadows: _numShadow)),
         ]);
-    Widget count(int t) => Text(playing ? '${won[t]}/${goal[t]}' : '', style: TextStyle(fontSize: 11, color: KoutColors.team(t)));
+    Widget count(int t) => Text(playing ? '${won[t]}/${goal[t]}' : '', style: TextStyle(fontSize: 11, color: _teamInk(t), shadows: _numShadow));
 
     Widget dot(int i) {
       // i من اليسار
       final blue = i < won[0], yellow = i >= _tricks - won[1];
       final marker = playing && i == goal[0] - 1;
-      final fill = blue ? KoutColors.teamBlue : (yellow ? KoutColors.teamYellow : const Color(0xFF3A3A3A));
+      final fill = blue ? _teamInk(0) : (yellow ? _teamInk(1) : const Color(0xFF5A5F66));
       return Container(
         width: 9,
         height: 9,
@@ -1384,10 +1527,10 @@ class _Scores extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 5),
       decoration: BoxDecoration(
-        color: const Color(0xE6151515),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF555555)),
-        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2))],
+        gradient: KoutColors.chrome(),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: KoutColors.chromeEdge, width: 2),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3))],
       ),
       child: Directionality(
         textDirection: TextDirection.ltr,
@@ -1396,8 +1539,8 @@ class _Scores extends StatelessWidget {
             score(0),
             const SizedBox(width: 30),
             Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('من', style: TextStyle(fontSize: 9, color: Color(0xFF999999), height: 1.1)),
-              Text('${v['winScore'] ?? 54}', style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC), height: 1.1)),
+              const Text('من', style: TextStyle(fontSize: 9, color: KoutColors.ink, height: 1.1)),
+              Text('${v['winScore'] ?? 54}', style: const TextStyle(fontSize: 13, color: KoutColors.ink, height: 1.1, shadows: _numShadow)),
             ]),
             const SizedBox(width: 30),
             score(1),
@@ -1662,16 +1805,7 @@ class _RoundResult extends StatelessWidget {
     final myTeam = v['team'] as int;
     final buyerName = client.seatName(r['buyer'] as int);
     final offender = r['offender'] is int ? client.seatName(r['offender'] as int) : '';
-    final majbur = r['majbur'] == true ? ' (مجبور)' : '';
-    final text = switch (r['type']) {
-      'made' => '$buyerName جاب ${r['bid']}$majbur',
-      'failed' => '$buyerName ما جاب ${r['bid']}$majbur',
-      'greyPenalty' => '$offender خيّس الجوكر الصغير',
-      'bawanWin' => '$buyerName جاب باون: كل اللمّات!',
-      'bawanFail' => 'انقلب الباون',
-      'blueEarly' => '$offender رمى الجوكر الكبير قبل الصغير',
-      _ => '',
-    };
+    final text = _roundLine(client, r);
     final pts = r['points'];
     final team = r['team'] as int;
     final ended = v['phase'] == 'matchEnd';

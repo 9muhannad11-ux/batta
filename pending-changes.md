@@ -17,7 +17,10 @@
 **التنظيف:** tools/voices/clean.html (سيرفر «voice-preview» بـ launch.json، منفذ 8095): يشيل الشوشرة (spectral gating) والطنين الواطي، يقص السكوت، ويوحّد العلو (RMS -16 dBFS). الملف الخام: tools/voices/<id>_<رقم>_raw.ogg، والناتج: tools/voices/<id>_<رقم>.wav.
 **إعدادات الصوت لكل شخصية (معتمدة):**
 - فارس (fares): نبرته الطبيعية، بدون pitch أو bass.
-- ود عمتيه (wadamtih): pitch=-1.8 (أوطى بدرجة و 0.8) و bass=7 dB.
+- سعيد (musabbah): أصوات جاهزة من ElevenLabs Voice Changer، بدون pitch أو bass أو match.js، تنظيف وقص وmaster بس، وTRIM -2.5.
+- مدحت (medhat): أصوات جاهزة من ElevenLabs (صوت Martín)، ملف واحد فيه الـ13 بالترتيب، تقسيم على السكتات، بدون pitch، وTRIM -2.5.
+- خصيب (khusaib): أصوات جاهزة من ElevenLabs (صوت Joseph Ortman)، بدون pitch، وTRIM -3.
+- ود عمتيه (wadamtih): pitch=-1.3 و bass=5 dB للتسجيلات الجديدة (كانت -1.8 و 7، والمستخدم طلب تفخيم أقل).
 - أسلم (aslam): pitch=-1.2 (وإذا فيه شوشرة &nr=2)، وبعدها نبرة صوت الفيديو الثابتة (CURVE=tools/voices/aslam_curve.json مأخوذة من صوت 1): `CURVE=tools/voices/aslam_curve.json node tools/voices/match.js tools/voices/aslam_<n>_pitch.wav tools/voices/aslam_take1.wav tools/voices/aslam_<n>.wav` (المرجع aslam_take1.wav = صوت الفيديو منظّف، الأصل aslam_src.mp4). المقارنة: tools/voices/aslam.html.
 
 **معتمد:**
@@ -51,6 +54,64 @@
 - **تعليمات اللعبة بالتدريب:** المستخدم أجّل كتابتها.
 
 ## معتمدة (تنتظر «طبّق»)
+
+## مطبّق على localhost ومرفوع على battah.onrender.com — 2026-11-08، نسخة 1.0.11 (الموقع والسيرفر، والتطبيق ينتظر «ابني»)
+- ود عمتيه صوت 1 (يزايد 6) تسجيل جديد: tools/voices/wadamtih_1.wav من wadamtih_1_raw.wav، pitch=-1.3 bass=5 start=0.82 عشان يبقى الحرف الأول.
+  (تسجيله الأصلي انمسح بالغلط 2026-11-06: الملف المعالج محفوظ بـ app/assets/voices وKEEP في master.js يمنع إعادة معالجته. أي تعديل عليه يحتاج تسجيل جديد.)
+- ود عمتيه صوت 2 (يزايد 7) تسجيل جديد: tools/voices/wadamtih_2.wav من wadamtih_2_raw.wav، pitch=-1.3 bass=5 start=0.77.
+- ود عمتيه صوت 3 (يزايد 8) تسجيل جديد: tools/voices/wadamtih_3.wav من wadamtih_3_raw.wav، pitch=-1.3 bass=5.
+- ود عمتيه صوت 4 (الطاولة تصير ذهبية) تسجيل جديد: tools/voices/wadamtih_4.wav من wadamtih_4_raw.wav، pitch=-1.3 bass=5 start=0.88.
+- ود عمتيه صوت 5 (يوصل للعدد) تسجيل جديد: tools/voices/wadamtih_5.wav من wadamtih_5_raw.wav، pitch=-1.3 bass=5 start=0.92.
+- ود عمتيه صوت 6 (الخصم يخسر الجولة) تسجيل جديد: tools/voices/wadamtih_6.wav من wadamtih_6_raw.wav، pitch=-1.3 bass=5.
+- ود عمتيه صوت 7 (طاف) تسجيل جديد: tools/voices/wadamtih_7.wav من wadamtih_7_raw.wav، pitch=-1.3 bass=5 start=0.86 end=1.5.
+- ود عمتيه صوت 8 (6 مجبور) تسجيل جديد: tools/voices/wadamtih_8.wav من wadamtih_8_raw.wav، pitch=-1.3 bass=5 start=0.82 tail=1.05 boost=8.
+- ود عمتيه صوت 9 (الجوكر الكبير فوق الصغير) تسجيل جديد: tools/voices/wadamtih_9.wav من wadamtih_9_raw.wav، pitch=-1.3 bass=5 start=0.9 end=2.24.
+- ود عمتيه صوت 10 (الحكم سبيت) تسجيل جديد: tools/voices/wadamtih_10.wav من wadamtih_10_raw.wav، pitch=-1.3 bass=5 start=0.76 end=1.5.
+- ود عمتيه صوت 11 (الحكم ديمن) تسجيل جديد: tools/voices/wadamtih_11.wav من wadamtih_11_raw.wav، pitch=-1.3 bass=5 start=0.92 end=1.5.
+- ود عمتيه صوت 12 (الحكم كلفس) تسجيل جديد: tools/voices/wadamtih_12.wav من wadamtih_12_raw.wav، pitch=-1.3 bass=5 start=2.27 end=2.8 tail=2.5 boost=8.
+- ود عمتيه صوت 13 (الحكم هاس) تسجيل جديد: tools/voices/wadamtih_13.wav من wadamtih_13_raw.wav، pitch=-1.3 bass=5 start=0.6 end=1.16 tail=0.87 boost=8.
+- أصوات ود عمتيه الـ13 أوطى 3 dB عشان تتساوى بالسمع مع باقي الشخصيات: TRIM في tools/voices/master.js.
+- أسلم أوطى 2.5 dB (TRIM في master.js) عشان يتساوى بالسمع مع الباقين.
+- أسلم صوت 1 (يزايد 6) تسجيل جديد: tools/voices/aslam_1.wav من aslam_1_raw.wav، pitch=-1.2 start=0.92 وبعدها match.js.
+- أسلم صوت 2 (يزايد 7) تسجيل جديد: tools/voices/aslam_2.wav من aslam_2_raw.wav، pitch=-1.2 start=0.72 end=1.62 وبعدها match.js.
+- أسلم صوت 3 (يزايد 8) تسجيل جديد: tools/voices/aslam_3.wav من aslam_3_raw.wav، pitch=-1.2 start=0.82 end=1.92 وبعدها match.js.
+- أسلم صوت 4 (الطاولة تصير ذهبية) تسجيل جديد: tools/voices/aslam_4.wav من aslam_4_raw.wav، pitch=-1.2 start=0.82 end=2.16 وبعدها match.js.
+- أسلم صوت 5 (يوصل للعدد) تسجيل جديد: tools/voices/aslam_5.wav من aslam_5_raw.wav، pitch=-1.2 start=0.92 end=2.4 وبعدها match.js.
+- أسلم صوت 6 (الخصم يخسر الجولة) تسجيل جديد: tools/voices/aslam_6.wav من aslam_6_raw.wav، pitch=-1.2 start=0.87 end=2.03 وبعدها match.js.
+- أسلم صوت 7 (طاف) تسجيل جديد: tools/voices/aslam_7.wav من aslam_7_raw.wav، pitch=-1.2 start=0.97 end=2.08 وبعدها match.js.
+- أسلم صوت 8 (6 مجبور) تسجيل جديد: tools/voices/aslam_8.wav من aslam_8_raw.wav، pitch=-1.2 start=0.42 end=1.68 وبعدها match.js.
+- أسلم صوت 9 (الجوكر الكبير فوق الصغير) تسجيل جديد: tools/voices/aslam_9.wav من aslam_9_raw.wav، pitch=-1.2 start=0.82 end=2.14 وبعدها match.js.
+- أسلم صوت 10 (الحكم سبيت) تسجيل جديد: tools/voices/aslam_10.wav من aslam_10_raw.wav، pitch=-1.2 start=0.82 end=1.68 وبعدها match.js.
+- أسلم صوت 11 (الحكم ديمن) تسجيل جديد: tools/voices/aslam_11.wav من aslam_11_raw.wav، pitch=-1.2 start=0.6 end=1.46 وبعدها match.js.
+- أسلم صوت 12 (الحكم كلفس) تسجيل جديد: tools/voices/aslam_12.wav من aslam_12_raw.wav، pitch=-1.2 start=0.87 end=1.79 tail=1.33 boost=8 وبعدها match.js.
+- أسلم صوت 13 (الحكم هاس) تسجيل جديد: tools/voices/aslam_13.wav من aslam_13_raw.wav، pitch=-1.2 start=0.98 end=2.06 وبعدها match.js.
+- شخصية جديدة سليمان (sulaiman): بشرة فاتحة، ملامح باردة (جفون ثقيلة، حواجب مستقيمة)، ابتسامة خفيفة، ذقن خفيف، قحفية زرقا، بيجامة نوم مخططة برقبة مفتوحة. مضاف لقائمة الشخصيات بالتطبيق والسيرفر، وأصواته جاية من المستخدم.
+- سليمان أوطى 2.5 dB (TRIM في master.js) عشان يتساوى بالسمع، بنبرته الطبيعية بدون pitch أو bass.
+- سليمان صوت 1 (يزايد 6): tools/voices/sulaiman_1.wav من sulaiman_1_raw.wav، start=0.52 end=1.42.
+- سليمان صوت 2 (يزايد 7): tools/voices/sulaiman_2.wav من sulaiman_2_raw.wav، start=0.97 end=1.94.
+- سليمان صوت 3 (يزايد 8): tools/voices/sulaiman_3.wav من sulaiman_3_raw.wav، start=0.77 end=1.88.
+- سليمان صوت 4 (الطاولة تصير ذهبية): tools/voices/sulaiman_4.wav من sulaiman_4_raw.wav، start=0.92 end=1.7.
+- سليمان صوت 5 (يوصل للعدد): tools/voices/sulaiman_5.wav من sulaiman_5_raw.wav، start=0.87 end=2.1.
+- سليمان صوت 6 (الخصم يخسر الجولة): tools/voices/sulaiman_6.wav من sulaiman_6_raw.wav، start=0.67 end=2.14.
+- سليمان صوت 7 (طاف): tools/voices/sulaiman_7.wav من sulaiman_7_raw.wav، start=1.07 end=1.78 tail=1.5 boost=8.
+- سليمان صوت 9 (الجوكر الكبير فوق الصغير): tools/voices/sulaiman_9.wav من sulaiman_9_raw.wav، start=0.87 end=2.14.
+- ود عمتيه صوت 7 (طاف) تسجيل أحدث يحل مكان السابق: tools/voices/wadamtih_7.wav من wadamtih_7_raw.wav، pitch=-1.3 bass=5 start=0.37 end=1.02.
+- أصوات كل الشخصيات أوطى 30٪ (Sfx.voiceLevel = 0.7)، وكل صوت يطلع من ناحية الشخصية على الطاولة (pan من مكانها، بحد 0.8).
+- سليمان صوت 10 إلى 13 (سبيت، ديمن، كلفس، هاس): sulaiman_10 start=0.83 end=1.63، sulaiman_11 start=0.77 end=1.44، sulaiman_12 start=0.47 end=1.42 tail=1.05 boost=6، sulaiman_13 start=0.92 end=1.84 tail=1.5 boost=8. انطبقوا مع «طبق» وانعتمدوا بعدها (2026-11-07).
+- خيارات التدريب: صفحة فيها 6 لاعبين و4 لاعبين بثيم الهاس، من 34 نقطة وبدون وقت (practice يستقبل mode).
+- النتيجة باللعب: بالطولي فوق يسار، وبالعرضي بين الشخصية اللي فوق بالنص واللي فوق يسار، بثيم الكروم الرصاصي مثل نوافذ اللعب. الأصفر فاتح، وظل غامق على كل الأرقام.
+- نشرة الجولات: زر جنب النتيجة يعرض كل جولة (history من السيرفر)، الأحدث فوق، بنفس الثيم.
+- كمة سعيد البيضاء بتطريز مفصّل (kummaWhite بـ avatars.dart): وردات بالقبة، حزام متعرّج أحمر بمعيّنات زرقا، شريطين بنفسجي، وصف معيّنات وأسهم تحت.
+- إشارة الجوكر: خنجر ذهبي بدل حرف J، من نفس رسمة خنجر ورقة الجوكر (tools/joker-art/khanjar_gold.html → app/assets/images/khanjar_gold.png).
+- بمتصفح الكمبيوتر: اللعبة تنرسم بمقاس جوال 844×390 (أو 390×844 لنافذة طويلة) وتتكبّر على قد النافذة بالنص (PhoneFrame بـ main.dart). متصفح الجوال والتطبيق مثل قبل.
+- الورقة الفايزة تبقى ظاهرة أطول: اللمّة 1.9 ثانية بدل 1.3، وآخر لمّة بالجولة 3 ثواني، ونتيجة الجولة (التأثير والأصوات والنافذة) تطلع بعد ما تخلص. السيرفر: TRICK_PAUSE_MS 2100 و NEXT_ROUND_MS 7000.
+- مصبّح صار اسمه سعيد (المعرّف musabbah يبقى نفسه، والشكل ما تغيّر).
+- أصوات سعيد الـ13: من ملف ElevenLabs واحد بصوت Ahmed Habib (tools/voices/musabbah_new_raw.mp3، 2026-11-08)، مقسوم على السكتات بالترتيب (من 0.15 ثانية قبل كل عبارة لـ 0.2 بعدها)، وTRIM -2.5. صوت 5 فيه «هو ذا اللعب» بالآخر.
+- سليمان صوت 8 (6 مجبور): tools/voices/sulaiman_8.wav من sulaiman_8_raw.wav (التسجيل الثاني)، start=0.97 end=1.96.
+- أصوات خصيب الـ13: من ملف ElevenLabs واحد بصوت Joseph Ortman (tools/voices/khusaib_all_raw.mp3)، مقسوم على السكتات بالترتيب، وصوت 5 من ملف لحاله (khusaib_5_raw.mp3، start=0.85 end=1.85)، وTRIM -3.
+- شخصية جديدة مدحت (medhat): مصري عمره 45، أقرع تقريباً (قبة الراس من شكل الوجه، شعر قصير على الجنبين)، وجه عريض، شنب كثيف وذقن خفيف، قميص أزرق بياقة (shirt). مضاف لقائمة الشخصيات بالتطبيق والسيرفر.
+- أصوات مدحت الـ13: من ملف ElevenLabs واحد بصوت Martín (tools/voices/medhat_all_raw.mp3)، مقسوم على السكتات بالترتيب، وTRIM -2.5.
+- وجه سعيد أطول وأنحف بملامح عمانية: بشرة أسمر، حواجب كثيفة، خشم طويل، شنب كثيف، عيون أصغر شوي (خاصية long جديدة بـ _Look تنزّل الذقن).
 
 ## مطبّق على localhost ومرفوع على battah.onrender.com — 2026-11-04، نسخة 1.0.10 (الموقع والسيرفر، والتطبيق ينتظر «ابني»)
 - بطاقات القائمة الرئيسية أصغر 40% (بطاقات النقاط بدون تغيير).

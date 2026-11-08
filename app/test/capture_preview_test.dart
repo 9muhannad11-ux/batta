@@ -24,6 +24,11 @@ Map<String, dynamic> _view() => {
       'trickNo': 3, 'tricksWon': [1, 2], 'greyPlayed': true, 'lastTrick': null, 'lastRound': null, 'winner': null, 'winReason': null,
       'legalBids': [], 'legalCards': ['C-13', 'C-3'], 'blueLoses': false, 'canSignal': true, 'canSignalJoker': true, 'hasJoker': true,
       'bawanOffer': false, 'turnMsLeft': 8000,
+      'history': [
+        {'round': 1, 'type': 'made', 'team': 1, 'points': 7, 'buyer': 3, 'bid': 7, 'majbur': false, 'scores': [0, 7]},
+        {'round': 2, 'type': 'failed', 'team': 0, 'points': 12, 'buyer': 1, 'bid': 6, 'majbur': false, 'scores': [12, 7]},
+        {'round': 3, 'type': 'greyPenalty', 'team': 1, 'points': 19, 'offender': 0, 'scores': [12, 26]},
+      ],
     };
 
 // المزايدة: 4 طافوا وواحد زايد 7، والدور علي
@@ -161,6 +166,22 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpWidget(const SizedBox());
     }
+  });
+
+  testWidgets('rounds report', (tester) async {
+    addTearDown(tester.view.reset);
+    await _capture(tester, const Size(390, 844), 'build/preview_rounds_table.png');
+    await tester.tap(find.byIcon(Icons.receipt_long));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.runAsync(() async {
+      final ro = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('shot')));
+      final img = await ro.toImage(pixelRatio: 1);
+      final png = await img.toByteData(format: ui.ImageByteFormat.png);
+      File('build/preview_rounds_sheet.png').writeAsBytesSync(png!.buffer.asUint8List());
+    });
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('winning card gathers the trick', (tester) async {

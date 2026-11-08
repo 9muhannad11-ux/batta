@@ -37,7 +37,7 @@ class AudioEngine {
     }
   }
 
-  static Future<void> play(String channel, String asset, {double volume = 1, bool loop = false, void Function()? onStart}) async {
+  static Future<void> play(String channel, String asset, {double volume = 1, bool loop = false, double pan = 0, void Function()? onStart}) async {
     final token = (_tokens[channel] ?? 0) + 1;
     _tokens[channel] = token;
     bool stale() => _tokens[channel] != token;
@@ -47,6 +47,7 @@ class AudioEngine {
     if (stale()) return;
     await p.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
     await p.setVolume(volume);
+    await p.setBalance(pan).catchError((_) {}); // مو كل الأجهزة تدعمه
     if (_sources[channel] != asset) {
       await p.setSource(AssetSource(asset));
       _sources[channel] = asset;

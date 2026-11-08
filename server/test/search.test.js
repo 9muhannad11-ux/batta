@@ -94,6 +94,17 @@ test('practice starts at once with bots and has no turn timer', async () => {
   p.close();
 });
 
+test('practice can be played with 4 players', async () => {
+  let room;
+  const p = await player((m) => { if (m.t === 'room') room = m; });
+  p.say({ t: 'practice', mode: 4, name: 'أ' });
+  await until(() => room?.started);
+  assert.strictEqual(room.mode, 4);
+  assert.strictEqual(room.seats.filter((s) => s.bot).length, 3);
+  assert.strictEqual(rooms.get(room.code).game.hands.length, 4);
+  p.close();
+});
+
 test('the last card in hand is played automatically', async () => {
   let room;
   const p = await player((m) => { if (m.t === 'room') room = m; });

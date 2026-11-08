@@ -9,6 +9,8 @@ const path = require('path');
 
 const DIR = __dirname, OUT = path.join(__dirname, '..', '..', 'app', 'assets', 'voices');
 const TARGET = -16; // LUFS
+const TRIM = { wadamtih: -3, aslam: -2.5, sulaiman: -2.5, musabbah: -2.5, medhat: -2.5, khusaib: -3 }; // dB: شخصية تطلع بالسمع أعلى من غيرها رغم نفس القياس (صوته أفخم)
+const KEEP = new Set(['wadamtih_1.wav']); // معالج وجاهز بـ app/assets/voices، وتسجيله الأصلي ضاع: لا تعيد معالجته
 const CEILING = -1.5; // dBFS أعلى قمة
 const THRESHOLD = -22, RATIO = 2.5, ATTACK = 0.006, RELEASE = 0.09; // الضاغط
 const ROOM = [[0.017, 0.085], [0.031, 0.06], [0.053, 0.04], [0.083, 0.025], [0.127, 0.012]]; // انعكاسات الجو: ثانية وقوة
@@ -119,16 +121,17 @@ function limit(x, sr, ceiling) {
 }
 
 const ceiling = 10 ** (CEILING / 20);
-const files = fs.readdirSync(DIR).filter((f) => /^[a-z]+_\d+\.wav$/.test(f)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+const files = fs.readdirSync(DIR).filter((f) => /^[a-z]+_\d+\.wav$/.test(f) && !KEEP.has(f)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 const before = [], after = [];
 for (const f of files) {
   const { sr, x } = readWav(path.join(DIR, f));
   before.push(lufs(x, sr));
   let y = room(compress(biquad(x, highpass(85, 0.707, sr)), sr), sr);
-  const gain = 10 ** ((TARGET - lufs(y, sr)) / 20);
+  const target = TARGET + (TRIM[f.split('_')[0]] ?? 0);
+  const gain = 10 ** ((target - lufs(y, sr)) / 20);
   y = limit(y.map((v) => v * gain), sr, ceiling);
   // الحد ينزل العلو شوي، فنرجعه مرة وحدة
-  const again = 10 ** ((TARGET - lufs(y, sr)) / 20);
+  const again = 10 ** ((target - lufs(y, sr)) / 20);
   y = limit(y.map((v) => v * again), sr, ceiling);
   after.push(lufs(y, sr));
   writeWav(path.join(OUT, f), sr, y);

@@ -71,7 +71,7 @@ class AudioEngine {
     }
   }
 
-  static Future<void> play(String channel, String asset, {double volume = 1, bool loop = false, void Function()? onStart}) async {
+  static Future<void> play(String channel, String asset, {double volume = 1, bool loop = false, double pan = 0, void Function()? onStart}) async {
     final token = (_tokens[channel] ?? 0) + 1;
     _tokens[channel] = token;
     bool stale() => _tokens[channel] != token;
@@ -87,7 +87,10 @@ class AudioEngine {
     }
     final gain = ctx.createGain();
     gain.gain.value = volume;
-    gain.connect(ctx.destination);
+    final panner = ctx.createStereoPanner();
+    panner.pan.value = pan;
+    gain.connect(panner);
+    panner.connect(ctx.destination);
     final source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = loop;
@@ -97,6 +100,7 @@ class AudioEngine {
     source.onended = ((web.Event _) {
       if (_channels[channel] == playing) _channels.remove(channel);
       gain.disconnect();
+      panner.disconnect();
       if (!done.isCompleted) done.complete();
     }).toJS;
     _channels[channel] = playing;

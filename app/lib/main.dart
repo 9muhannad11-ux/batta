@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'avatars.dart';
@@ -22,7 +23,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.10';
+const appVersion = '1.0.11';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;
@@ -85,14 +86,16 @@ class _KoutAppState extends State<KoutApp> {
         ),
       ),
       // كل الكلام أكبر شوي عشان يكون أوضح
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.15)),
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Stack(fit: StackFit.expand, children: [
-            child!,
-            if (_intro) LogoIntro(onDone: () => setState(() => _intro = false)),
-          ]),
+      builder: (context, child) => PhoneFrame(
+        child: MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.15)),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Stack(fit: StackFit.expand, children: [
+              child!,
+              if (_intro) LogoIntro(onDone: () => setState(() => _intro = false)),
+            ]),
+          ),
         ),
       ),
       home: ListenableBuilder(
@@ -107,6 +110,52 @@ class _KoutAppState extends State<KoutApp> {
                       : ('table', TableScreen(client: client) as Widget);
           return PageSwitcher(id: id, child: screen);
         },
+      ),
+    );
+  }
+}
+
+/// بالمتصفح على الكمبيوتر: اللعبة تنرسم بمقاس شاشة جوال بالضبط (844×390 عرضي أو 390×844 طولي حسب النافذة)،
+/// وبعدها تتكبّر على قد النافذة بالنص، عشان تطلع نفس التطبيق بدل ما تتمدد على عرض الشاشة كلها.
+/// متصفح الجوال والتطبيق ياخذون الشاشة كاملة مثل قبل.
+class PhoneFrame extends StatelessWidget {
+  final Widget child;
+  const PhoneFrame({super.key, required this.child});
+
+  static const long = 844.0, short = 390.0; // مقاس جوال (آيفون 13/14)
+  /// للاختبارات: تشغيل الإطار خارج المتصفح
+  static bool? force;
+
+  static bool get _on =>
+      force ?? (kIsWeb && defaultTargetPlatform != TargetPlatform.android && defaultTargetPlatform != TargetPlatform.iOS);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_on) return child;
+    final mq = MediaQuery.of(context);
+    final size = mq.size;
+    final wide = size.width > size.height;
+    final phone = wide ? const Size(long, short) : const Size(short, long);
+    // أكبر تكبير يدخل بالنافذة
+    final scale = min(size.width / phone.width, size.height / phone.height);
+    return ColoredBox(
+      color: const Color(0xFF0E0F11),
+      child: Center(
+        child: SizedBox(
+          width: phone.width * scale,
+          height: phone.height * scale,
+          child: ClipRect(
+            child: FittedBox(
+              child: SizedBox.fromSize(
+                size: phone,
+                child: MediaQuery(
+                  data: mq.copyWith(size: phone, padding: EdgeInsets.zero, viewPadding: EdgeInsets.zero, viewInsets: EdgeInsets.zero),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -232,10 +281,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _page = _Page.scores;
       });
 
-  void _practice() {
+  void _practice(int mode) {
     final c = widget.client;
     c.name = _name.text.trim();
-    c.practice();
+    c.practice(mode);
   }
 
   void _search(int mode, int score) {
@@ -267,12 +316,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final wide = box.maxWidth > box.maxHeight;
     final free = box.maxHeight - 132;
     final w = min(wide ? min((box.maxWidth - 72) / 4, free / cardRatio) : min((box.maxWidth - 40) / 2, (free - 12) / 2 / cardRatio), 240.0) * 0.6;
-    final off = c.connecting;
     final cards = [
       MenuCard(width: w, suit: 'S', ring: 6, title: '6 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(6)),
       MenuCard(width: w, suit: 'D', ring: 4, title: '4 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(4)),
       MenuCard(width: w, suit: 'C', icon: Icons.vpn_key, title: 'غرفة مخصصة', subtitle: 'ولّف ربعك بكود الغرفة', onTap: () => setState(() => _page = _Page.custom)),
-      MenuCard(width: w, suit: 'H', icon: Icons.school, title: 'تدريب', subtitle: 'تمرّن مع البوتات بدون وقت', onTap: off ? null : _practice),
+      MenuCard(width: w, suit: 'H', icon: Icons.school, title: 'تدريب', subtitle: 'تمرّن مع البوتات بدون وقت', onTap: () => setState(() => _page = _Page.practice)),
     ];
     return Stack(fit: StackFit.expand, children: [
       Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -343,6 +391,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // التدريب: 6 أو 4 لاعبين مع البوتات
+  Widget _trainingPage(GameClient c, BoxConstraints box) {
+    final w = min(min((box.maxWidth - 60) / 2, (box.maxHeight - 90) / cardRatio), 240.0);
+    final off = c.connecting;
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: w * 2 + 16),
+          child: BackRow(title: 'تدريب', onBack: () => setState(() => _page = _Page.menu)),
+        ),
+        if (c.connecting) _connecting(),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (final (i, mode) in const [(0, 6), (1, 4)]) ...[
+            if (i > 0) const SizedBox(width: 16),
+            MenuCard(width: w, suit: 'H', ring: mode, title: '$mode لاعبين', subtitle: 'مع البوتات بدون وقت', onTap: off ? null : () => _practice(mode)),
+          ],
+        ]),
+      ]),
+    );
+  }
+
   // الغرفة المخصصة: سوّ غرفة، أو ادخل بكود
   Widget _custom(GameClient c) => Center(
         child: SingleChildScrollView(
@@ -397,6 +467,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: LayoutBuilder(builder: (context, box) => switch (_page) {
                   _Page.menu => _menu(c, box),
                   _Page.scores => _scores(c, box),
+                  _Page.practice => _trainingPage(c, box),
                   _Page.custom => _custom(c),
                 }),
           ),
@@ -406,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-enum _Page { menu, scores, custom }
+enum _Page { menu, scores, practice, custom }
 
 class LobbyScreen extends StatelessWidget {
   final GameClient client;

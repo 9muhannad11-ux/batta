@@ -16,12 +16,14 @@ const _chars = [
   ('khalfan', 'خلفان التفق'),
   ('khusaib', 'خصيب'),
   ('marhoon', 'مرهون'),
-  ('musabbah', 'مصبّح'),
+  ('musabbah', 'سعيد'),
   ('bodhirs', 'محمد بو ضرس'),
   ('abdo', 'عبدو اليابس'),
   ('aslam', 'أسلم'),
   ('mundaghit', 'المنضغط'),
   ('fares', 'فارس'),
+  ('sulaiman', 'سليمان'),
+  ('medhat', 'مدحت'),
 ];
 
 void main() {
@@ -59,7 +61,7 @@ void main() {
       child: Container(
         color: const Color(0xFFBDAE8D),
         alignment: const Alignment(0, 0.7),
-        child: const CharacterAvatar(charId: 'fares', size: 340, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
+        child: const CharacterAvatar(charId: 'medhat', size: 340, ring: KoutColors.teamBlue, background: KoutColors.teamBlue),
       ),
     ));
     await tester.runAsync(() async {
@@ -73,7 +75,7 @@ void main() {
   testWidgets('avatar preview', (tester) async {
     final f = FontLoader('ElMessiri')..addFont(rootBundle.load('assets/fonts/ElMessiri-Bold.ttf'));
     await tester.runAsync(f.load);
-    tester.view.physicalSize = const Size(1290, 760);
+    tester.view.physicalSize = const Size(1490, 760);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     Widget big(String id, String name, int i) => SizedBox(
@@ -98,10 +100,10 @@ void main() {
             const SizedBox(height: 50),
             Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 0; i < 6; i++) big(_chars[i].$1, _chars[i].$2, i)]),
             const SizedBox(height: 58),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 6; i < 11; i++) big(_chars[i].$1, _chars[i].$2, i)]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [for (var i = 6; i < 13; i++) big(_chars[i].$1, _chars[i].$2, i)]),
             const SizedBox(height: 34),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (var i = 0; i < 11; i++)
+              for (var i = 0; i < 13; i++)
                 Padding(
                   padding: const EdgeInsets.all(5),
                   child: CharacterAvatar(

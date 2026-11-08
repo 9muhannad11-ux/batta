@@ -116,6 +116,10 @@ class Sfx {
     'wadamtih': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
     'aslam': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
     'fares': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'sulaiman': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'musabbah': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'medhat': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'khusaib': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
   };
 
   static bool hasVoice(String? char, int event) => voices[char]?.contains(event) ?? false;
@@ -123,13 +127,17 @@ class Sfx {
   /// يشغّل صوت الشخصية، ويخلص لما يخلص الصوت (عشان الفم يوقف معه). كل لاعب له مشغّل.
   static final voiceLog = <String>[]; // آخر الأصوات المطلوبة (للاختبارات)
 
-  static Future<void> voice(int seat, String char, int event, {void Function()? onStart}) async {
+  /// قوة كل أصوات الشخصيات قبل إعداد اللاعب، أوطى 30٪ من باقي الأصوات
+  static const voiceLevel = 0.7;
+
+  /// pan: مكان الشخصية من -1 يسار لـ 1 يمين، عشان الصوت يطلع من ناحيتها
+  static Future<void> voice(int seat, String char, int event, {double pan = 0, void Function()? onStart}) async {
     if (!hasVoice(char, event)) return;
     voiceLog.add('${char}_$event');
     if (muted || !voiceOn || voiceVolume == 0) return;
     final me = Object();
     try {
-      await AudioEngine.play('voice$seat', 'voices/${char}_$event.wav', volume: voiceVolume, onStart: () {
+      await AudioEngine.play('voice$seat', 'voices/${char}_$event.wav', volume: voiceVolume * voiceLevel, pan: pan, onStart: () {
         _speaking[seat] = me;
         _applyDuck();
         onStart?.call(); // الفم يبدأ مع الصوت بالضبط

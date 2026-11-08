@@ -229,39 +229,21 @@ class _SuitPainter extends CustomPainter {
   bool shouldRepaint(_SuitPainter old) => old.suit != suit || old.color != color;
 }
 
-/// حرف J الذهبي اللماع (إشارة الجوكر): خط كلاسيكي عريض، تدرّج ذهبي وحد بني رفيع.
+/// إشارة الجوكر: نفس خنجر ورقة الجوكر بلون ذهبي ولمعة كروم (tools/joker-art/khanjar_gold.html)
 class GoldJ extends StatelessWidget {
   final double size;
   final double opacity;
   const GoldJ({super.key, this.size = 22, this.opacity = 1});
 
   @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(fontFamily: 'serif', fontFamilyFallback: const ['Times New Roman', 'Georgia'], fontSize: size, fontWeight: FontWeight.w900, height: 1);
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Center(
-        child: Stack(children: [
-          Text('J',
-              style: style.copyWith(
-                  foreground: Paint()
-                    ..style = PaintingStyle.stroke
-                    ..strokeWidth = max(1.5, size * 0.09)
-                    ..color = const Color(0xFF5A3A0A).withValues(alpha: opacity))),
-          Text('J',
-              style: style.copyWith(
-                  // التدرج على الكتابة نفسها (ShaderMask يفتح طبقة بكل إطار)
-                  foreground: Paint()
-                    ..color = Colors.white.withValues(alpha: opacity)
-                    ..shader = const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      stops: [0, 0.35, 0.5, 0.65, 1],
-                      colors: [Color(0xFFFFF4C2), Color(0xFFF5C84A), Color(0xFFFFFBE6), Color(0xFFD9A21E), Color(0xFF8C5E0C)],
-                    ).createShader(Rect.fromLTWH(0, 0, size * 0.6, size)))),
-        ]),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: Image.asset(
+          'assets/images/khanjar_gold.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+          opacity: AlwaysStoppedAnimation(opacity),
+        ),
+      );
 }

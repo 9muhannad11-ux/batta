@@ -658,3 +658,14 @@ test('the last bot of its team plays to win the trick when its team is losing it
   // باقي زميل بعده: ما يتغير لعبه
   assert.strictEqual(play(3, [{ seat: 1, card: 'H-3' }, { seat: 2, card: 'H-10' }], ['H-12', 'H-6']), 'H-6');
 });
+
+test('finished rounds go into the match history with the running score', () => {
+  const g = E.createMatch({ winScore: 54 });
+  g.phase = 'playing';
+  g.buyer = 1; g.currentBid = 6; g.majbur = false; g.tricksWon = [2, 7];
+  E.endRound(g, { type: 'made', team: 1, points: 6 });
+  const h = E.viewFor(g, 0).history;
+  assert.strictEqual(h.length, 1);
+  assert.strictEqual(h[0].round, 1);
+  assert.deepStrictEqual(h[0].scores, [0, 6]);
+});

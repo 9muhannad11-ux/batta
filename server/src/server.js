@@ -10,9 +10,9 @@ const Bot = require('./bot');
 
 const PORT = Number(process.env.PORT ?? 8080);
 const BOT_DELAY_MS = Number(process.env.BOT_DELAY_MS ?? 900);
-const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS ?? 1600); // وقت أنميشن لمّ اللمّة
+const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS ?? 2100); // وقت أنميشن لمّ اللمّة (1.9 ثانية بالتطبيق)
 const DEAL_PAUSE_MS = Number(process.env.DEAL_PAUSE_MS ?? 2800); // وقت أنميشن التوزيع
-const NEXT_ROUND_MS = Number(process.env.NEXT_ROUND_MS ?? 5000);
+const NEXT_ROUND_MS = Number(process.env.NEXT_ROUND_MS ?? 7000); // آخر لمّة 3 ثواني، وبعدها النتيجة
 const TURN_MS = Number(process.env.TURN_MS ?? 12500); // وقت كل لاعب للمزايدة واللعب (12.5 ثانية)
 const TRUMP_MS = Number(process.env.TRUMP_MS ?? 10000); // وقت اختيار الحكم
 const SEARCH_MS = Number(process.env.SEARCH_MS ?? 90000); // أقصى وقت بحث عن لاعبين، وبعدها البوتات تكمّل
@@ -22,7 +22,7 @@ const CHARACTERS = [
   { id: 'khalfan', name: 'خلفان التفق' },
   { id: 'khusaib', name: 'خصيب' },
   { id: 'marhoon', name: 'مرهون' },
-  { id: 'musabbah', name: 'مصبّح' },
+  { id: 'musabbah', name: 'سعيد' },
   { id: 'bodhirs', name: 'محمد بو ضرس' },
   { id: 'abdo', name: 'عبدو اليابس' },
   { id: 'aslam', name: 'أسلم' },
@@ -30,6 +30,8 @@ const CHARACTERS = [
   { id: 'wadamtih', name: 'ود عمتيه' },
   { id: 'buhamdan', name: 'بو حمدان' },
   { id: 'fares', name: 'فارس' },
+  { id: 'sulaiman', name: 'سليمان' },
+  { id: 'medhat', name: 'مدحت' },
 ];
 
 const rooms = new Map(); // code -> room
@@ -230,8 +232,8 @@ function handle(ws, msg) {
       if (room.seats.every(Boolean)) return startSearched(room);
       return broadcast(room);
     }
-    case 'practice': { // تدريب: اللاعب مع 5 بوتات
-      const room = createRoom(E.PLAYERS, 34);
+    case 'practice': { // تدريب: اللاعب مع البوتات، 6 أو 4 لاعبين
+      const room = createRoom(E.MODES.includes(Number(msg.mode)) ? Number(msg.mode) : E.PLAYERS, 34);
       room.practice = true;
       const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
       room.seats[0] = seat;

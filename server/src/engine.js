@@ -90,6 +90,7 @@ function createMatch({ rng = Math.random, khabis, players = PLAYERS, winScore = 
     winner: null,
     winReason: null,
     lastRound: null,
+    history: [], // نشرة الجولات
   };
   startRound(state, rng);
   return state;
@@ -306,6 +307,7 @@ function endRound(state, result) {
     }
   }
   state.lastRound = { ...result, buyer: state.buyer, bid: state.currentBid, majbur: state.majbur, tricksWon: state.tricksWon.slice() };
+  (state.history ||= []).push({ ...state.lastRound, round: state.round, scores: state.scores.slice() });
   // الخابص يبقى حتى يتقدم فريقه في النتيجة، بعدها ينتقل لللاعب التالي
   const kTeam = teamOf(state.khabis);
   if (state.scores[kTeam] > state.scores[1 - kTeam]) state.khabis = nextSeat(state.khabis, state.players);
@@ -376,6 +378,7 @@ function viewFor(state, seat) {
     greyPlayed: state.greyPlayed,
     lastTrick: state.lastTrick,
     lastRound: state.lastRound,
+    history: state.history ?? [],
     winner: state.winner,
     winReason: state.winReason,
     legalBids: legalBids(state, seat),
@@ -418,6 +421,6 @@ function sortHand(hand) {
 module.exports = {
   SUITS, BLUE, GREY, JOKER_SIGNAL, PLAYERS, MODES, TRICKS, WIN_SCORE, WIN_SCORES, GREY_PENALTY, GREY_DEADLINE, MIN_BID, BAWAN, MAJBUR,
   nextSeat, teamOf, isJoker, suitOf, power, rankOf, newDeck, shuffle, deal, sortHand,
-  createMatch, startRound, legalBids, bid, chooseTrump, legalCards, trickWinner, blueLosesMatch,
+  createMatch, startRound, endRound, legalBids, bid, chooseTrump, legalCards, trickWinner, blueLosesMatch,
   playCard, answerBawan, nextRound, signal, viewFor,
 };

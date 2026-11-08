@@ -121,9 +121,9 @@ class GameClient extends ChangeNotifier {
   }
 
   /// تدريب مع البوتات بدون وقت
-  Future<void> practice() async {
+  Future<void> practice(int mode) async {
     await _savePrefs();
-    _open(() => _send({'t': 'practice', 'name': name, 'char': ?char}));
+    _open(() => _send({'t': 'practice', 'mode': mode, 'name': name, 'char': ?char}));
   }
 
   Future<void> joinRoom(String roomCode) async {

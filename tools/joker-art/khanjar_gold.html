@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><title>الخنجر الذهبي لإشارة الجوكر</title>
+<style>body{margin:0;background:#1a1a1a;color:#aaa;font:13px sans-serif;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px}.row{display:flex;gap:18px}img{width:300px;border-radius:14px}#ref{position:relative;width:496px}#ref img{width:496px;border-radius:0;opacity:.45;position:absolute;inset:0}</style></head>
+<body>
+<!-- الخنجر الجديد (khanjar2_source.webp) مرسوم من جديد كرسم متجه بنفس توجه باقي الأوراق:
+     ألوان مسطحة، خطوط كحلية حادة، بدون تدرج ولا تغبيش.
+     الإحداثيات بنفس مقاس صورة الخنجر المقصوصة (992×1369).
+     ?ref يعرض الرسم فوق الصورة الأصلية للمطابقة. يحفظ joker4_big.png و joker4_small.png
+     joker4 = joker3 + أحمر أكثر بالكبير (الألواح والأشرطة) + لمعة كروم على الجوكرين -->
+<div class="row" id="row"></div>
+<div id="info">…</div>
+<script>
+const W = 400, H = 580, KW = 992, KH = 1369;
+const NAVY = '#3a2606'; // التحديد بني غامق
+const PAL = {
+  gold: { hilt: '#d9a521', band: '#b8860b', strip: '#8c5e0c', body: '#e3b43c', panel: '#b8860b', inner: '#f2cc5e', tip: '#8c5e0c', chev: '#8c5e0c', light: '#fff1b8', ring: '#fff1b8', strap: '#fff1b8', stripe: '#8c5e0c', dot: '#fff1b8', letters: ['#8c5e0c', '#8c5e0c'] },
+};
+
+function svg(c) {
+  const ln = `stroke="${NAVY}" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"`;
+  const th = (wd = 4, col = NAVY) => `stroke="${col}" stroke-width="${wd}" stroke-linecap="round" fill="none"`;
+  let s = '', out = '';
+  // كل جزء ياخذ تجسيم لحاله (حواف مدورة، ضوء من فوق يسار وظل تحت يمين)
+  const cut = () => { if (s) out += `<g filter="url(#b3d)">${s}</g>`; s = ''; };
+  // المقبض
+  s += `<path ${ln} fill="${c.hilt}" d="M452 88 Q446 66 446 48 Q620 26 800 38 L800 64 Q712 62 680 96 C640 146 646 290 700 356 Q738 396 778 412 L490 412 Q532 392 556 356 C602 290 602 146 558 102 Q522 84 452 88 Z"/>`;
+  s += `<path ${th()} d="M548 106 C600 156 604 292 548 374"/><path ${th()} d="M688 104 C644 156 646 296 704 368"/>`;
+  cut();
+  // اليد: أشرطة
+  const bands = [[412, 446, c.light], [446, 560, c.light], [560, 602, c.strip], [602, 722, c.band], [722, 778, c.light]];
+  for (const [y0, y1, f] of bands) s += `<rect ${ln} x="490" y="${y0}" width="290" height="${y1 - y0}" fill="${f}"/>`;
+  for (let i = 0; i < 16; i++) { const x = 506 + i * 17.5; s += `<path ${th()} d="M${x} 440 V424 M${x - 4} 428 L${x} 421 L${x + 4} 428"/>`; }
+  for (const y of [478, 505, 532]) s += `<path ${th(3)} opacity=".55" d="M500 ${y} Q635 ${y - 6} 770 ${y}"/>`;
+  s += `<path ${th()} d="M494 572 H776 M494 590 H776"/>`;
+  for (let i = 0; i < 18; i++) { const x = 500 + i * 16; s += `<circle cx="${x}" cy="581" r="3" fill="${NAVY}"/>`; }
+  for (const y of [640, 680]) s += `<path ${th(3)} opacity=".5" d="M500 ${y} Q635 ${y + 8} 770 ${y}"/>`;
+  for (let i = 0; i < 12; i++) { const x = 505 + i * 23.5; s += `<path ${th()} d="M${x - 10} 734 Q${x} 760 ${x + 10} 734 Q${x} 744 ${x - 10} 734 Z"/><circle cx="${x}" cy="764" r="4" fill="${NAVY}"/>`; }
+  cut();
+  // الغمد
+  s += `<path ${ln} fill="${c.body}" d="M466 990 L764 920 C776 1100 744 1250 592 1330 C522 1366 420 1366 360 1356 L140 1300 L52 1288 Q12 1282 9 1252 L11 1162 Q15 1146 42 1144 L140 1116 C262 1086 402 1062 466 990 Z"/>`;
+  // طرف الغمد
+  s += `<path ${ln} fill="${c.tip}" d="M140 1116 L42 1144 Q15 1146 11 1162 L9 1252 Q12 1282 52 1288 L146 1301 Z"/>`;
+  // اللوح اليسار المنقط
+  s += `<path ${ln} fill="${c.panel}" d="M168 1122 L355 1100 Q368 1100 368 1114 L368 1290 Q368 1304 354 1302 L170 1290 Q156 1288 156 1274 L156 1136 Q156 1124 168 1122 Z"/>`;
+  for (let i = 0; i <= 10; i++) { const x = 170 + i * 18; s += `<circle cx="${x}" cy="${1124 - i * 2}" r="4.5" fill="${c.dot}" stroke="${NAVY}" stroke-width="1.5"/><circle cx="${x}" cy="${1287 + i * 1.2}" r="4.5" fill="${c.dot}" stroke="${NAVY}" stroke-width="1.5"/>`; }
+  for (let i = 1; i < 9; i++) { const y = 1124 + i * 18.5; s += `<circle cx="160" cy="${y}" r="4.5" fill="${c.dot}" stroke="${NAVY}" stroke-width="1.5"/><circle cx="364" cy="${y - 4}" r="4.5" fill="${c.dot}" stroke="${NAVY}" stroke-width="1.5"/>`; }
+  // الشريط المتعرج بالنص
+  s += `<path ${ln} fill="${c.chev}" d="M392 1066 L440 1046 L444 1346 L396 1350 Z"/>`;
+  for (let i = 0; i < 12; i++) { const y = 1080 + i * 22; s += `<path ${th(4, "#fff")} d="M404 ${y} L418 ${y + 10} L432 ${y}"/>`; }
+  // اللوح اليمين: إطار غامق ولوح داخلي
+  s += `<path ${ln} fill="${c.panel}" d="M458 1042 L752 942 C760 1110 720 1230 640 1290 Q560 1336 470 1340 Z"/>`;
+  s += `<path ${ln} fill="${c.inner}" d="M498 1068 L704 990 C716 1110 690 1210 624 1262 Q570 1300 502 1306 Z"/>`;
+  for (let i = 0; i < 13; i++) { const t = i / 12, x = 470 + t * 270, y = 1050 - t * 96; s += `<path fill="#fff" stroke="${NAVY}" stroke-width="1.5" d="M${x - 6} ${y + 6} L${x} ${y - 6} L${x + 6} ${y + 4} Z"/>`; }
+  for (let i = 0; i < 12; i++) { const y = 1080 + i * 21; s += `<circle cx="484" cy="${y}" r="3.5" fill="#fff" stroke="${NAVY}" stroke-width="1.5"/>`; }
+  s += `<path ${th(5, "#fff")} opacity=".9" d="M540 1220 Q600 1150 650 1040"/>`;
+  cut();
+  // الحزام الماسك (فوق الغمد)
+  s += `<path ${ln} fill="${c.band}" d="M490 776 L790 772 Q808 800 800 862 L770 900 L612 948 L470 992 Q436 975 438 930 Q458 890 490 870 Z"/>`;
+  s += `<path ${th(4, "#fff")} opacity=".85" d="M500 900 Q640 830 790 800 M520 940 Q660 880 790 840"/>`;
+  cut();
+  // الحلقات
+  const ring = (cx, cy, r, wd) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${NAVY}" stroke-width="${wd + 8}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c.ring}" stroke-width="${wd}"/>`;
+  for (const r of [[527, 875, 63, 16], [705, 822, 62, 16], [335, 955, 71, 15], [905, 803, 66, 15]]) { s += ring(...r); cut(); }
+  cut();
+  // الأحزمة الصغيرة (فوق الحلقات اللي على الأطراف)
+  const strap = (d, st) => `<path ${ln} fill="${c.strap}" d="${d}"/>` + st.map((p) => `<path ${th(6, c.stripe)} d="${p}"/>`).join('');
+  cut();
+  s += strap('M326 918 L440 880 L470 948 L356 990 Z', ['M340 932 L448 896', 'M348 952 L456 914', 'M354 972 L462 932']);
+  cut();
+  s += strap('M800 794 L916 760 L942 832 L822 872 Z', ['M810 812 L924 778', 'M816 832 L930 798', 'M822 852 L936 816']);
+  cut();
+  // المسامير
+  s += `<ellipse cx="462" cy="902" rx="16" ry="9" transform="rotate(-20 462 902)" fill="${c.strip}" stroke="${NAVY}" stroke-width="4"/>`;
+  s += `<ellipse cx="786" cy="832" rx="16" ry="9" transform="rotate(-20 786 832)" fill="${c.strip}" stroke="${NAVY}" stroke-width="4"/>`;
+  cut();
+  const defs = `<defs><filter id="b3d" x="-10%" y="-10%" width="120%" height="120%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="b"/>
+    <feDiffuseLighting in="b" surfaceScale="7" diffuseConstant="1.25" lighting-color="#fff" result="d"><feDistantLight azimuth="225" elevation="50"/></feDiffuseLighting>
+    <feSpecularLighting in="b" surfaceScale="7" specularConstant="1.1" specularExponent="60" lighting-color="#fff" result="sp"><feDistantLight azimuth="225" elevation="40"/></feSpecularLighting>
+    <feBlend in="SourceGraphic" in2="d" mode="multiply" result="sh"/>
+    <feComposite in="sp" in2="SourceAlpha" operator="in" result="sp2"/>
+    <feComposite in="sh" in2="sp2" operator="arithmetic" k2="1" k3="0.8" result="lit"/>
+    <feComposite in="lit" in2="SourceAlpha" operator="in"/>
+  </filter></defs>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${KW}" height="${KH}" viewBox="-10 -10 ${KW + 20} ${KH + 20}">${defs}${out}</svg>`;
+}
+
+// لمعة كروم: أشرطة ضوء مايلة (عريضة وناعمة + رفيعة وحادة) تنرسم على الخنجر بس (source-atop)
+function chrome(img, kw, kh) {
+  const c = document.createElement('canvas'); c.width = Math.round(kw * 2); c.height = Math.round(kh * 2);
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'source-atop';
+  const gr = g.createLinearGradient(0, 0, c.width, c.height);
+  const stops = [[0, 0], [0.18, 0], [0.26, 0.35], [0.28, 0.65], [0.31, 0.15], [0.42, 0], [0.55, 0], [0.6, 0.25], [0.62, 0.55], [0.645, 0.1], [0.75, 0], [1, 0]];
+  for (const [t, a] of stops) gr.addColorStop(t, `rgba(255,255,255,${a})`);
+  g.fillStyle = gr; g.fillRect(0, 0, c.width, c.height);
+  // ظل خفيف بين اللمعات عشان يبين معدني
+  const dk = g.createLinearGradient(0, 0, c.width, c.height);
+  for (const [t, a] of [[0, 0], [0.36, 0], [0.47, 0.16], [0.53, 0], [0.8, 0], [0.88, 0.14], [1, 0]]) dk.addColorStop(t, `rgba(0,0,0,${a})`);
+  g.fillStyle = dk; g.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
+const load = (src) => new Promise((r, e) => { const i = new Image(); i.onload = () => r(i); i.onerror = e; i.src = src; });
+
+async function card(kind) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.beginPath(); g.roundRect(1, 1, W - 2, H - 2, 18); g.fill();
+  g.strokeStyle = '#c8c8c8'; g.lineWidth = 2; g.stroke();
+  const k = await load('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(PAL[kind])));
+  const sc = Math.min(290 / KW, 450 / KH), kw = KW * sc, kh = KH * sc;
+  g.save();
+  g.shadowColor = 'rgba(0,0,0,.4)'; g.shadowBlur = 14; g.shadowOffsetX = 7; g.shadowOffsetY = 10;
+  g.drawImage(chrome(k, kw, kh), (W - kw) / 2 + 8, (H - kh) / 2 + 4, kw, kh);
+  g.restore();
+  // JOKER بالطول بنفس خط باقي الأوراق
+  g.font = 'bold 32px "Times New Roman", Georgia, serif'; g.textAlign = 'center';
+  const draw = () => [...'JOKER'].forEach((ch, i) => { g.fillStyle = PAL[kind].letters[i % 2]; g.fillText(ch, 30, 50 + i * 33); });
+  draw();
+  g.save(); g.translate(W, H); g.rotate(Math.PI); draw(); g.restore();
+  return c;
+}
+
+// الخنجر الذهبي لحاله (خلفية شفافة) لإشارة الجوكر: يحفظ khanjar_gold.png
+(async () => {
+  const k = await load('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(PAL.gold)));
+  const kh = 512, kw = Math.round(KW * kh / KH);
+  const c = chrome(k, kw, kh);
+  const png = await new Promise((r) => c.toBlob(r, 'image/png'));
+  await fetch('/save?name=khanjar_gold.png', { method: 'POST', body: png });
+  const im = new Image(); im.src = URL.createObjectURL(png); im.style.width = '300px'; document.getElementById('row').appendChild(im);
+  document.title = 'done';
+  document.getElementById('info').textContent = 'saved khanjar_gold.png ' + c.width + 'x' + c.height;
+})().catch((e) => { document.title = 'error'; document.getElementById('info').textContent = 'error ' + e; });
+</script>
+</body>
+</html>

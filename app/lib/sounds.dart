@@ -43,7 +43,7 @@ class Sfx {
     await p.setDouble('voiceVolume', voiceVolume);
   }
 
-  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap'];
+  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap', 'lift'];
 
   static double get _duckFactor => _speaking.isEmpty ? 1 : duck;
 
@@ -101,6 +101,8 @@ class Sfx {
   // صوت واحد طول طلعات الورق (tools/sound-candidates/make-deal.js)
   static void deal() => _play('deal', volume: 0.4);
   static void collect() => _play('collect');
+  // نقرة خشب خفيفة لما الورقة الفايزة باللمّة ترتفع (tools/sound-candidates/make-lift2.js، lift_d)
+  static void lift() => _play('lift', volume: 0.7);
   // تكتكة آخر 5 ثواني (الملف 5 ثواني)، وتوقف أول ما يتحرك اللاعب
   static void tick() => _play('tick');
   static void stopTick() => _stop('tick');

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'avatars.dart';
 import 'cards.dart';
+import 'fullscreen.dart';
 import 'intro.dart';
 import 'menus.dart';
 import 'net.dart';
@@ -23,7 +24,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.11';
+const appVersion = '1.0.12';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;
@@ -349,6 +350,22 @@ class _HomeScreenState extends State<HomeScreen> {
           child: const Icon(Icons.settings, size: 22),
         ),
       ),
+      if (Fullscreen.supported)
+        PositionedDirectional(
+          top: 8,
+          end: 60,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: Fullscreen.on,
+            builder: (context, full, _) => Tooltip(
+              message: full ? 'خروج من ملء الشاشة' : 'ملء الشاشة',
+              child: OutlinedButton(
+                onPressed: withTap(Fullscreen.toggle),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
+                child: Icon(full ? Icons.fullscreen_exit : Icons.fullscreen, size: 24),
+              ),
+            ),
+          ),
+        ),
     ]);
   }
 

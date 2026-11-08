@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'avatars.dart';
 import 'cards.dart';
+import 'fullscreen.dart';
 import 'main.dart' show showErrors;
 import 'menus.dart';
 import 'net.dart';
@@ -119,8 +120,8 @@ class TableScreen extends StatefulWidget {
 
 class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin {
   // لمّ اللمّة: آخر ورقة توصل، والفايزة تجمعهم وتبقى ظاهرة، وبعدها الكل ينسحب لصاحبها.
-  // آخر لمّة بالجولة تبقى أطول، ونتيجة الجولة تطلع بعدها
-  static const _collectMs = 1900, _lastCollectMs = 3000;
+  // آخر لمّة بالجولة بنفس المدة، ونتيجة الجولة تطلع بعدها
+  static const _collectMs = 1900;
   late final AnimationController _collect = AnimationController(vsync: this, duration: const Duration(milliseconds: _collectMs));
   bool _resultWaiting = false; // نتيجة الجولة تنتظر لين تخلص آخر لمّة
   late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600), value: 1);
@@ -129,7 +130,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
   Map<String, dynamic>? _collecting;
   _Board? _board; // آخر مقاسات الطاولة: منها مكان كل شخصية للصوت
-  bool _collectSound = false;
+  bool _collectSound = false, _liftSound = false;
   int? _slapRel;
 
   int _seenRound = 0;
@@ -164,7 +165,13 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     super.initState();
     c.addListener(_onChange);
     _collect.addListener(() {
-      if (!_collectSound && _collect.value * _collect.duration!.inMilliseconds > 560) {
+      final total = _collect.duration!.inMilliseconds, ms = _collect.value * total;
+      // نقرة خفيفة لما الورقة الفايزة ترتفع وتجمع الورق، وصوت اللمّ لما تنسحب الكومة للفائز
+      if (!_liftSound && ms > 600) {
+        _liftSound = true;
+        Sfx.lift();
+      }
+      if (!_collectSound && ms > total - 400) {
         _collectSound = true;
         Sfx.collect();
       }
@@ -303,8 +310,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _seenTrickNo = trickNo;
       _collecting = v['lastTrick'] as Map<String, dynamic>;
       _collectSound = false;
-      final ending = v['phase'] == 'roundEnd' || v['phase'] == 'matchEnd';
-      _collect.duration = const Duration(milliseconds: 1) * (ending ? _lastCollectMs : _collectMs);
+      _liftSound = false;
       final done = (_collecting!['cards'] as List).cast<Map<String, dynamic>>();
       landed(done.last, done.sublist(0, done.length - 1));
       _collect.forward(from: 0);
@@ -1564,6 +1570,15 @@ class _TopActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
         if (!client.connected) const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.wifi_off, size: 20, color: KoutColors.lose)),
+        if (Fullscreen.supported)
+          ValueListenableBuilder<bool>(
+            valueListenable: Fullscreen.on,
+            builder: (context, full, _) => IconButton(
+              icon: Icon(full ? Icons.fullscreen_exit : Icons.fullscreen, size: 26, color: Colors.white, shadows: const [Shadow(color: Colors.black, blurRadius: 4)]),
+              tooltip: full ? 'خروج من ملء الشاشة' : 'ملء الشاشة',
+              onPressed: withTap(Fullscreen.toggle),
+            ),
+          ),
         IconButton(
           icon: const Icon(Icons.settings, size: 24, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
           tooltip: 'الإعدادات',

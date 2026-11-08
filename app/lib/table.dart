@@ -165,13 +165,13 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     super.initState();
     c.addListener(_onChange);
     _collect.addListener(() {
-      final total = _collect.duration!.inMilliseconds, ms = _collect.value * total;
-      // نقرة خفيفة لما الورقة الفايزة ترتفع وتجمع الورق، وصوت اللمّ لما تنسحب الكومة للفائز
-      if (!_liftSound && ms > 600) {
+      // صوت الارتفاع لما الفايزة ترتفع (260)، وصوت اللمّ لما يجي الباقي عندها (600)
+      final ms = _collect.value * _collect.duration!.inMilliseconds;
+      if (!_liftSound && ms > 260) {
         _liftSound = true;
         Sfx.lift();
       }
-      if (!_collectSound && ms > total - 400) {
+      if (!_collectSound && ms > 600) {
         _collectSound = true;
         Sfx.collect();
       }
@@ -635,24 +635,29 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
           child: AnimatedBuilder(
             animation: _collect,
             builder: (_, _) {
-              // بالملي ثانية: الوصول 260، وقفة لين 600، الجمع لين 960، وبعدها الفايزة تبقى ظاهرة لين آخر 400 تنسحب فيها
+              // بالملي ثانية: الوصول 260، الفايزة ترتفع لحالها لين 560 (الباقي واقف)، الجمع عندها 600 لين 960،
+              // وبعدها الكومة تبقى ظاهرة لين آخر 400 تنسحب فيها للفائز
               final total = _collect.duration!.inMilliseconds;
               final ms = _collect.value * total;
               final arrive = Curves.easeOut.transform((ms / 260).clamp(0.0, 1.0));
+              final lift = Curves.easeOutBack.transform(((ms - 260) / 300).clamp(0.0, 1.0));
               final gather = Curves.easeInOut.transform(((ms - 600) / 360).clamp(0.0, 1.0));
               final pull = Curves.easeIn.transform(((ms - (total - 400)) / 400).clamp(0.0, 1.0));
-              // وقت الجمع الورقة الفايزة فوق الكل
-              final order = gather > 0 ? [...cards.where((c) => c['seat'] != winner), ...cards.where((c) => c['seat'] == winner)] : cards;
+              final liftSlot = winSlot + Offset(0, -w * 0.12 * lift); // الفايزة ترتفع شوي فوق مكانها
+              // من أول ما ترتفع الورقة الفايزة فوق الكل
+              final order = lift > 0 ? [...cards.where((c) => c['seat'] != winner), ...cards.where((c) => c['seat'] == winner)] : cards;
               return Stack(clipBehavior: Clip.none, children: [
                 for (final card in order)
                   Builder(builder: (_) {
                     final rel = _rel(card['seat'] as int, n);
                     final slot = b.slot(rel);
                     var pos = identical(card, cards.last) ? Offset.lerp(_fromFor(card['card'] as String, b, rel), slot, arrive)! : slot;
-                    pos = Offset.lerp(pos, winSlot, gather)!;
+                    // الفايزة ترتفع لحالها، والباقي ينسحب لها وهي مرتفعة
+                    pos = rel == winRel ? pos + (liftSlot - winSlot) : Offset.lerp(pos, liftSlot, gather)!;
                     pos = Offset.lerp(pos, winPos, pull)!;
                     final tilt = b.tilts[rel] + (winTilt - b.tilts[rel]) * gather;
-                    final pop = rel == winRel ? 0.1 * sin(pi * gather) : 0.0; // الفايزة تكبر شوي وهي تجمعهم
+                    // الفايزة تكبر وهي ترتفع، والباقي يكبر معها لما يوصل عندها عشان الكومة وحدة
+                    final pop = rel == winRel ? 0.15 * lift : 0.15 * lift * gather;
                     return _cardAt(
                       pos,
                       w,

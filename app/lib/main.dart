@@ -24,7 +24,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.13';
+const appVersion = '1.0.14';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;
@@ -344,11 +344,11 @@ class _HomeScreenState extends State<HomeScreen> {
       PositionedDirectional(
         top: 8,
         end: 8,
-        child: OutlinedButton(
+        child: Pressable(child: OutlinedButton(
           onPressed: withTap(() => showSettings(context, c)),
           style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
           child: const Icon(Icons.settings, size: 22),
-        ),
+        )),
       ),
       if (Fullscreen.supported)
         PositionedDirectional(
@@ -358,11 +358,11 @@ class _HomeScreenState extends State<HomeScreen> {
             valueListenable: Fullscreen.on,
             builder: (context, full, _) => Tooltip(
               message: full ? 'خروج من ملء الشاشة' : 'ملء الشاشة',
-              child: OutlinedButton(
+              child: Pressable(child: OutlinedButton(
                 onPressed: withTap(Fullscreen.toggle),
                 style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
                 child: Icon(full ? Icons.fullscreen_exit : Icons.fullscreen, size: 24),
-              ),
+              )),
             ),
           ),
         ),
@@ -370,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // شخصيتك قبل بداية اللعبة: تنحفظ وتروح معاك لأي غرفة
-  Widget _charButton(GameClient c) => GestureDetector(
+  Widget _charButton(GameClient c) => Pressable(child: GestureDetector(
         onTap: withTap(() => showCharacterPicker(context, c)),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           c.char == null
@@ -384,7 +384,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 2),
           const Text('شخصيتك', style: TextStyle(fontSize: 11, color: KoutColors.ink, fontWeight: FontWeight.w700)),
         ]),
-      );
+      ));
 
   // بعد اختيار عدد اللاعبين: كم نقطة
   Widget _scores(GameClient c, BoxConstraints box) {
@@ -442,11 +442,11 @@ class _HomeScreenState extends State<HomeScreen> {
               _nameField(),
               const SizedBox(height: 10),
               if (c.connecting) _connecting(),
-              FilledButton(
+              Pressable(child: FilledButton(
                 onPressed: c.connecting ? null : withTap(() { if (_apply()) c.createRoom(); }),
                 style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
                 child: const Text('سوّ غرفة جديدة', style: TextStyle(fontSize: 19)),
-              ),
+              )),
               const SizedBox(height: 12),
               MenuPanel(
                 child: Row(children: [
@@ -460,11 +460,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  OutlinedButton(
+                  Pressable(child: OutlinedButton(
                     onPressed: c.connecting ? null : withTap(() { if (_apply() && _code.text.trim().isNotEmpty) c.joinRoom(_code.text.trim()); }),
                     style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22)),
                     child: const Text('ادخل'),
-                  ),
+                  )),
                 ]),
               ),
             ]),
@@ -524,11 +524,11 @@ class LobbyScreen extends StatelessWidget {
       const AppLogo(size: 44),
       const SizedBox(width: 10),
       const Expanded(child: Text('الغرفة', style: TextStyle(fontSize: 24, color: KoutColors.ink))),
-      OutlinedButton(
+      Pressable(child: OutlinedButton(
         onPressed: withTap(c.leave),
         style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
         child: const Icon(Icons.arrow_back, size: 20),
-      ),
+      )),
     ]);
     final codePanel = MenuPanel(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
@@ -542,14 +542,14 @@ class LobbyScreen extends StatelessWidget {
     Widget modeButton(int m) {
       final on = c.mode == m;
       return Expanded(
-        child: GestureDetector(
+        child: Pressable(child: GestureDetector(
           onTap: withTap(c.isHost && !on ? () => c.setMode(m) : null),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             color: on ? Colors.white : const Color(0xFF111111),
             child: Text('$m لاعبين', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: on ? Colors.black : Colors.white)),
           ),
-        ),
+        )),
       );
     }
 
@@ -572,18 +572,18 @@ class LobbyScreen extends StatelessWidget {
     final actions = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (c.isHost) ...[
         if (!full)
-          OutlinedButton.icon(
+          Pressable(child: OutlinedButton.icon(
             onPressed: withTap(c.addBots),
             style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
             icon: const Icon(Icons.smart_toy),
             label: const Text('عبّي المقاعد الفاضية', style: TextStyle(fontSize: 16)),
-          ),
+          )),
         const SizedBox(height: 8),
-        FilledButton(
+        Pressable(child: FilledButton(
           onPressed: withTap(full ? c.start : null),
           style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
           child: Text(full ? 'ابدأ اللعب' : 'بانتظار ${c.seats.where((s) => s == null).length} لاعبين'),
-        ),
+        )),
       ] else
         const Text('بانتظار المضيف يبدأ اللعبة...', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 16)),
       if (!c.connected)
@@ -667,7 +667,7 @@ void showCharacterPicker(BuildContext context, GameClient c) {
                     for (final e in characterNames.entries)
                       Opacity(
                         opacity: byPlayer.containsKey(e.key) ? 0.35 : 1,
-                        child: GestureDetector(
+                        child: Pressable(child: GestureDetector(
                           onTap: byPlayer.containsKey(e.key)
                               ? null
                               : () {
@@ -688,17 +688,17 @@ void showCharacterPicker(BuildContext context, GameClient c) {
                                   style: TextStyle(fontSize: 13, color: e.key == mine ? Colors.white : const Color(0xFFCCCCCC), fontWeight: e.key == mine ? FontWeight.w700 : FontWeight.w400)),
                             ]),
                           ),
-                        ),
+                        )),
                       ),
                   ]),
                 ),
               ),
               const SizedBox(height: 10),
-              OutlinedButton.icon(
+              Pressable(child: OutlinedButton.icon(
                 onPressed: withTap(() => Navigator.pop(ctx)),
                 icon: const Icon(Icons.arrow_back, size: 20),
                 label: const Text('رجوع'),
-              ),
+              )),
             ]),
           ),
         );
@@ -727,7 +727,7 @@ class _SeatTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(11),
         boxShadow: me ? [BoxShadow(color: teamColor.withValues(alpha: 0.5), blurRadius: 8)] : null,
       ),
-      child: InkWell(
+      child: Pressable(child: InkWell(
         onTap: withTap(me ? () => showCharacterPicker(context, client) : (canMove ? () => client.sit(seat) : null)),
         child: SizedBox(
           height: 60,
@@ -751,9 +751,9 @@ class _SeatTile extends StatelessWidget {
             ),
             if (s != null && s['bot'] == true) const Icon(Icons.smart_toy, size: 17, color: Color(0xFFBBBBBB)),
             if (client.isHost && s != null && !me)
-              IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.white), onPressed: withTap(() => client.kick(seat)), tooltip: 'طرد'),
+              Pressable(child: IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.white), onPressed: withTap(() => client.kick(seat)), tooltip: 'طرد')),
           ]),
-        ),
+)        ),
       ),
     );
   }

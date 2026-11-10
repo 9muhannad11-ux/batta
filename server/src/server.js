@@ -10,10 +10,12 @@ const Bot = require('./bot');
 
 const PORT = Number(process.env.PORT ?? 8080);
 const BOT_DELAY_MS = Number(process.env.BOT_DELAY_MS ?? 900);
-const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS ?? 2100); // وقت أنميشن لمّ اللمّة (1.9 ثانية بالتطبيق)
+const TRICK_PAUSE_MS = Number(process.env.TRICK_PAUSE_MS ?? 2400); // وقت أنميشن لمّ اللمّة (2.2 ثانية بالتطبيق)
 const DEAL_PAUSE_MS = Number(process.env.DEAL_PAUSE_MS ?? 2800); // وقت أنميشن التوزيع
-const NEXT_ROUND_MS = Number(process.env.NEXT_ROUND_MS ?? 6900); // آخر لمّة 1.9 ثانية، وبعدها النتيجة 5 ثواني
-const TURN_MS = Number(process.env.TURN_MS ?? 12500); // وقت كل لاعب للمزايدة واللعب (12.5 ثانية)
+const NEXT_ROUND_MS = Number(process.env.NEXT_ROUND_MS ?? 7200); // آخر لمّة 2.2 ثانية، وبعدها النتيجة 5 ثواني
+const LAST_CARD_MS = Number(process.env.LAST_CARD_MS ?? 300); // رمي آخر ورقة باليد تلقائياً (كان 900)
+const MAJBUR_TALK_MS =Number(process.env.MAJBUR_TALK_MS ?? 1200); // وقت إضافي لعبارة «6 مجبور» قبل اختيار الحكم
+const TURN_MS =Number(process.env.TURN_MS ?? 12500); // وقت كل لاعب للمزايدة واللعب (12.5 ثانية)
 const TRUMP_MS = Number(process.env.TRUMP_MS ?? 10000); // وقت اختيار الحكم
 const SEARCH_MS = Number(process.env.SEARCH_MS ?? 90000); // أقصى وقت بحث عن لاعبين، وبعدها البوتات تكمّل
 
@@ -135,7 +137,9 @@ function schedule(room) {
   if (seat === null) return;
   const justFinishedTrick = g.phase === 'playing' && g.trick.length === 0 && g.lastTrick && g.trickNo > 0;
   const justDealt = g.phase === 'bidding' && g.bids.length === 0;
-  const pause = (justFinishedTrick ? TRICK_PAUSE_MS : 0) + (justDealt ? DEAL_PAUSE_MS : 0);
+  // البوت اللي راح «6 مجبور» يكمّل عبارته قبل ما يختار الحكم (أطول عبارة 1.4 ثانية)
+  const majburTalk = g.phase === 'trump' && g.majbur ? MAJBUR_TALK_MS : 0;
+  const pause = (justFinishedTrick ? TRICK_PAUSE_MS : 0) + (justDealt ? DEAL_PAUSE_MS : 0) + majburTalk;
   const act = (opts) => {
     const action = Bot.decide(g, seat, opts);
     if (!action) return;
@@ -147,9 +151,9 @@ function schedule(room) {
     room.timer = setTimeout(() => act({}), BOT_DELAY_MS + pause);
     return;
   }
-  // آخر ورقة باليد ما فيها خيار، فتنرمى لحالها
+  // آخر ورقة باليد ما فيها خيار، فتنرمى لحالها بسرعة
   if (g.phase === 'playing' && g.hands[seat].length === 1) {
-    room.timer = setTimeout(() => act({}), BOT_DELAY_MS + pause);
+    room.timer = setTimeout(() => act({}), LAST_CARD_MS + pause);
     return;
   }
   if (room.practice) return; // التدريب بدون وقت

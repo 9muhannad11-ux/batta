@@ -121,7 +121,7 @@ class TableScreen extends StatefulWidget {
 class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin {
   // لمّ اللمّة: آخر ورقة توصل، والفايزة تجمعهم وتبقى ظاهرة، وبعدها الكل ينسحب لصاحبها.
   // آخر لمّة بالجولة بنفس المدة، ونتيجة الجولة تطلع بعدها
-  static const _collectMs = 1900;
+  static const _collectMs = 2200;
   late final AnimationController _collect = AnimationController(vsync: this, duration: const Duration(milliseconds: _collectMs));
   bool _resultWaiting = false; // نتيجة الجولة تنتظر لين تخلص آخر لمّة
   late final AnimationController _deal = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600), value: 1);
@@ -165,13 +165,13 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     super.initState();
     c.addListener(_onChange);
     _collect.addListener(() {
-      // صوت الارتفاع لما الفايزة ترتفع (260)، وصوت اللمّ لما يجي الباقي عندها (600)
+      // صوت الارتفاع لما الفايزة ترتفع (600)، وصوت اللمّ لما يجي الباقي عندها (940)
       final ms = _collect.value * _collect.duration!.inMilliseconds;
-      if (!_liftSound && ms > 260) {
+      if (!_liftSound && ms > 600) {
         _liftSound = true;
         Sfx.lift();
       }
-      if (!_collectSound && ms > 600) {
+      if (!_collectSound && ms > 940) {
         _collectSound = true;
         Sfx.collect();
       }
@@ -210,6 +210,8 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     _slap.dispose();
     _shake.dispose();
     _effectTimer?.cancel();
+    _rippleTimer?.cancel();
+    _ripple.dispose();
     _ticker?.cancel();
     _seconds.dispose();
     Sfx.stopGold();
@@ -291,6 +293,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     void landed(Map<String, dynamic> t, List<Map<String, dynamic>> before) {
       final seat = t['seat'] as int;
       if (t['card'] == 'JB' && before.any((x) => x['card'] == 'JG')) _say(seat, VoiceEvent.blueOverGrey);
+      // الجوكرين وآص الحكم: موجة برتقالية مثل قطرة ماي تطلع من مكان الورقة لما توصل الطاولة
+      final trump = v['trump'];
+      if (t['card'] == 'JB' || t['card'] == 'JG' || (trump is String && t['card'] == '$trump-14')) _dropRipple(_rel(seat, n));
       if (c.slapPending.remove(seat)) {
         _slapRel = _rel(seat, n);
         _slap.forward(from: 0);
@@ -351,16 +356,18 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final type = last['type'];
     final breaker = (v['lastTrick'] as Map?)?['winner'];
     final buyer = last['buyer'] as int;
-    if (type == 'bawanWin') {
-      // فوز الباون: كل شخصيات الفريق الفايز
+    final matchWinner = v['winner'] as int?; // الفريق اللي فاز بالمباراة (إذا خلصت)
+    void team(int t, int event) {
       for (var seat = 0; seat < n; seat++) {
-        if (seat % 2 == buyer % 2) _say(seat, VoiceEvent.made);
+        if (seat % 2 == t) _say(seat, event);
       }
-    } else if (type == 'bawanFail') {
-      // انقلب الباون: كل الفريق المنافس
-      for (var seat = 0; seat < n; seat++) {
-        if (seat % 2 != buyer % 2) _say(seat, VoiceEvent.oppFailed);
-      }
+    }
+    if (type == 'bawanWin' || type == 'bawanFail') {
+      // فوز بالباون أو انقلاب الباون: كل شخصيات الفريق الفايز صوت 6
+      team(last['team'] as int, VoiceEvent.oppFailed);
+    } else if (matchWinner != null) {
+      // فوز بالمباراة: كل شخصيات الفريق الفايز صوت 5
+      team(matchWinner, VoiceEvent.made);
     } else if (type == 'made') {
       _say(buyer, VoiceEvent.made);
     } else if (type == 'failed' && breaker is int) {
@@ -397,6 +404,19 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     if (b == null) return 0;
     final x = b.seats[_rel(seat, b.seats.length)].dx;
     return ((x / b.size.width) * 2 - 1).clamp(-1.0, 1.0) * 0.8;
+  }
+
+  // موجة قطرة الماي: تبدأ من مكان الورقة (rel) أول ما توصل الطاولة (طيرانها 220ms)
+  late final AnimationController _ripple = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+  int? _rippleRel;
+  Timer? _rippleTimer;
+  void _dropRipple(int rel) {
+    _rippleTimer?.cancel();
+    _rippleTimer = Timer(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
+      _rippleRel = rel;
+      _ripple.forward(from: 0);
+    });
   }
 
   bool _bawanActive(Map v) => v['bawan'] == true || (v['currentBid'] == 9 && v['phase'] != 'bidding');
@@ -512,6 +532,17 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                       ),
                     )),
                   ),
+                  // موجة الجوكر وآص الحكم على الطاولة (تحت الأوراق)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _ripple,
+                        builder: (_, _) => !_ripple.isAnimating || _rippleRel == null
+                            ? const SizedBox.shrink()
+                            : CustomPaint(painter: _RipplePainter(table: b.table, center: b.slot(_rippleRel!), t: _ripple.value)),
+                      ),
+                    ),
+                  ),
                   _centerInfo(v, b), // على الطاولة نفسها: الأوراق (المنزولة والمسحوبة) تغطي عليها
                   Positioned.fill(child: RepaintBoundary(child: Stack(clipBehavior: Clip.none, children: _trickLayer(v, b, n)))),
                   for (var seat = 0; seat < n; seat++)
@@ -530,7 +561,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                       child: Row(mainAxisSize: MainAxisSize.min, textDirection: TextDirection.ltr, children: [
                         _Scores(view: v),
                         const SizedBox(width: 4),
-                        GestureDetector(
+                        Pressable(child: GestureDetector(
                           onTap: withTap(() => _showRounds(context, c)),
                           child: Container(
                             width: 40,
@@ -543,7 +574,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                             ),
                             child: const Icon(Icons.receipt_long, size: 20, color: KoutColors.ink),
                           ),
-                        ),
+                        )),
                       ]),
                     ),
                   ),
@@ -635,13 +666,13 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
           child: AnimatedBuilder(
             animation: _collect,
             builder: (_, _) {
-              // بالملي ثانية: الوصول 260، الفايزة ترتفع لحالها لين 560 (الباقي واقف)، الجمع عندها 600 لين 960،
+              // بالملي ثانية: الوصول 260، الورق كله واقف على الطاولة لين 600، الفايزة ترتفع لحالها لين 900، الجمع عندها 940 لين 1300،
               // وبعدها الكومة تبقى ظاهرة لين آخر 400 تنسحب فيها للفائز
               final total = _collect.duration!.inMilliseconds;
               final ms = _collect.value * total;
               final arrive = Curves.easeOut.transform((ms / 260).clamp(0.0, 1.0));
-              final lift = Curves.easeOutBack.transform(((ms - 260) / 300).clamp(0.0, 1.0));
-              final gather = Curves.easeInOut.transform(((ms - 600) / 360).clamp(0.0, 1.0));
+              final lift = Curves.easeOutBack.transform(((ms - 600) / 300).clamp(0.0, 1.0));
+              final gather = Curves.easeInOut.transform(((ms - 940) / 360).clamp(0.0, 1.0));
               final pull = Curves.easeIn.transform(((ms - (total - 400)) / 400).clamp(0.0, 1.0));
               final liftSlot = winSlot + Offset(0, -w * 0.12 * lift); // الفايزة ترتفع شوي فوق مكانها
               // من أول ما ترتفع الورقة الفايزة فوق الكل
@@ -698,10 +729,11 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
 
   Offset _fromFor(String card, _Board b, int rel) => (rel == 0 ? _releasedAt[card] : null) ?? b.seats[rel];
 
-  // ترتيب اللي ياخذون ورق: يبدأ باللي على يسار الموزع. ورق الموزع عنده أصلاً، إلا إذا الموزع أنا: ورقي ينزل لصف اليد
+  // ترتيب اللي ياخذون ورق: يبدأ باللي على يمين الموزع (عكس عقارب الساعة، مثل اللعب).
+  // ورق الموزع عنده أصلاً، إلا إذا الموزع أنا: ورقي ينزل لصف اليد
   List<int> _dealOrder(int dealer, int n) => [
         for (var i = 1; i <= n; i++)
-          if ((dealer - i + n) % n != dealer || dealer == 0) (dealer - i + n) % n,
+          if ((dealer + i) % n != dealer || dealer == 0) (dealer + i) % n,
       ];
 
   // متى تطلع الورقة رقم k من دفعة اللاعب رقم turn (من 0 لـ 1 من وقت التوزيع)، وتاخذ 0.25 لين توصل
@@ -1035,6 +1067,51 @@ class OutlinedText extends StatelessWidget {
 }
 
 /// يخلي التدرج الدائري بيضاوي بنفس شكل الطاولة
+/// موجة مثل قطرة ماي: موجة برتقالية وحدة تتوسع من مكان الورقة وتخف، محصورة داخل الطاولة
+class _RipplePainter extends CustomPainter {
+  final Rect table;
+  final Offset center;
+  final double t; // 0..1
+  _RipplePainter({required this.table, required this.center, required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRRect(RRect.fromRectAndRadius(table, Radius.circular(table.shortestSide / 2)));
+    final far = [table.topLeft, table.topRight, table.bottomLeft, table.bottomRight].map((p) => (p - center).distance).reduce(max);
+    final r = Curves.easeOutCubic.transform(t) * far;
+    final fade = 1 - t * t; // يخف ببطء بالأول وبسرعة بالآخر
+    const orange = Color(0xFFF08A24);
+    if (r > 1) {
+      // الماي المتحرك: لون خفيف داخل الدايرة وأقوى عند حافة الموجة
+      canvas.drawCircle(
+          center,
+          r,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [orange.withValues(alpha: 0.12 * fade), orange.withValues(alpha: 0.38 * fade), orange.withValues(alpha: 0.8 * fade), orange.withValues(alpha: 0)],
+              stops: const [0, 0.7, 0.94, 1],
+            ).createShader(Rect.fromCircle(center: center, radius: r)));
+    }
+    // حلقة الموجة: وحدة بس عند الحافة
+    for (final (k, a) in const [(1.0, 1.0)]) {
+      final rr = r * k;
+      if (rr < 2) continue;
+      canvas.drawCircle(
+          center,
+          rr,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2 + 6 * fade
+            ..color = const Color(0xFFFF9A2E).withValues(alpha: a * fade));
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_RipplePainter old) => old.t != t || old.center != center;
+}
+
 class _Ellipse extends GradientTransform {
   const _Ellipse();
 
@@ -1294,7 +1371,7 @@ class _ChromeButton extends StatelessWidget {
     final enabled = onTap != null;
     return Opacity(
       opacity: enabled ? 1 : 0.35, // الأرقام اللي ما تجوز باهتة
-      child: GestureDetector(
+      child: Pressable(child: GestureDetector(
         onTap: withTap(onTap),
         child: Container(
           padding: padding,
@@ -1311,7 +1388,7 @@ class _ChromeButton extends StatelessWidget {
           ),
           child: child,
         ),
-      ),
+      )),
     );
   }
 }
@@ -1406,11 +1483,14 @@ const _numShadow = [Shadow(color: Color(0xE6000000), blurRadius: 2.5, offset: Of
 List<Shadow>? _teamShadow(int t) => t == 0 ? null : _numShadow;
 
 /// جملة نتيجة الجولة
-String _roundLine(GameClient client, Map r) {
+/// report: سطر نشرة الجولات («محمد وصل 6» / «محمد خسر 12» بالنقاط اللي راحت)
+String _roundLine(GameClient client, Map r, {bool report = false}) {
   final buyerName = r['buyer'] is int ? client.seatName(r['buyer'] as int) : '';
   final offender = r['offender'] is int ? client.seatName(r['offender'] as int) : '';
   final majbur = r['majbur'] == true ? ' (مجبور)' : '';
   return switch (r['type']) {
+    'made' when report => '$buyerName وصل ${r['points']}$majbur',
+    'failed' when report => '$buyerName خسر ${r['points']}$majbur',
     'made' => '$buyerName جاب ${r['bid']}$majbur',
     'failed' => '$buyerName ما جاب ${r['bid']}$majbur',
     'greyPenalty' => '$offender خيّس الجوكر الصغير',
@@ -1465,7 +1545,7 @@ void _showRounds(BuildContext context, GameClient c) {
                           SizedBox(width: 62, child: Text('الجولة ${r['round']}', style: const TextStyle(fontSize: 12, color: KoutColors.ink))),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(_roundLine(c, r), style: const TextStyle(fontSize: 15, color: KoutColors.ink)),
+                              Text(_roundLine(c, r, report: true), style: const TextStyle(fontSize: 15, color: KoutColors.ink)),
                               Text('فريقك ${scores[myTeam]} · الخصم ${scores[1 - myTeam]}', style: const TextStyle(fontSize: 12, color: KoutColors.ink)),
                             ]),
                           ),
@@ -1475,11 +1555,11 @@ void _showRounds(BuildContext context, GameClient c) {
                     ),
                   ),
                 const SizedBox(height: 10),
-                OutlinedButton.icon(
+                Pressable(child: OutlinedButton.icon(
                   onPressed: withTap(() => Navigator.pop(ctx)),
                   icon: const Icon(Icons.arrow_back, size: 20),
                   label: const Text('رجوع'),
-                ),
+                )),
               ]),
             ),
           ),
@@ -1578,18 +1658,18 @@ class _TopActions extends StatelessWidget {
         if (Fullscreen.supported)
           ValueListenableBuilder<bool>(
             valueListenable: Fullscreen.on,
-            builder: (context, full, _) => IconButton(
+            builder: (context, full, _) => Pressable(child: IconButton(
               icon: Icon(full ? Icons.fullscreen_exit : Icons.fullscreen, size: 26, color: Colors.white, shadows: const [Shadow(color: Colors.black, blurRadius: 4)]),
               tooltip: full ? 'خروج من ملء الشاشة' : 'ملء الشاشة',
               onPressed: withTap(Fullscreen.toggle),
-            ),
+            )),
           ),
-        IconButton(
+        Pressable(child: IconButton(
           icon: const Icon(Icons.settings, size: 24, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
           tooltip: 'الإعدادات',
           onPressed: withTap(() => showSettings(context, client)),
-        ),
-        IconButton(
+        )),
+        Pressable(child: IconButton(
           icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white, shadows: [Shadow(color: Colors.black, blurRadius: 4)]),
           tooltip: 'رجوع',
           onPressed: withTap(() => showDialog(
@@ -1602,11 +1682,11 @@ class _TopActions extends StatelessWidget {
                 title: const Text('تطلع من اللعبة؟', style: TextStyle(fontSize: 30)),
                 content: const Text('مقعدك يبقى محجوز وتقدر ترجع بنفس الكود.', style: TextStyle(fontSize: 21)),
                 actions: [
-                  TextButton(onPressed: withTap(() => Navigator.pop(context)), child: const Text('لا', style: TextStyle(color: Colors.white, fontSize: 22))),
-                  TextButton(onPressed: withTap(() { Navigator.pop(context); client.leave(); }), child: const Text('اطلع', style: TextStyle(color: Colors.white, fontSize: 22))),
+                  Pressable(child: TextButton(onPressed: withTap(() => Navigator.pop(context)), child: const Text('لا', style: TextStyle(color: Colors.white, fontSize: 22)))),
+                  Pressable(child: TextButton(onPressed: withTap(() { Navigator.pop(context); client.leave(); }), child: const Text('اطلع', style: TextStyle(color: Colors.white, fontSize: 22)))),
                 ],
               ),
-            ),
+  )          ),
           )),
         ),
       ]);
@@ -1813,6 +1893,34 @@ class _BidPanel extends StatelessWidget {
   }
 }
 
+/// حديدة الدور: اللي جاب باون له الأفضلية دايماً، وإلا أكثر لاعب جاب نقاط وهو شاري
+/// (التعادل: اللي وصل أكثر جولات، وبعدها اللي آخر وحدة له أحدث)
+({int seat, int points, bool bawan})? _bestPlayer(List<Map> history) {
+  final points = <int, int>{}, made = <int, int>{}, last = <int, int>{};
+  int? bawan;
+  for (var i = 0; i < history.length; i++) {
+    final r = history[i];
+    final buyer = r['buyer'];
+    if (buyer is! int) continue;
+    if (r['type'] == 'bawanWin') bawan = buyer;
+    if (r['type'] == 'made') {
+      points[buyer] = (points[buyer] ?? 0) + ((r['points'] as num?)?.toInt() ?? 0);
+      made[buyer] = (made[buyer] ?? 0) + 1;
+      last[buyer] = i;
+    }
+  }
+  if (bawan != null) return (seat: bawan, points: points[bawan] ?? 0, bawan: true);
+  if (points.isEmpty) return null;
+  final seat = points.keys.reduce((a, b) {
+    final c = points[a]!.compareTo(points[b]!);
+    if (c != 0) return c > 0 ? a : b;
+    final m = made[a]!.compareTo(made[b]!);
+    if (m != 0) return m > 0 ? a : b;
+    return last[a]! > last[b]! ? a : b;
+  });
+  return (seat: seat, points: points[seat]!, bawan: false);
+}
+
 class _RoundResult extends StatelessWidget {
   final GameClient client;
   final Map<String, dynamic> view;
@@ -1842,7 +1950,23 @@ class _RoundResult extends StatelessWidget {
       };
       final reasonColor = v['winReason'] == 'bawanFail' ? KoutColors.lose : Colors.white;
       final color = KoutColors.team(winner);
+      final history = ((v['history'] as List?) ?? const []).cast<Map>();
+      final best = _bestPlayer(history);
+      final bestInfo = best == null ? null : client.seatInfo(best.seat);
       return Column(mainAxisSize: MainAxisSize.min, children: [
+        // حديدة الدور: أفضل لاعب بالمباراة (اللي جاب باون، وإلا أكثر واحد جاب نقاط وهو شاري)
+        if (best != null) ...[
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            CharacterAvatar(charId: bestInfo?['char'] as String?, size: 46, ring: KoutColors.gold, background: KoutColors.team(best.seat % 2)),
+            const SizedBox(width: 10),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              const Text('حديدة الدور', style: TextStyle(fontSize: 14, color: KoutColors.gold)),
+              Text(client.seatName(best.seat), style: const TextStyle(fontSize: 20)),
+              Text(best.bawan ? 'جاب باون' : 'جاب ${best.points} نقطة', style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC))),
+            ]),
+          ]),
+          const SizedBox(height: 10),
+        ],
         Text('فاز الفريق ${KoutColors.teamName(winner)}', style: TextStyle(fontSize: 26, color: color)),
         Text(winner == myTeam ? 'مبروك! فريقك فاز' : 'هاردلك، فريقك خسر', style: const TextStyle(fontSize: 16)),
         const SizedBox(height: 12),
@@ -1856,9 +1980,30 @@ class _RoundResult extends StatelessWidget {
         const SizedBox(height: 8),
         const Text('سبب الفوز', style: TextStyle(fontSize: 13, color: Color(0xFFAAAAAA))),
         Text(reason, textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: reasonColor)),
+        // نشرة الجولات مختصرة: سطر لكل جولة
+        if (history.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 112, maxWidth: 300),
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                for (final r in history)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1.5),
+                    child: Row(children: [
+                      SizedBox(width: 24, child: Text('${r['round']}', style: const TextStyle(fontSize: 12, color: Color(0xFF999999)))),
+                      Expanded(child: Text(_roundLine(client, r, report: true), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
+                      if (r['points'] is int && r['team'] is int)
+                        Text('+${r['points']}', style: TextStyle(fontSize: 13, color: KoutColors.team(r['team'] as int))),
+                    ]),
+                  ),
+              ]),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         if (client.isHost)
-          FilledButton(onPressed: withTap(client.rematch), child: const Text('مباراة جديدة', style: TextStyle(fontSize: 17)))
+          Pressable(child: FilledButton(onPressed: withTap(client.rematch), child: const Text('مباراة جديدة', style: TextStyle(fontSize: 17))))
         else
           const Text('بانتظار المضيف...', style: TextStyle(color: Color(0xFFAAAAAA))),
       ]);
@@ -1955,7 +2100,7 @@ class _SignalBarState extends State<_SignalBar> {
       final on = _sent.contains(s);
       final enabled = can && !on && (s != 'J' || jokerOk);
       final a = enabled || on ? 1.0 : 0.4;
-      return GestureDetector(
+      return Pressable(child: GestureDetector(
         onTap: enabled
             ? () {
                 Sfx.tap();
@@ -1977,7 +2122,7 @@ class _SignalBarState extends State<_SignalBar> {
           ),
           child: s == 'J' ? GoldJ(size: 30, opacity: a) : SuitIcon(s, size: 28, color: suitColor(s).withValues(alpha: a)),
         ),
-      );
+      ));
     }
 
     // بالعرضي: الأنواع صف، والجوكر فوقهم بالنص

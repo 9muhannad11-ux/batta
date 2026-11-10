@@ -120,6 +120,7 @@ function startRound(state, rng = Math.random) {
   state.signalsThisTurn = 0;
   state.bothJokerSignal = null; // مقعد اللي معه الجوكرين وأرسل إشارة الجوكر (تتحدد بورقته الجاية)
   state.resolvedSignal = null; // إشارة الجوكر بعد ما تحددت، يرسلها السيرفر مع الورقة
+  state.suitSignals = []; // إشارات الأنواع هالجولة بالترتيب [{seat, suit, trick}] (البوت يفتتح بنوع إشارة زميله باللمّة اللي بعدها)
   return state;
 }
 
@@ -319,9 +320,13 @@ function nextRound(state, rng = Math.random) {
   return startRound(state, rng);
 }
 
-// إشارة الجوكر: لازم يكون عندك جوكر، وحامل الكبير بس ما يستخدمها لين ينزل الصغير.
+// إشارة الجوكر لزملاء الشاري بس (مو الشاري ولا الخصم)
+const isBuyerMate = (state, seat) => state.buyer != null && seat !== state.buyer && teamOf(seat) === teamOf(state.buyer);
+
+// إشارة الجوكر: لزملاء الشاري بس، ولازم يكون عندك جوكر، وحامل الكبير بس ما يستخدمها لين ينزل الصغير.
 // اللي معه الجوكرين يقدر (وتتحدد بورقته الجاية)
 function canSignalJoker(state, seat) {
+  if (!isBuyerMate(state, seat)) return false;
   const hand = state.hands[seat] || [];
   if (!hand.some(isJoker)) return false;
   if (hand.includes(BLUE) && hand.includes(GREY)) return true;
@@ -339,6 +344,7 @@ function signal(state, seat, suits) {
   if (!list.length || list.some((s) => !SUITS.includes(s) && s !== JOKER_SIGNAL)) fail('إشارة غير معروفة');
   if (list.includes(JOKER_SIGNAL) && !canSignalJoker(state, seat)) fail('ما تقدر تستخدم إشارة الجوكر');
   state.signalsThisTurn += 1;
+  for (const s of list) if (SUITS.includes(s)) (state.suitSignals ??= []).push({ seat, suit: s, trick: state.trickNo });
   const hand = state.hands[seat];
   if (list.includes(JOKER_SIGNAL) && hand.includes(BLUE) && hand.includes(GREY)) {
     // معه الجوكرين: إشارة الجوكر ما تبين الحين، تنحفظ وتتحدد لما يلعب ورقته
@@ -387,7 +393,7 @@ function viewFor(state, seat) {
     blueLoses: state.phase === 'playing' && blueLosesMatch(state, seat),
     canSignal: canSignal(state, seat),
     canSignalJoker: canSignalJoker(state, seat),
-    hasJoker: (state.hands[seat] || []).some(isJoker),
+    hasJoker: isBuyerMate(state, seat) && (state.hands[seat] || []).some(isJoker), // زر إشارة الجوكر يطلع لزملاء الشاري بس
     bawanOffer: state.phase === 'bawanOffer' && seat === state.buyer,
   };
 }

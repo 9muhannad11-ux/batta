@@ -267,8 +267,8 @@ for (const players of [6, 4]) {
         }
         const seat = s.phase === 'bawanOffer' ? s.buyer : s.turn;
         const action = Bot.decide(s, seat);
-        // البوت ما يزايد فوق 6
-        if (action.type === 'bid') assert.ok(action.value === 'pass' || action.value === 6 || action.value === E.MAJBUR);
+        // حد مزايدة البوت
+        if (action.type === 'bid') assert.ok(['pass', 6, 7, E.MAJBUR].includes(action.value)); // البوت ما يزايد فوق 7 (7 بس مع 7 أوراق من نوع)
         Bot.apply(s, seat, action);
         assert.ok(++steps < 100000, 'match did not terminate');
       }
@@ -322,6 +322,56 @@ test('bot: leads strongest, but not trump when opponents bought; follows to win 
   assert.strictEqual(Bot.decide(s, 0).card, 'C-2');
 });
 
+test('bot bidding with 7 of one suit: 6 when nobody bid, 7 over an opponent 6, pass under its mate', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'bidding', turn: 2, bids: [], currentBid: 0, buyer: null });
+  s.hands[2] = ['H-2', 'H-3', 'H-4', 'H-5', 'H-6', 'H-7', 'H-8', 'C-2', 'D-3'];
+  assert.strictEqual(Bot.decide(s, 2).value, 6); // محد زايد: 6
+  Object.assign(s, { currentBid: 6, buyer: 1 });
+  assert.strictEqual(Bot.decide(s, 2).value, 7); // الخصم زايد 6: 7
+  Object.assign(s, { currentBid: 7, buyer: 1 });
+  assert.strictEqual(Bot.decide(s, 2).value, 'pass'); // الخصم زايد 7: ما يزيد
+  Object.assign(s, { currentBid: 6, buyer: 0 });
+  assert.strictEqual(Bot.decide(s, 2).value, 'pass'); // زميله زايد
+  s.hands[2] = ['H-2', 'H-3', 'H-4', 'H-5', 'H-6', 'H-7', 'C-2', 'D-3', 'S-4'];
+  Object.assign(s, { currentBid: 0, buyer: null });
+  assert.strictEqual(Bot.decide(s, 2).value, 6); // 6 أوراق: مثل قبل
+});
+
+test('bot leads, in the next trick, the first suit its teammate signalled: top card if it holds the highest left, else lowest', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 3, turn: 0, trick: [], played: [] });
+  s.hands[0] = ['H-13', 'H-4', 'D-9', 'D-3', 'C-12'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-13'); // بدون إشارة: مثل قبل
+  E.signal(Object.assign(s, { turn: 2, trickNo: 2 }), 2, ['D']); // زميله (مقعد 2) أشّر ديمن باللمّة اللي قبل
+  Object.assign(s, { turn: 0, trickNo: 3 });
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-3');
+  s.suitSignals.push({ seat: 1, suit: 'C', trick: 2 }); // إشارة الخصم ما تأثر
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-3');
+  // معه أكبر ورقة باقية من النوع (الآص والشايب نزلوا): يرميها
+  s.played = ['D-14', 'D-13', 'D-12', 'D-11', 'D-10'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-9');
+  // أول إشارة لها الأولوية: زميله أشّر هاس بعد الديمن
+  s.played = []; s.suitSignals.push({ seat: 4, suit: 'H', trick: 2 });
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-3');
+  s.hands[0] = ['H-13', 'H-4', 'C-12'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4'); // ما عنده ديمن: النوع الثاني اللي أشّر عليه
+  s.trickNo = 4;
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-13'); // الإشارة كانت قبل لمّتين: مثل قبل
+});
+
+test('bot: mate bought 8 and opponents lead trump: holds the small joker until the trump ace is out', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 8, buyer: 2, greyPlayed: false, trickNo: 0, turn: 0, played: [] });
+  s.hands[0] = ['S-3', E.GREY, 'H-4'];
+  s.trick = [{ seat: 5, card: 'S-9' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-3'); // الآص ما نزل: يمسك الصغير
+  s.trick = [{ seat: 5, card: 'S-14' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY); // نزل آص الحكم: يرمي الصغير
+  s.trick = [{ seat: 5, card: 'S-9' }]; s.currentBid = 7;
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY); // زميله شاري 7: مثل قبل
+});
+
 test('bot: third-trick lead is lowest card while small joker is out; never bawan', () => {
   const s = E.createMatch({ khabis: 5 });
   Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 2, greyPlayed: false, trickNo: 2, turn: 0, trick: [] });
@@ -360,7 +410,7 @@ test('grey penalty: 15 points to opponents of holder when grey not played in 3 t
 
 test('signals: only on your turn, several at once, joker signal rules', () => {
   const s = E.createMatch({ khabis: 5 });
-  s.phase = 'playing'; s.trump = 'S'; s.turn = 2; s.signalsThisTurn = 0; s.greyPlayed = false;
+  s.phase = 'playing'; s.trump = 'S'; s.turn = 2; s.signalsThisTurn = 0; s.greyPlayed = false; s.buyer = 0;
   s.hands[2] = ['H-2', 'D-4'];
   assert.throws(() => E.signal(s, 1, ['H']));
   assert.deepStrictEqual(E.signal(s, 2, ['H', 'D']), { seat: 2, suits: ['H', 'D'], big: false });
@@ -375,12 +425,22 @@ test('signals: only on your turn, several at once, joker signal rules', () => {
   // حامل الصغير يقدر
   s.signalsThisTurn = 0; s.greyPlayed = false; s.hands[2] = [E.GREY, 'H-2'];
   assert.deepStrictEqual(E.signal(s, 2, ['J', 'H']), { seat: 2, suits: ['J', 'H'], big: false });
+  // إشارة الجوكر لزملاء الشاري بس: الشاري نفسه والخصم ما يقدرون (وزرها ما يطلع لهم)
+  s.signalsThisTurn = 0; s.buyer = 2;
+  assert.throws(() => E.signal(s, 2, ['J']));
+  assert.strictEqual(E.viewFor(s, 2).hasJoker, false);
+  s.buyer = 1;
+  assert.throws(() => E.signal(s, 2, ['J']));
+  assert.strictEqual(E.viewFor(s, 2).canSignalJoker, false);
+  s.buyer = 4;
+  assert.strictEqual(E.viewFor(s, 2).hasJoker, true);
+  assert.deepStrictEqual(E.signal(s, 2, ['J']).suits, ['J']);
 });
 
 test('both jokers: the joker signal waits for the card — small joker = big signal, other card = small signal', () => {
   const setup = () => {
     const s = E.createMatch({ khabis: 5 });
-    s.phase = 'playing'; s.trump = 'S'; s.turn = 2; s.signalsThisTurn = 0; s.greyPlayed = false;
+    s.phase = 'playing'; s.trump = 'S'; s.turn = 2; s.signalsThisTurn = 0; s.greyPlayed = false; s.buyer = 0;
     s.trick = [{ seat: 1, card: 'H-3' }];
     s.hands[2] = [E.BLUE, E.GREY, 'H-2', 'C-5'];
     return s;

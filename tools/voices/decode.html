@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>decode</title>
+<!-- يفك أي ملف صوت (mp3/mpeg/m4a) لـ wav أحادي 44100 بدون أي معالجة: decode.html?f=..&out=.. -->
+<pre id="info">...</pre>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const RATE = 44100;
+  const data = await (await fetch(q.get('f'))).arrayBuffer();
+  const ctx = new OfflineAudioContext(1, 1, RATE);
+  const dec = await ctx.decodeAudioData(data);
+  const off = new OfflineAudioContext(1, Math.ceil(dec.duration * RATE), RATE);
+  const src = off.createBufferSource(); src.buffer = dec; src.connect(off.destination); src.start();
+  const x = (await off.startRendering()).getChannelData(0);
+  const body = new DataView(new ArrayBuffer(44 + x.length * 2));
+  const s = (o, t) => [...t].forEach((c, i) => body.setUint8(o + i, c.charCodeAt(0)));
+  s(0, 'RIFF'); body.setUint32(4, 36 + x.length * 2, true); s(8, 'WAVEfmt ');
+  body.setUint32(16, 16, true); body.setUint16(20, 1, true); body.setUint16(22, 1, true);
+  body.setUint32(24, RATE, true); body.setUint32(28, RATE * 2, true); body.setUint16(32, 2, true); body.setUint16(34, 16, true);
+  s(36, 'data'); body.setUint32(40, x.length * 2, true);
+  x.forEach((v, i) => body.setInt16(44 + i * 2, Math.max(-1, Math.min(1, v)) * 32767, true));
+  await fetch('/save?name=' + q.get('out'), { method: 'POST', body: body.buffer });
+  document.getElementById('info').textContent = 'saved ' + q.get('out') + ' ' + dec.duration.toFixed(2) + 's';
+})();
+</script>

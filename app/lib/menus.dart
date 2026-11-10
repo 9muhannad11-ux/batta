@@ -8,6 +8,35 @@ import 'main.dart' show ChromeBackground, showErrors;
 import 'net.dart';
 import 'sounds.dart';
 
+/// أي خيار ينضغط ينزل شوي ويصغر شوي، ويرجع لما ينشال الإصبع (عشان يبين إنه انضغط)
+class Pressable extends StatefulWidget {
+  final Widget child;
+  const Pressable({super.key, required this.child});
+
+  @override
+  State<Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<Pressable> {
+  bool _down = false;
+  void _set(bool v) {
+    if (_down != v && mounted) setState(() => _down = v);
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+        onPointerDown: (_) => _set(true),
+        onPointerUp: (_) => _set(false),
+        onPointerCancel: (_) => _set(false),
+        child: AnimatedSlide(
+          offset: Offset(0, _down ? 0.05 : 0),
+          duration: const Duration(milliseconds: 70),
+          curve: Curves.easeOut,
+          child: AnimatedScale(scale: _down ? 0.95 : 1, duration: const Duration(milliseconds: 70), curve: Curves.easeOut, child: widget.child),
+        ),
+      );
+}
+
 /// انتقال بسيط بين الصفحات: الجديدة تدخل بتلاشي وحركة خفيفة. id يتغير مع كل صفحة
 class PageSwitcher extends StatelessWidget {
   final Object id;
@@ -125,11 +154,11 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                OutlinedButton.icon(
+                Pressable(child: OutlinedButton.icon(
                   onPressed: withTap(() => Navigator.pop(context)),
                   icon: const Icon(Icons.arrow_back, size: 20),
                   label: const Text('رجوع'),
-                ),
+                )),
               ]),
             ),
           ),
@@ -191,7 +220,7 @@ class MenuCard extends StatelessWidget {
     return SizedBox(
       width: width,
       height: width * cardRatio,
-      child: FittedBox(child: onTap == null ? card : GestureDetector(onTap: withTap(onTap), child: card)),
+      child: FittedBox(child: onTap == null ? card : Pressable(child: GestureDetector(onTap: withTap(onTap), child: card))),
     );
   }
 }
@@ -275,11 +304,11 @@ class BackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-        OutlinedButton(
+        Pressable(child: OutlinedButton(
           onPressed: withTap(onBack),
           style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
           child: const Icon(Icons.arrow_back, size: 20),
-        ),
+        )),
         const SizedBox(width: 10),
         Expanded(child: Text(title, style: const TextStyle(fontSize: 24, color: KoutColors.ink, fontWeight: FontWeight.w700))),
       ]);
@@ -405,12 +434,12 @@ class _SearchScreenState extends State<SearchScreen> {
                   Text('$found من ${c.mode} لاعبين · من $score نقطة', style: const TextStyle(fontSize: 17, color: KoutColors.ink)),
                   Text(time, style: const TextStyle(fontSize: 17, color: KoutColors.ink)),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
+                  Pressable(child: OutlinedButton.icon(
                     onPressed: withTap(c.leave),
                     style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 28)),
                     icon: const Icon(Icons.arrow_back, size: 20),
                     label: const Text('رجوع'),
-                  ),
+                  )),
                 ]),
               ),
             ),

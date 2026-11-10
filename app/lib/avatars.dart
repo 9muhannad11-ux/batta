@@ -23,6 +23,11 @@ class _Look {
   final double tilt; // ميلان غطا الراس
   final String nose; // normal, long
   final double eyeSize; // حجم العيون (1 = العادي)
+  // فروق الملامح بين الشخصيات
+  final double noseW; // عرض الخشم (1 = العادي)
+  final bool noseHook; // خشم معقوف بحدبة على الجسر
+  final double lips; // سماكة الشفايف (1 = العادي)
+  final double eyeGap; // المسافة بين العيون (1 = العادي)
   final Color robe; // لون الدشداشة
   final bool scarf; // شماغ أحمر وأبيض مفصوخ على الكتف
   final bool shirt; // قميص بياقة مدببة وأزرار
@@ -46,6 +51,10 @@ class _Look {
     this.tilt = 0,
     this.nose = 'normal',
     this.eyeSize = 1,
+    this.noseW = 1,
+    this.noseHook = false,
+    this.lips = 1,
+    this.eyeGap = 1,
     this.robe = const Color(0xFFF7F7F4),
     this.scarf = false,
     this.shirt = false,
@@ -75,31 +84,31 @@ const characterNames = <String, String>{
 
 const _looks = <String, _Look>{
   // خلفان التفق: ملامح عمانية ومصر أحمر، شنب كثيف
-  'khalfan': _Look(skin: Color(0xFFC68E5E), robe: Color(0xFFB7C7D6), head: 'turban', headColor: Color(0xFFC62828), mustache: 'thick', beard: 'stubble', mouth: 'smile'),
+  'khalfan': _Look(skin: Color(0xFFC68E5E), robe: Color(0xFFB7C7D6), head: 'turban', headColor: Color(0xFFC62828), mustache: 'thick', beard: 'stubble', mouth: 'smile', noseW: 1.25, lips: 1.3),
   // خصيب: ملامح حادة ومصر حليبي، لحية قصيرة
-  'khusaib': _Look(skin: Color(0xFFB97A4F), robe: Color(0xFFEFE6CF), head: 'turban', headColor: Color(0xFFF3E9D2), brows: 'sharp', beard: 'short', mustache: 'light'),
+  'khusaib': _Look(skin: Color(0xFFB97A4F), robe: Color(0xFFEFE6CF), head: 'turban', headColor: Color(0xFFF3E9D2), brows: 'sharp', beard: 'short', mustache: 'light', noseHook: true, lips: 0.6, eyeGap: 0.94),
   // مرهون: شايب عمره 80، ملامح فقر ومصر بني فاتح، وجه نحيف بتجاعيد ولحية بيضاء
-  'marhoon': _Look(skin: Color(0xFFBE8C64), robe: Color(0xFF8C6E52), head: 'turban', headColor: Color(0xFFC8A27A), brows: 'sad', eyes: 'calm', mouth: 'frown', beard: 'full', mustache: 'thick', thin: true, white: true, old: true, tilt: -0.12),
+  'marhoon': _Look(skin: Color(0xFFBE8C64), robe: Color(0xFF8C6E52), head: 'turban', headColor: Color(0xFFC8A27A), brows: 'sad', eyes: 'calm', mouth: 'frown', beard: 'full', mustache: 'thick', thin: true, white: true, old: true, tilt: -0.12, noseW: 1.1, noseHook: true, lips: 0.7),
   // سعيد (المعرّف musabbah من أيام اسمه مصبّح، عشان اختيارات اللاعبين المحفوظة): وجه طويل ونحيف بملامح عمانية (بشرة سمرا، حواجب كثيفة، خشم طويل، شنب كثيف ولحية مرتبة)، وكمّة بيضاء بتطريز مفصّل
-  'musabbah': _Look(skin: Color(0xFFB27A50), robe: Color(0xFFF7F7F4), head: 'kummaWhite', beard: 'short', mustache: 'thick', brows: 'thick', eyes: 'open', eyeSize: 0.92, nose: 'long', mouth: 'smile', thin: true, long: true),
+  'musabbah': _Look(skin: Color(0xFFB27A50), robe: Color(0xFFF7F7F4), head: 'kummaWhite', beard: 'short', mustache: 'thick', brows: 'thick', eyes: 'open', eyeSize: 0.92, nose: 'long', mouth: 'smile', thin: true, long: true, noseHook: true, lips: 0.9, eyeGap: 0.95),
   // محمد بو ضرس: مايل للسمار وناقصه سن قدام
-  'bodhirs': _Look(skin: Color(0xFF9C6B43), robe: Color(0xFF9FC1E6), mouth: 'gap', mustache: 'thick'),
+  'bodhirs': _Look(skin: Color(0xFF9C6B43), robe: Color(0xFF9FC1E6), mouth: 'gap', mustache: 'thick', noseW: 1.45, lips: 1.4),
   // عبدو اليابس: قوة وصلابة ولحية مو كبيرة تغطي الوجه، وكمّة بيضاء بتطريز أخضر
-  'abdo': _Look(skin: Color(0xFFB07A4F), robe: Color(0xFF5E6368), head: 'kummaGreen', brows: 'sharp', beard: 'full', mustache: 'thick'),
+  'abdo': _Look(skin: Color(0xFFB07A4F), robe: Color(0xFF5E6368), head: 'kummaGreen', brows: 'sharp', beard: 'full', mustache: 'thick', noseW: 1.2, eyeGap: 1.04),
   // أسلم: باكستاني بوجه عريض، پاکول صوف بني، لحية سودا كاملة وشنب، شلوار قميص زيتوني
-  'aslam': _Look(skin: Color(0xFFA8714A), robe: Color(0xFF9AA58A), kameez: true, wide: true, head: 'pakol', headColor: Color(0xFF8B6B4A), beard: 'full', mustache: 'thick', brows: 'thick', mouth: 'smile'),
+  'aslam': _Look(skin: Color(0xFFA8714A), robe: Color(0xFF9AA58A), kameez: true, wide: true, head: 'pakol', headColor: Color(0xFF8B6B4A), beard: 'full', mustache: 'thick', brows: 'thick', mouth: 'smile', noseW: 1.35, lips: 1.25, eyeGap: 1.05),
   // المنضغط: ملامح غاضبة وسكسوكة
-  'mundaghit': _Look(skin: Color(0xFFBF8A60), robe: Color(0xFF8A4545), brows: 'angry', mouth: 'frown', beard: 'goatee', mustache: 'light'),
+  'mundaghit': _Look(skin: Color(0xFFBF8A60), robe: Color(0xFF8A4545), brows: 'angry', mouth: 'frown', beard: 'goatee', mustache: 'light', noseW: 0.95, lips: 0.55, eyeGap: 0.95),
   // بو حمدان: كمّة بيضاء بتطريز بني، وجه حاد، عيون صغيرة، حواجب كثيفة، خشم طويل، شنب ولحية خفيفة على الذقن
-  'buhamdan': _Look(skin: Color(0xFFC99470), robe: Color(0xFFCFE2EA), head: 'kummaBrown', brows: 'thick', eyes: 'open', eyeSize: 0.8, mustache: 'thick', beard: 'chin', nose: 'long', thin: true),
+  'buhamdan': _Look(skin: Color(0xFFC99470), robe: Color(0xFFCFE2EA), head: 'kummaBrown', brows: 'thick', eyes: 'open', eyeSize: 0.8, mustache: 'thick', beard: 'chin', nose: 'long', thin: true, noseHook: true, lips: 0.85, eyeGap: 0.92),
   // فارس: سعودي عمره 20، وجه نحيف بذقن أعرض شوي، ثوب أبيض وقحفية والشماغ الأحمر مفصوخ على الكتف، سكسوكة خفيفة موصولة بشنب رفيع
-  'fares': _Look(skin: Color(0xFFC9966C), kameez: true, scarf: true, thin: true, wideChin: true, head: 'qahfiya', beard: 'circle', mustache: 'trim', eyeSize: 0.9, mouth: 'smile'),
+  'fares': _Look(skin: Color(0xFFC9966C), kameez: true, scarf: true, thin: true, wideChin: true, head: 'qahfiya', beard: 'circle', mustache: 'trim', eyeSize: 0.9, mouth: 'smile', noseW: 0.78, eyeGap: 1.02),
   // سليمان: بشرة فاتحة وملامح باردة، نظرة نص مغمضة، بابتسامة خفيفة، بقحفية زرقا وبيجامة نوم مخططة برقبة مفتوحة
-  'sulaiman': _Look(skin: Color(0xFFE6CBB4), robe: Color(0xFFBCD2E6), pajama: true, head: 'qahfiya', headColor: Color(0xFF2563B8), brows: 'flat', eyes: 'cold', eyeSize: 0.9, mouth: 'faint', beard: 'stubble', nose: 'long', thin: true, wideChin: true),
+  'sulaiman': _Look(skin: Color(0xFFE6CBB4), robe: Color(0xFFBCD2E6), pajama: true, head: 'qahfiya', headColor: Color(0xFF2563B8), brows: 'flat', eyes: 'cold', eyeSize: 0.9, mouth: 'faint', beard: 'stubble', nose: 'long', thin: true, wideChin: true, noseW: 0.72, lips: 0.6),
   // مدحت: مصري عمره 45، أقرع تقريباً بشعر قصير على الجنبين، وجه عريض ومليان، شنب كثيف وذقن خفيف، قميص أزرق بياقة
-  'medhat': _Look(skin: Color(0xFFC48A62), robe: Color(0xFF8EB4DC), shirt: true, head: 'bald', wide: true, beard: 'stubble', mustache: 'thick', brows: 'thick', eyes: 'calm', mouth: 'smile'),
+  'medhat': _Look(skin: Color(0xFFC48A62), robe: Color(0xFF8EB4DC), shirt: true, head: 'bald', wide: true, beard: 'stubble', mustache: 'thick', brows: 'thick', eyes: 'calm', mouth: 'smile', noseW: 1.5, lips: 1.45, eyeGap: 1.06),
   // ود عمتيه: من ولاية السويق، كمّة مطرزة مايلة شوي، لحية وشنب خفيفين
-  'wadamtih': _Look(skin: Color(0xFFC4895C), robe: Color(0xFFD8C9A8), head: 'kumma', beard: 'light', mustache: 'light', eyes: 'calm', tilt: 0.12),
+  'wadamtih': _Look(skin: Color(0xFFC4895C), robe: Color(0xFFD8C9A8), head: 'kumma', beard: 'light', mustache: 'light', eyes: 'calm', tilt: 0.12, lips: 1.05, eyeGap: 1.04),
 };
 
 class CharacterAvatar extends StatelessWidget {
@@ -249,11 +258,31 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
     return syll * phrase;
   }
 
+  double _open(double ms) => !_moving ? 0.0 : _mouthFromVoice(ms) ?? _mouthAt((ms / 2000) % 1);
+
   @override
   Widget build(BuildContext context) {
     final ms = _t.inMicroseconds / 1000;
-    final m = widget.mouth ?? (!_moving ? 0.0 : _mouthFromVoice(ms) ?? _mouthAt((ms / 2000) % 1));
+    final m = widget.mouth ?? _open(ms);
     final look = _looks[widget.charId] ?? _looks['musabbah']!;
+    if (_moving) {
+      // تفاعل مع الكلام: علو الصوت الناعم (متوسط 300 ملي) يرفع الحواجب ويحرك الراس،
+      // والراس يميل يمين ويسار ببطء ويهز مع المقاطع القوية
+      var energy = 0.0;
+      for (var k = -3; k <= 3; k++) {
+        energy += _open(max(0, ms + k * 50));
+      }
+      energy = (energy / 7).clamp(0.0, 1.0);
+      // الجسم ثابت: الحواجب ترتفع، والعيون تنفتح شوي مع الكلام وترمش رمشة خفيفة،
+      // والراس بس يميل ميلة بسيطة ويهز هزة خفيفة مع المقاطع
+      final fadeIn = (ms / 250).clamp(0.0, 1.0);
+      final blinkT = (ms - 700) % 1900; // رمشة بعد 0.7 ثانية وبعدها كل 1.9
+      final blink = ms > 700 && blinkT < 140 ? 1 - sin(blinkT / 140 * pi) * 0.85 : 1.0;
+      final eye = (1 + energy * 0.12 * fadeIn) * blink;
+      final tilt = sin(ms / 1000 * 2 * pi * 0.7) * 0.03 * fadeIn;
+      final nod = ((m - energy) * 0.012 + energy * 0.006) * fadeIn;
+      return CustomPaint(painter: _FacePainter(look, mouth: m, brow: (energy * 1.6).clamp(0.0, 1.0) * fadeIn, eye: eye, headTilt: tilt, headNod: nod));
+    }
     final painter = _FacePainter(look, mouth: m);
     if (m != 0) return CustomPaint(painter: painter);
     // وجه ساكت: صورة جاهزة (الوجه فيه مئات الأشكال). الرسم يطلع برا حدوده، والصورة مكبّرة 1.3
@@ -265,7 +294,11 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
 class _FacePainter extends CustomPainter {
   final _Look look;
   final double mouth; // فتحة الفم وقت الكلام (0 مسكّر، 1 مفتوح)
-  _FacePainter(this.look, {this.mouth = 0});
+  final double brow; // ارتفاع الحواجب وقت الكلام (0 عادي، 1 مرفوع)
+  final double eye; // فتحة العين وقت الكلام (1 عادي، أكبر منفتحة، قريب من 0 رمشة)
+  final double headTilt; // ميلان الراس بالراديان (الجسم ثابت)
+  final double headNod; // رفعة الراس (نسبة من المقاس)
+  _FacePainter(this.look, {this.mouth = 0, this.brow = 0, this.eye = 1, this.headTilt = 0, this.headNod = 0});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -379,6 +412,13 @@ class _FacePainter extends CustomPainter {
 
     if (look.scarf) _shoulderShemagh(canvas, s, cx, line, fill);
 
+    // من هني وتحت الراس: يميل ويهز شوي وقت الكلام والجسم ثابت (المحور فوق الرقبة)
+    if (headTilt != 0 || headNod != 0) {
+      canvas.translate(cx, s * 0.68);
+      canvas.rotate(headTilt);
+      canvas.translate(-cx, -s * 0.68 - headNod * s);
+    }
+
     // الأذون
     for (final side in [-1.0, 1.0]) {
       final ear = Rect.fromCenter(center: Offset(cx + side * (hw + s * 0.015), s * 0.47), width: s * 0.07, height: s * 0.12);
@@ -436,14 +476,18 @@ class _FacePainter extends CustomPainter {
       _ => (0.408, 0.398),
     };
     final browW = switch (look.brows) { 'angry' => 0.017, 'thick' => 0.02, _ => 0.013 };
+    final eyeX = s * 0.097 * look.eyeGap; // بعد العين عن النص
+    final gapShift = eyeX - s * 0.097;
     for (final side in [-1.0, 1.0]) {
-      final xi = cx + side * s * 0.035, xo = cx + side * s * 0.165, xm = cx + side * s * 0.1;
+      final xi = cx + side * (s * 0.035 + gapShift), xo = cx + side * (s * 0.165 + gapShift), xm = cx + side * (s * 0.1 + gapShift);
       final ym = min(yi, yo) - (look.brows == 'flat' ? 0.004 : 0.022);
+      // وقت الكلام الحاجب يرتفع، وطرفه الداخلي أكثر (تعبير)
+      final lift = brow * 0.018, liftIn = brow * 0.024;
       canvas.drawPath(
           Path()
-            ..moveTo(xi, s * yi)
-            ..quadraticBezierTo(xm, s * ym, xo, s * yo)
-            ..quadraticBezierTo(xm, s * (ym + browW + 0.004), xi, s * (yi + browW))
+            ..moveTo(xi, s * (yi - liftIn))
+            ..quadraticBezierTo(xm, s * (ym - lift), xo, s * (yo - lift * 0.7))
+            ..quadraticBezierTo(xm, s * (ym - lift + browW + 0.004), xi, s * (yi - liftIn + browW))
             ..close(),
           fill(look.white ? const Color(0xFFE2DED6) : const Color(0xFF241812)));
     }
@@ -451,7 +495,7 @@ class _FacePainter extends CustomPainter {
     // ظل بارد تحت العيون
     if (look.eyes == 'cold') {
       for (final side in [-1.0, 1.0]) {
-        canvas.drawOval(Rect.fromCenter(center: Offset(cx + side * s * 0.097, s * 0.5), width: s * 0.09, height: s * 0.02), fill(const Color(0x143A3F52)));
+        canvas.drawOval(Rect.fromCenter(center: Offset(cx + side * eyeX, s * 0.5), width: s * 0.09, height: s * 0.02), fill(const Color(0x143A3F52)));
       }
     }
 
@@ -460,32 +504,24 @@ class _FacePainter extends CustomPainter {
 
     // العيون (أوسع: أعرض وأطول شوي)
     for (final side in [-1.0, 1.0]) {
-      final ex = cx + side * s * 0.097, ey = s * 0.462;
+      final ex = cx + side * eyeX, ey = s * 0.462;
       canvas.save();
       canvas.translate(ex, ey);
-      canvas.scale(1.22 * look.eyeSize, 1.35 * look.eyeSize);
+      canvas.scale(1.22 * look.eyeSize, 1.35 * look.eyeSize * eye);
       canvas.translate(-ex, -ey);
       _eye(canvas, s, ex, ey, side, fill, stroke);
       canvas.restore();
     }
 
-    if (look.nose == 'long') _longNose(canvas, s, cx, fill);
     if (look.mouth == 'grin') _smileLines(canvas, s, cx);
-    // الخشم: جنب وظل، وفتحتين
-    canvas.drawPath(
-        Path()
-          ..moveTo(cx + s * 0.012, s * 0.45)
-          ..quadraticBezierTo(cx + s * 0.03, s * 0.53, cx + s * 0.036, s * 0.555),
-        stroke(const Color(0x2E402818), 0.008));
-    canvas.drawPath(
-        Path()
-          ..moveTo(cx - s * 0.04, s * 0.555)
-          ..quadraticBezierTo(cx - s * 0.02, s * 0.575, cx, s * 0.568)
-          ..quadraticBezierTo(cx + s * 0.02, s * 0.575, cx + s * 0.04, s * 0.555),
-        line);
-    for (final side in [-1.0, 1.0]) {
-      canvas.drawOval(Rect.fromCenter(center: Offset(cx + side * s * 0.018, s * 0.562), width: s * 0.016, height: s * 0.008), fill(const Color(0xFF5A3420)));
-    }
+    // الخشم بعرضه الخاص لكل شخصية (من نص الوجه، وطوله نفسه)
+    canvas.save();
+    canvas.translate(cx, 0);
+    canvas.scale(look.noseW, 1);
+    canvas.translate(-cx, 0);
+    if (look.nose == 'long') _longNose(canvas, s, cx, fill);
+    _nose(canvas, s, cx, fill, stroke, line);
+    canvas.restore();
 
     // الفم
     _mouth(canvas, s, cx, fill, line);
@@ -555,6 +591,63 @@ class _FacePainter extends CustomPainter {
     // بين الحواجب
     canvas.drawLine(Offset(cx - s * 0.008, s * 0.4), Offset(cx - s * 0.006, s * 0.43), p);
     canvas.drawLine(Offset(cx + s * 0.008, s * 0.4), Offset(cx + s * 0.006, s * 0.43), p);
+  }
+
+  /// الخشم لكل الشخصيات: ظل الجسر من جهة، كرة الخشم بظل تحتها ولمعة فوقها،
+  /// أجنحة واضحة، وفتحتين مايلات بدل النقط
+  void _nose(Canvas canvas, double s, double cx, Paint Function(Color) fill, Paint Function(Color, double) stroke, Paint line) {
+    final shade = Color.lerp(look.skin, const Color(0xFF3A2010), 0.45)!;
+    // ظل جسر الخشم (جهة اليمين، الضو جاي من اليسار)
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx + s * 0.012, s * 0.45)
+          ..quadraticBezierTo(cx + s * 0.03, s * 0.53, cx + s * 0.036, s * 0.555),
+        stroke(const Color(0x2E402818), 0.008));
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx + s * 0.006, s * 0.46)
+          ..quadraticBezierTo(cx + s * 0.02, s * 0.52, cx + s * 0.024, s * 0.545)
+          ..lineTo(cx + s * 0.034, s * 0.548)
+          ..quadraticBezierTo(cx + s * 0.026, s * 0.5, cx + s * 0.012, s * 0.45)
+          ..close(),
+        fill(shade.withValues(alpha: 0.16)));
+    if (look.noseHook) {
+      // حدبة على الجسر: خط معقوف بنص الخشم ولمعة فوق الحدبة، والرأس نازل شوي
+      canvas.drawPath(
+          Path()
+            ..moveTo(cx + s * 0.004, s * 0.462)
+            ..quadraticBezierTo(cx + s * 0.03, s * 0.488, cx + s * 0.018, s * 0.515)
+            ..quadraticBezierTo(cx + s * 0.012, s * 0.53, cx + s * 0.022, s * 0.548),
+          stroke(shade.withValues(alpha: 0.55), 0.008));
+      canvas.drawOval(Rect.fromCenter(center: Offset(cx + s * 0.006, s * 0.49), width: s * 0.014, height: s * 0.022), fill(const Color(0x2EFFFFFF)));
+      canvas.drawOval(Rect.fromCenter(center: Offset(cx + s * 0.002, s * 0.566), width: s * 0.03, height: s * 0.014), fill(shade.withValues(alpha: 0.3)));
+    }
+    // كرة الخشم: ظل ناعم تحتها، ولمعة فوقها
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx + s * 0.002, s * 0.561), width: s * 0.06, height: s * 0.018), fill(shade.withValues(alpha: 0.22)));
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - s * 0.005, s * 0.541), width: s * 0.022, height: s * 0.014), fill(const Color(0x30FFFFFF)));
+    canvas.drawCircle(Offset(cx - s * 0.007, s * 0.538), s * 0.0045, fill(const Color(0x55FFFFFF)));
+    // الأجنحة (الطويل عنده أجنحته)
+    if (look.nose != 'long') {
+      for (final side in [-1.0, 1.0]) {
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx + side * s * 0.031, s * 0.553), width: s * 0.026, height: s * 0.024),
+            side < 0 ? pi * 0.55 : -pi * 0.35, pi * 0.8, false, stroke(shade.withValues(alpha: 0.75), 0.008));
+      }
+    }
+    // قاعدة الخشم
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx - s * 0.04, s * 0.555)
+          ..quadraticBezierTo(cx - s * 0.02, s * 0.575, cx, s * 0.568)
+          ..quadraticBezierTo(cx + s * 0.02, s * 0.575, cx + s * 0.04, s * 0.555),
+        line);
+    // الفتحتين: مايلات للداخل
+    for (final side in [-1.0, 1.0]) {
+      canvas.save();
+      canvas.translate(cx + side * s * 0.019, s * 0.563);
+      canvas.rotate(side * -0.35);
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: s * 0.019, height: s * 0.0095), fill(const Color(0xFF4A2818)));
+      canvas.restore();
+    }
   }
 
   /// خشم أطول: جسر الخشم بظل على الجنبين، ورأس أعرض شوي
@@ -759,6 +852,11 @@ class _FacePainter extends CustomPainter {
   }
 
   void _mouth(Canvas canvas, double s, double cx, Paint Function(Color) fill, Paint line) {
+    Paint stroke(Color c, double w) => Paint()
+      ..color = c
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(0.5, s * w)
+      ..strokeCap = StrokeCap.round;
     final lipY = s * 0.632;
     final talk = mouth.clamp(0.0, 1.0);
     final grin = look.mouth == 'grin' || look.mouth == 'gap';
@@ -771,7 +869,23 @@ class _FacePainter extends CustomPainter {
       'faint' => -s * 0.006,
       _ => 0.0,
     };
-    final w = grin ? s * 0.078 : look.mouth == 'faint' ? s * 0.05 : s * 0.055;
+    final w = (grin ? s * 0.078 : look.mouth == 'faint' ? s * 0.05 : s * 0.055) * (0.88 + 0.12 * look.lips);
+    final lipK = look.lips; // سماكة الشفايف
+    final shade = Color.lerp(look.skin, const Color(0xFF3A2010), 0.45)!;
+    // النقرة بين الخشم والشفة (خطين خفيفين وظل بينهم)
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx - s * 0.008, s * 0.576)
+          ..lineTo(cx - s * 0.011, lipY - s * 0.011 * lipK)
+          ..lineTo(cx + s * 0.011, lipY - s * 0.011 * lipK)
+          ..lineTo(cx + s * 0.008, s * 0.576)
+          ..close(),
+        fill(shade.withValues(alpha: 0.1)));
+    for (final side in [-1.0, 1.0]) {
+      canvas.drawLine(Offset(cx + side * s * 0.008, s * 0.578), Offset(cx + side * s * 0.012, lipY - s * 0.012 * lipK), stroke(shade.withValues(alpha: 0.32), 0.005));
+    }
+    // ظل تحت الشفة التحتانية (فوق الذقن)
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx, lipY + open + s * (0.03 + 0.008 * lipK)), width: w * 1.1, height: s * 0.016), fill(shade.withValues(alpha: 0.2)));
     if (open > 0.5) {
       final hole = grin && talk < 0.05
           ? (Path()
@@ -782,34 +896,68 @@ class _FacePainter extends CustomPainter {
           : (Path()
             ..moveTo(cx - w * 0.9, lipY + corner)
             ..quadraticBezierTo(cx, lipY - s * 0.006, cx + w * 0.9, lipY + corner)
-            ..quadraticBezierTo(cx, lipY + open * 1.4, cx - w * 0.9, lipY + corner)
+            ..quadraticBezierTo(cx, lipY + open * 2.1, cx - w * 0.9, lipY + corner)
             ..close());
-      canvas.drawPath(hole, fill(const Color(0xFF3A1414)));
+      // داخل الفم أحمر مثل فم الإنسان: أفتح بالنص وأغمق عند الأطراف والحلق
+      canvas.drawPath(
+          hole,
+          Paint()
+            ..shader = const RadialGradient(
+              center: Alignment(0, 0.2),
+              radius: 0.75,
+              colors: [Color(0xFFA8302E), Color(0xFF7E2022), Color(0xFF501214)],
+              stops: [0, 0.55, 1],
+            ).createShader(hole.getBounds()));
       canvas.save();
       canvas.clipPath(hole);
-      final teeth = Rect.fromLTWH(cx - w * 0.8, lipY - s * 0.004, w * 1.6, min(open * (grin ? 0.75 : 0.5), s * 0.03));
+      final teeth = Rect.fromLTWH(cx - w * 0.8, lipY - s * 0.004, w * 1.6, grin ? min(open * 0.75, s * 0.03) : min(open * 0.3, s * 0.018));
+      // اللسان وردي تحت بلمعة خفيفة، والأسنان التحتانية لما الفم ينفتح زيادة
+      final tongue = Rect.fromCenter(center: Offset(cx, lipY + open * 0.95), width: w * 1.3, height: open * 0.7);
+      canvas.drawOval(tongue, fill(const Color(0xFFD86A62)));
+      canvas.drawOval(Rect.fromCenter(center: tongue.center.translate(-w * 0.15, -open * 0.12), width: w * 0.4, height: open * 0.18), fill(const Color(0x40FFFFFF)));
       canvas.drawRect(teeth, fill(const Color(0xFFF1EDE6)));
+      canvas.drawLine(Offset(cx, teeth.top), Offset(cx, teeth.bottom), stroke(const Color(0x33000000), 0.004)); // بين السنين القدام
+      if (open > s * 0.03) {
+        canvas.drawRect(Rect.fromLTWH(cx - w * 0.55, lipY + open * 0.92, w * 1.1, s * 0.007), fill(const Color(0xFFE4DED4)));
+      }
       if (look.mouth == 'gap') canvas.drawRect(Rect.fromLTWH(cx + s * 0.004, teeth.top, s * 0.014, teeth.height), fill(const Color(0xFF3A1414))); // سن ناقص
       canvas.restore();
     }
-    // الشفة الفوقانية
+    // الشفة الفوقانية: قوس كيوبيد وحدّ أغمق فوقه
+    final upper = Path()
+      ..moveTo(cx - w, lipY + corner)
+      ..quadraticBezierTo(cx - s * 0.02, lipY - s * 0.013 * lipK, cx, lipY - s * 0.007 * lipK)
+      ..quadraticBezierTo(cx + s * 0.02, lipY - s * 0.013 * lipK, cx + w, lipY + corner)
+      ..quadraticBezierTo(cx, lipY + s * 0.003, cx - w, lipY + corner)
+      ..close();
+    canvas.drawPath(upper, fill(Color.lerp(look.skin, const Color(0xFF7A3A30), 0.55)!));
     canvas.drawPath(
         Path()
-          ..moveTo(cx - w, lipY + corner)
-          ..quadraticBezierTo(cx - s * 0.02, lipY - s * 0.013, cx, lipY - s * 0.007)
-          ..quadraticBezierTo(cx + s * 0.02, lipY - s * 0.013, cx + w, lipY + corner)
-          ..quadraticBezierTo(cx, lipY + s * 0.003, cx - w, lipY + corner)
-          ..close(),
-        fill(Color.lerp(look.skin, const Color(0xFF7A3A30), 0.55)!));
-    // الشفة التحتانية تنزل مع الفتح
+          ..moveTo(cx - w * 0.8, lipY + corner * 0.8 - s * 0.004 * lipK)
+          ..quadraticBezierTo(cx - s * 0.02, lipY - s * 0.013 * lipK, cx, lipY - s * 0.007 * lipK)
+          ..quadraticBezierTo(cx + s * 0.02, lipY - s * 0.013 * lipK, cx + w * 0.8, lipY + corner * 0.8 - s * 0.004 * lipK),
+        stroke(Color.lerp(look.skin, const Color(0xFF4A2018), 0.55)!.withValues(alpha: 0.6), 0.005));
+    // الشفة التحتانية تنزل مع الفتح، بلمعة صغيرة
     final ly = lipY + open;
+    final lowerCol = Color.lerp(look.skin, const Color(0xFF8A4A3C), 0.5)!;
     canvas.drawPath(
         Path()
           ..moveTo(cx - w * 0.9, ly + corner * 0.6)
-          ..quadraticBezierTo(cx, ly + s * 0.024, cx + w * 0.9, ly + corner * 0.6)
+          ..quadraticBezierTo(cx, ly + s * 0.024 * lipK, cx + w * 0.9, ly + corner * 0.6)
           ..quadraticBezierTo(cx, ly + s * 0.004, cx - w * 0.9, ly + corner * 0.6)
           ..close(),
-        fill(Color.lerp(look.skin, const Color(0xFF8A4A3C), 0.5)!));
+        fill(lowerCol));
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx - w * 0.15, ly + s * 0.011 * lipK), width: w * 0.5, height: s * 0.006 * lipK), fill(const Color(0x40FFFFFF)));
+    // زوايا الفم: نقطة غامقة وطية صغيرة
+    for (final side in [-1.0, 1.0]) {
+      final x = cx + side * w;
+      canvas.drawCircle(Offset(x, lipY + corner), s * 0.0045, fill(shade.withValues(alpha: 0.5)));
+      canvas.drawPath(
+          Path()
+            ..moveTo(x + side * s * 0.004, lipY + corner - s * 0.008)
+            ..quadraticBezierTo(x + side * s * 0.012, lipY + corner, x + side * s * 0.006, lipY + corner + s * 0.01),
+          stroke(shade.withValues(alpha: 0.28), 0.005));
+    }
     if (open <= 0.5) {
       canvas.drawPath(
           Path()
@@ -1446,5 +1594,5 @@ class _FacePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FacePainter old) => old.look != look || old.mouth != mouth;
+  bool shouldRepaint(_FacePainter old) => old.look != look || old.mouth != mouth || old.brow != brow || old.eye != eye || old.headTilt != headTilt || old.headNod != headNod;
 }

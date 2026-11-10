@@ -236,14 +236,27 @@ class GoldJ extends StatelessWidget {
   const GoldJ({super.key, this.size = 22, this.opacity = 1});
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: size,
-        height: size,
-        child: Image.asset(
+  Widget build(BuildContext context) {
+    Widget img({Color? color}) => Image.asset(
           'assets/images/khanjar_gold.png',
           fit: BoxFit.contain,
           filterQuality: FilterQuality.medium,
-          opacity: AlwaysStoppedAnimation(opacity),
-        ),
-      );
+          color: color,
+          colorBlendMode: color == null ? null : BlendMode.srcIn,
+        );
+    // تحديد أسود حول الخنجر: نسخة سودا مزحزحة بثمان اتجاهات تحت الذهبية
+    final d = max(1.0, size * 0.035);
+    return Opacity(
+      opacity: opacity,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(fit: StackFit.expand, children: [
+          for (final (x, y) in const [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0), (-0.7, -0.7), (0.7, -0.7), (-0.7, 0.7), (0.7, 0.7)])
+            Transform.translate(offset: Offset(x * d, y * d), child: img(color: Colors.black)),
+          img(),
+        ]),
+      ),
+    );
+  }
 }

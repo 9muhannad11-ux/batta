@@ -37,9 +37,15 @@ const highest = (cards, trump) => cards.reduce((a, b) => (strength(b, trump) > s
 
 function decideBid(state, seat) {
   const hand = state.hands[seat];
-  // البوت ما يشري إلا إذا عنده 6 أوراق أو أكثر من نوع واحد، وما يزايد أكثر من 6
+  // البوت ما يشري إلا إذا عنده 6 أوراق أو أكثر من نوع واحد، وما يزايد أكثر من 6 (إلا 7 أوراق من نوع والخصم زايد 6: 7)
   const longest = Math.max(...E.SUITS.map((s) => hand.filter((c) => !E.isJoker(c) && c[0] === s).length));
   const legal = E.legalBids(state, seat);
+  // عنده 7 أوراق أو أكثر من نوع واحد: محد زايد قبله → 6 (تحت)، الخصم زايد 6 → يزايد 7،
+  // وإذا آخر مزايدة لزميله يطوف
+  if (longest >= 7 && state.buyer != null && state.buyer !== seat) {
+    if (E.teamOf(state.buyer) === E.teamOf(seat)) return { type: 'bid', value: legal.includes('pass') ? 'pass' : legal[0] };
+    if (state.currentBid === 6 && legal.includes(7)) return { type: 'bid', value: 7 };
+  }
   // الخابص ومحد زايد: «6 مجبور» أحسن له من 6 العادية (الخسارة ما تتضاعف)
   if (legal.includes(E.MAJBUR)) return { type: 'bid', value: E.MAJBUR };
   return { type: 'bid', value: longest >= 6 && legal.includes(6) ? 6 : 'pass' };
@@ -62,6 +68,16 @@ function decidePlay(state, seat) {
   // ما ياخذ اللمّة من زميله إلا إذا هذي آخر فرصة (اللمّة الثالثة)
   const deadlineOpen = !state.greyPlayed && !(state.madmoon && state.bluePlayed);
   const lastChance = state.trickNo === E.GREY_DEADLINE - 1;
+
+  // زميله شاري 8 والخصم افتتح بحكم: يمسك الجوكر الصغير لين ينزل آص الحكم
+  // (إلا إذا هذي آخر فرصة ينزل فيها الصغير)
+  const first = state.trick[0];
+  if (first && seat !== state.buyer && E.teamOf(state.buyer) === myTeam && state.currentBid === 8 &&
+      E.teamOf(first.seat) !== myTeam && !E.isJoker(first.card) && first.card[0] === trump &&
+      !(deadlineOpen && lastChance) && legal.length > 1) {
+    const aceOut = [...state.played, ...state.trick.map((t) => t.card)].includes(`${trump}-14`);
+    if (!aceOut) legal = legal.filter((c) => c !== E.GREY);
+  }
   if (deadlineOpen && state.trickNo >= 1 && state.trick.length > 0 && (!mateWinning || lastChance)) {
     if (state.madmoon && seat === state.buyer && legal.includes(E.BLUE)) return E.BLUE;
     if (legal.includes(E.GREY)) return E.GREY;
@@ -74,6 +90,18 @@ function decidePlay(state, seat) {
   const oppBought = E.teamOf(state.buyer) !== myTeam;
 
   if (state.trick.length === 0) {
+    // زميله أشّر على نوع باللمّة اللي قبل (والافتتاح الحين عنده): يفتتح بأول نوع أشّر عليه (وعنده منه ورق).
+    // إذا معه أكبر ورقة باقية من النوع يرميها، وإلا أصغر ورقة منه
+    const mateSignals = (state.suitSignals || []).filter((x) => x.seat !== seat && E.teamOf(x.seat) === myTeam && x.trick === state.trickNo - 1);
+    for (const sig of mateSignals) {
+      const ofSuit = plain.filter((c) => c[0] === sig.suit);
+      if (!ofSuit.length) continue;
+      const top = highest(ofSuit, trump);
+      const gone = new Set(state.played || []);
+      let isTopLeft = true;
+      for (let r = E.rankOf(top) + 1; r <= 14; r++) if (!gone.has(`${sig.suit}-${r}`)) isTopLeft = false;
+      return isTopLeft ? top : lowest(ofSuit, trump);
+    }
     const thirdBeforeGrey = state.trickNo === 2 && !state.greyPlayed;
     // معه الصغير ويفتتح اللمّة الثانية: أصغر ورقة، عشان ما ياخذها ويفتتح الثالثة (الصغير ما يفتتح)
     if (state.trickNo === 1 && deadlineOpen && hand.includes(E.GREY)) return lowest(plain, trump);

@@ -123,7 +123,7 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('bawan win: the winning team says 5; bawan fail: the opposing team says 6', (tester) async {
+  testWidgets('bawan win or bawan fail: the winning team says 6; match win: the winning team says 5', (tester) async {
     tester.view.physicalSize = const Size(400, 860);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -135,7 +135,7 @@ void main() {
     final c = tableClient(playingView());
     await tester.pumpWidget(KoutApp(client: c));
     await tester.pump(const Duration(milliseconds: 400));
-    Future<void> result(int round, String type) async {
+    Future<void> result(int round, String type, {int team = 1, int? winner}) async {
       c.view = playingView()..['round'] = round;
       c.notifyListeners();
       await tester.pump(const Duration(milliseconds: 50));
@@ -145,16 +145,20 @@ void main() {
         ..['trick'] = []
         ..['legalCards'] = []
         ..['canSignal'] = false
-        ..['lastRound'] = {'type': type, 'team': 1, 'points': 54, 'buyer': 1, 'bid': 9, 'majbur': false, 'tricksWon': [0, 9]};
+        ..['winner'] = winner
+        ..['lastRound'] = {'type': type, 'team': team, 'points': 54, 'buyer': 1, 'bid': 9, 'majbur': false, 'tricksWon': [0, 9]};
       c.notifyListeners();
       await tester.pump(const Duration(milliseconds: 50));
     }
 
-    await result(2, 'bawanWin'); // فريق الشاري: مقعد 1 و3 (مقعد 3 بدون أصوات)
-    expect(Sfx.voiceLog, ['khusaib_5']);
+    await result(2, 'bawanWin', winner: 1); // فريق الشاري: مقعد 1 و3 (مقعد 3 بدون أصوات)
+    expect(Sfx.voiceLog, ['khusaib_6']);
     Sfx.voiceLog.clear();
-    await result(3, 'bawanFail'); // الشاري مقعد 1، والمنافس مقعد 0 و2
+    await result(3, 'bawanFail', team: 0, winner: 0); // الشاري مقعد 1، والمنافس مقعد 0 و2
     expect(Sfx.voiceLog, ['musabbah_6', 'marhoon_6']);
+    Sfx.voiceLog.clear();
+    await result(4, 'made', team: 0, winner: 0); // فوز بالمباراة: كل الفريق الفايز 5
+    expect(Sfx.voiceLog, ['musabbah_5', 'marhoon_5']);
     await tester.pump(const Duration(seconds: 4));
   });
 

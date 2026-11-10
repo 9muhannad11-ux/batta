@@ -134,6 +134,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   int? _slapRel;
 
   int _seenRound = 0;
+  String? _lastPhase; // عشان نعرف إن مباراة جديدة بدأت بعد matchEnd
   int _trumpSaidRound = 0; // الجولة اللي انقال فيها صوت اختيار الحكم
   int _seenTrickNo = 0;
   int _seenTrickLen = 0;
@@ -251,6 +252,16 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
     final trick = (v['trick'] as List).cast<Map<String, dynamic>>();
     final trickLen = trick.length;
     final n = v['players'] as int;
+
+    // مباراة جديدة بعد نهاية المباراة: أرقام الجولات ترجع من 1، فنصفّر اللي شفناه
+    // (وإلا لو خلصت المباراتين بنفس رقم الجولة ما تطلع أصوات النتيجة ولا المزايدة ولا التوزيع)
+    final phase0 = v['phase'] as String?;
+    if (_lastPhase == 'matchEnd' && phase0 != 'matchEnd') {
+      _seenRound = 0;
+      _resultShownRound = 0;
+      _trumpSaidRound = 0;
+    }
+    _lastPhase = phase0;
 
     if (round != _seenRound) {
       final freshDeal = v['phase'] == 'bidding' && (v['bids'] as List).isEmpty;

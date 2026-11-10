@@ -77,6 +77,59 @@ FakeClient tableClient(Map<String, dynamic> view) {
 void main() {
   setUp(() => Sfx.muted = true);
 
+  testWidgets('second match after a rematch still plays the match-end voices', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Sfx.voiceLog.clear();
+    final c = tableClient(playingView());
+    (c.room!['seats'] as List)[2] = {'name': 'ود عمتيه', 'bot': true, 'connected': true, 'char': 'wadamtih'};
+    await tester.pumpWidget(KoutApp(client: c));
+    await tester.pump(const Duration(milliseconds: 400));
+    Future<void> show(Map<String, dynamic> v) async {
+      c.view = v;
+      c.notifyListeners();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    Map<String, dynamic> ended(int round, {int team = 0, String type = 'made', bool match = false}) => playingView()
+      ..['round'] = round
+      ..['phase'] = match ? 'matchEnd' : 'roundEnd'
+      ..['winner'] = match ? team : null
+      ..['winReason'] = match ? (type.startsWith('bawan') ? type : 'score') : null
+      ..['legalCards'] = []
+      ..['canSignal'] = false
+      ..['lastRound'] = {'type': type, 'team': team, 'points': 7, 'buyer': team == 0 ? 0 : 1, 'bid': 7, 'majbur': false, 'tricksWon': [7, 2]};
+    Map<String, dynamic> dealing(int round) => playingView()
+      ..['round'] = round
+      ..['phase'] = 'bidding'
+      ..['currentBid'] = 0
+      ..['buyer'] = null
+      ..['trump'] = null
+      ..['legalCards'] = []
+      ..['canSignal'] = false;
+
+    for (final (label, lastRound) in const [('ends in round 2', 2), ('ends in round 1', 1), ('ends in round 1 again', 1)]) {
+      // المباراة: جولات لين الأخيرة، وبعدها «مباراة جديدة»
+      for (var r = 1; r < lastRound; r++) {
+        await show(dealing(r));
+        await show(playingView()..['round'] = r);
+        await show(ended(r));
+        await tester.pump(const Duration(seconds: 3));
+      }
+      if (lastRound > 1) await show(dealing(lastRound));
+      await show(playingView()..['round'] = lastRound);
+      Sfx.voiceLog.clear();
+      await show(ended(lastRound, match: true));
+      expect(Sfx.voiceLog, ['musabbah_5', 'wadamtih_5'], reason: label);
+      await tester.pump(const Duration(seconds: 3));
+      await show(dealing(1)); // مباراة جديدة
+      await tester.pump(const Duration(seconds: 3));
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('character voices: bids, gold table, reaching the bid, big joker over small', (tester) async {
     tester.view.physicalSize = const Size(400, 860);
     tester.view.devicePixelRatio = 1;

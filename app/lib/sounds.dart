@@ -46,10 +46,12 @@ class Sfx {
   static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap', 'lift'];
 
   static double get _duckFactor => _speaking.isEmpty ? 1 : duck;
+  // دقات قلب الباون ما تنخفض مع كلام الشخصيات (لازم تبقى عالية)
+  static double _duckOf(String asset) => asset == 'sounds/gold.wav' ? 1 : _duckFactor;
 
   static void _applyDuck() {
     for (final e in _volumes.entries) {
-      AudioEngine.setVolume(e.key, e.value * _sfx * _duckFactor);
+      AudioEngine.setVolume(e.key, e.value * _sfx * _duckOf(e.key));
     }
   }
 
@@ -77,7 +79,7 @@ class Sfx {
     final asset = 'sounds/$name.wav';
     _volumes[asset] = volume;
     try {
-      await AudioEngine.play(asset, asset, volume: volume * _sfx * _duckFactor, loop: loop);
+      await AudioEngine.play(asset, asset, volume: volume * _sfx * _duckOf(asset), loop: loop);
     } catch (e) {
       // المتصفح أحياناً يمنع الصوت قبل أول ضغطة، نتجاهلها
       debugPrint('sound $name failed: $e');

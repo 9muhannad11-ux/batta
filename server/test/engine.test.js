@@ -239,6 +239,7 @@ test('bawan offer appears one trick before the bid while sweeping', () => {
 
   const lose = finishTrick({ bidValue: 6, bawan: true, tricksWon: [5, 0], winnerSeat: 1 });
   assert.deepStrictEqual([lose.phase, lose.winner, lose.winReason], ['matchEnd', 1, 'bawanFail']);
+  assert.strictEqual(lose.lastRound.breaker, 1); // اللي قلب الباون (حديدة الدور)
   const win = finishTrick({ bidValue: 6, bawan: true, tricksWon: [8, 0], winnerSeat: 2 });
   assert.deepStrictEqual([win.phase, win.winner, win.winReason], ['matchEnd', 0, 'bawanWin']);
 });
@@ -500,6 +501,68 @@ test('bot: does not take the trick from a winning teammate with the small joker 
   assert.strictEqual(Bot.decide(s, 0).card, E.GREY);
 });
 
+test('big joker left as the last card with the lead: that team loses the match (blueStuck)', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 8, turn: 2, trick: [] });
+  s.hands[2] = [E.BLUE];
+  assert.deepStrictEqual(E.legalCards(s, 2), [E.BLUE]);
+  E.playCard(s, 2, E.BLUE);
+  assert.strictEqual(s.phase, 'matchEnd');
+  assert.strictEqual(s.winReason, 'blueStuck');
+  assert.strictEqual(s.winner, 1);
+  assert.strictEqual(s.lastRound.offender, 2);
+});
+
+test('bot leading trick 2 with the small joker: a card that loses the lead (lowest trump if the side card is big)', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 0, greyPlayed: false, trickNo: 1, turn: 0, trick: [], played: [] });
+  s.hands[0] = [E.GREY, 'S-12', 'S-4', 'S-9', 'H-14'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-4'); // كل ورقه حكم وعنده خال هاس: أصغر حكم
+  s.hands[0] = [E.GREY, 'S-12', 'S-4', 'H-14', 'D-6'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'D-6'); // عنده ورقة صغيرة من نوع ثاني: يرميها
+});
+
+test('trump led: bot plays its top trump instead of a joker, and never jokers over a mate holding the top trump', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 3, turn: 0, played: [] });
+  // الخصم افتتح بحكم، والبوت عنده خال الحكم والكبير: يرمي الخال
+  s.hands[0] = [E.BLUE, 'S-14', 'H-4', 'C-5', 'D-6', 'D-7'];
+  s.trick = [{ seat: 5, card: 'S-9' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
+  // خطر يخيس الكبير (باقي 4 أوراق): يرمي الكبير
+  s.hands[0] = [E.BLUE, 'S-14', 'H-4', 'C-5'];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // الصغير ما نزل واللمّة الثانية: لو أخذها بالخال بيفتتح الثالثة ويخيس الصغير، فيرمي الصغير
+  Object.assign(s, { greyPlayed: false, trickNo: 1 });
+  s.hands[0] = [E.GREY, 'S-14', 'H-4', 'C-5', 'D-6', 'D-7', 'D-8', 'D-9'];
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY);
+  // اللمّة الأولى: ما فيه خطر، يرمي الخال
+  s.trickNo = 0;
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
+  // زميله رمى أكبر حكم باقي (الخال): ما يرمي جوكر
+  Object.assign(s, { greyPlayed: true, trickNo: 3 });
+  s.hands[0] = [E.BLUE, 'S-3', 'H-4', 'C-5', 'D-6', 'D-7'];
+  s.trick = [{ seat: 3, card: 'S-9' }, { seat: 4, card: 'S-14' }, { seat: 5, card: 'S-10' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-3');
+});
+
+test('bot gets rid of the big joker before it is stuck with the lead', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 6, turn: 0, played: [] });
+  // زميله ماسك اللمّة بس باقي 3 أوراق: يرمي الكبير
+  s.hands[0] = [E.BLUE, 'H-9', 'C-3'];
+  s.trick = [{ seat: 4, card: 'H-14' }, { seat: 5, card: 'H-10' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // باقي ورقتين والثانية تفوز باللمّة قبل الأخيرة: يرمي الكبير الحين
+  s.hands[0] = [E.BLUE, 'S-14'];
+  s.trick = [{ seat: 5, card: 'H-10' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // يفتتح ومعه الكبير وقربت النهاية: أضعف ورقة
+  s.trick = [];
+  s.hands[0] = [E.BLUE, 'S-14', 'C-3'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'C-3');
+});
+
 test('bot: throws a joker when an opponent holds the trick and no normal card can beat it', () => {
   const s = E.createMatch({ khabis: 5 });
   Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 4, turn: 0 });
@@ -507,10 +570,13 @@ test('bot: throws a joker when an opponent holds the trick and no normal card ca
   s.hands[0] = [E.BLUE, 'H-9', 'H-3'];
   s.trick = [{ seat: 5, card: 'H-14' }];
   assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
-  // يقدر يغلبه بورقة عادية (الخال نازل من قبل): ما يضيّع الجوكر
-  s.hands[0] = [E.BLUE, 'H-13', 'H-3'];
+  // حتى لو يقدر يغلبه بورقة عادية: يرمي الكبير أول ما يصير آمن، عشان ما يبقى معه لآخر افتتاح ويخيسه
+  s.hands[0] = [E.BLUE, 'H-13', 'H-3', 'C-4', 'D-5'];
   s.played = ['H-14'];
   s.trick = [{ seat: 5, card: 'H-10' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // نفس الشي بدون الكبير: أصغر ورقة تغلب
+  s.hands[0] = ['H-13', 'H-3', 'C-4', 'D-5'];
   assert.strictEqual(Bot.decide(s, 0).card, 'H-13');
   s.played = [];
   // الكبير قبل نزول الصغير يخسّر المباراة: ما يرميه

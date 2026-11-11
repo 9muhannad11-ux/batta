@@ -78,6 +78,38 @@ function decidePlay(state, seat) {
     const aceOut = [...state.played, ...state.trick.map((t) => t.card)].includes(`${trump}-14`);
     if (!aceOut) legal = legal.filter((c) => c !== E.GREY);
   }
+
+  // الافتتاح بحكم: خطر يخيس الجوكر إذا مسكه الحين؟
+  // الكبير: قربت النهاية (4 أوراق أو أقل) أو باقي ورقه كله حكم (بيبقى الافتتاح عنده).
+  // الصغير: لازم ينزل بأول 3 لمّات، وإذا أخذ هاللمّة بيفتتح اللي بعدها (والصغير ما يفتتح)
+  const ledTrump = !!first && !E.isJoker(first.card) && first.card[0] === trump;
+  const blueRisk = hand.includes(E.BLUE) && (hand.length <= 4 || hand.every((c) => E.isJoker(c) || c[0] === trump));
+  const greyRisk = hand.includes(E.GREY) && deadlineOpen && state.trickNo >= 1;
+  const seenNow = new Set([...(state.played || []), ...state.trick.map((t) => t.card)]);
+  const isTopLeft = (card) => {
+    for (let r = E.rankOf(card) + 1; r <= 14; r++) if (!seenNow.has(`${card[0]}-${r}`) && !hand.includes(`${card[0]}-${r}`)) return false;
+    return true;
+  };
+  if (ledTrump && !blueRisk && !greyRisk) {
+    // الافتتاح بحكم وعنده أكبر حكم باقي (ومعه جوكر): يرمي الحكم ويخلي الجوكر
+    const myTop = legal.filter((c) => !E.isJoker(c) && c[0] === trump).sort((a, b) => E.rankOf(b) - E.rankOf(a))[0];
+    if (myTop && hand.some(E.isJoker) && isTopLeft(myTop) && E.trickWinner([...state.trick, { seat, card: myTop }], trump) === seat) return myTop;
+  }
+  if (ledTrump && mateWinning) {
+    // الافتتاح بحكم وزميله رمى أكبر حكم باقي: ما يرمي جوكر (إلا إذا بيخيسه)
+    const w = E.trickWinner(state.trick, trump);
+    const winCard = state.trick.find((t) => t.seat === w).card;
+    if (!E.isJoker(winCard) && winCard[0] === trump && isTopLeft(winCard)) {
+      const keep = legal.filter((c) => (c !== E.BLUE || blueRisk) && (c !== E.GREY || (deadlineOpen && lastChance)));
+      if (keep.length) legal = keep;
+    }
+  }
+
+  // الكبير ما يفتتح: إذا خلاه لآخر ورقة والافتتاح عنده يخيسه ويخسر المباراة.
+  // والكبير يغلب أي لمّة، فما يضيع: أول ما يصير رميه آمن (الصغير نزل) يرميه إذا فريقه مو ماسك اللمّة،
+  // وإذا قربت النهاية (4 أوراق أو أقل) أو باقي ورقه كله حكم (بيبقى الافتتاح عنده) يرميه حتى لو زميله ماسكها
+  if (hand.includes(E.BLUE) && legal.includes(E.BLUE) && state.trick.length > 0 && !E.blueLosesMatch(state, seat) &&
+      (!mateWinning || hand.length <= 4 || hand.every((c) => E.isJoker(c) || c[0] === trump))) return E.BLUE;
   if (deadlineOpen && state.trickNo >= 1 && state.trick.length > 0 && (!mateWinning || lastChance)) {
     if (state.madmoon && seat === state.buyer && legal.includes(E.BLUE)) return E.BLUE;
     if (legal.includes(E.GREY)) return E.GREY;
@@ -92,6 +124,16 @@ function decidePlay(state, seat) {
   if (state.trick.length === 0) {
     // زميله أشّر على نوع باللمّة اللي قبل (والافتتاح الحين عنده): يفتتح بأول نوع أشّر عليه (وعنده منه ورق).
     // إذا معه أكبر ورقة باقية من النوع يرميها، وإلا أصغر ورقة منه
+    // معه الكبير وقربت النهاية والافتتاح عنده: أضعف ورقة، عشان يطلع الافتتاح من عنده ويقدر يرمي الكبير
+    if (hand.includes(E.BLUE) && hand.length <= 5) return lowest(nonTrumps.length ? nonTrumps : plain, trump);
+    // معه الصغير ويفتتح اللمّة الثانية: ورقة ما تاخذ اللمّة، عشان ما يبقى الافتتاح عنده ويخيس الصغير (الصغير ما يفتتح).
+    // أصغر ورقة من غير الحكم إذا هي صغيرة (لين 10)، وإلا أصغر حكم (مثلاً كل ورقه حكم وعنده ورقة كبيرة من نوع ثاني)
+    if (state.trickNo === 1 && deadlineOpen && hand.includes(E.GREY)) {
+      const smallSide = nonTrumps.filter((c) => E.rankOf(c) <= 10);
+      if (smallSide.length) return lowest(smallSide, trump);
+      if (trumps.length) return lowest(trumps, trump);
+      return lowest(plain, trump);
+    }
     const mateSignals = (state.suitSignals || []).filter((x) => x.seat !== seat && E.teamOf(x.seat) === myTeam && x.trick === state.trickNo - 1);
     for (const sig of mateSignals) {
       const ofSuit = plain.filter((c) => c[0] === sig.suit);
@@ -103,8 +145,6 @@ function decidePlay(state, seat) {
       return isTopLeft ? top : lowest(ofSuit, trump);
     }
     const thirdBeforeGrey = state.trickNo === 2 && !state.greyPlayed;
-    // معه الصغير ويفتتح اللمّة الثانية: أصغر ورقة، عشان ما ياخذها ويفتتح الثالثة (الصغير ما يفتتح)
-    if (state.trickNo === 1 && deadlineOpen && hand.includes(E.GREY)) return lowest(plain, trump);
     // اللمّة الثالثة وزميله الشاري: أصغر حكم بس إذا هو من 2 لين 7، وإلا أصغر ورقة من غير الحكم
     if (thirdBeforeGrey && !oppBought && seat !== state.buyer) {
       const low = trumps.length ? lowest(trumps, trump) : null;

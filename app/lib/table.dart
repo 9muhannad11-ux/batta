@@ -1508,6 +1508,7 @@ String _roundLine(GameClient client, Map r, {bool report = false}) {
     'bawanWin' => '$buyerName جاب باون: كل اللمّات!',
     'bawanFail' => 'انقلب الباون',
     'blueEarly' => '$offender رمى الجوكر الكبير قبل الصغير',
+    'blueStuck' => '$offender خيّس الجوكر الكبير',
     _ => '',
   };
 }
@@ -1904,23 +1905,25 @@ class _BidPanel extends StatelessWidget {
   }
 }
 
-/// حديدة الدور: اللي جاب باون له الأفضلية دايماً، وإلا أكثر لاعب جاب نقاط وهو شاري
-/// (التعادل: اللي وصل أكثر جولات، وبعدها اللي آخر وحدة له أحدث)
-({int seat, int points, bool bawan})? _bestPlayer(List<Map> history) {
+/// حديدة الدور: بالباون هو اللي جاب الباون أو اللي قلبه (أخذ لمّة من فريق الباون)،
+/// وإلا أكثر لاعب جاب نقاط وهو شاري (التعادل: اللي وصل أكثر جولات، وبعدها اللي آخر وحدة له أحدث)
+({int seat, int points, String? bawan})? _bestPlayer(List<Map> history) {
   final points = <int, int>{}, made = <int, int>{}, last = <int, int>{};
-  int? bawan;
+  int? bawan, breaker;
   for (var i = 0; i < history.length; i++) {
     final r = history[i];
     final buyer = r['buyer'];
     if (buyer is! int) continue;
     if (r['type'] == 'bawanWin') bawan = buyer;
+    if (r['type'] == 'bawanFail' && r['breaker'] is int) breaker = r['breaker'] as int;
     if (r['type'] == 'made') {
       points[buyer] = (points[buyer] ?? 0) + ((r['points'] as num?)?.toInt() ?? 0);
       made[buyer] = (made[buyer] ?? 0) + 1;
       last[buyer] = i;
     }
   }
-  if (bawan != null) return (seat: bawan, points: points[bawan] ?? 0, bawan: true);
+  if (bawan != null) return (seat: bawan, points: points[bawan] ?? 0, bawan: 'جاب باون');
+  if (breaker != null) return (seat: breaker, points: points[breaker] ?? 0, bawan: 'قلب الباون');
   if (points.isEmpty) return null;
   final seat = points.keys.reduce((a, b) {
     final c = points[a]!.compareTo(points[b]!);
@@ -1929,7 +1932,7 @@ class _BidPanel extends StatelessWidget {
     if (m != 0) return m > 0 ? a : b;
     return last[a]! > last[b]! ? a : b;
   });
-  return (seat: seat, points: points[seat]!, bawan: false);
+  return (seat: seat, points: points[seat]!, bawan: null);
 }
 
 class _RoundResult extends StatelessWidget {
@@ -1957,6 +1960,7 @@ class _RoundResult extends StatelessWidget {
         'bawanWin' => 'باون: $buyerName جاب كل اللمّات',
         'bawanFail' => 'انقلب الباون',
         'blueEarly' => '$offender رمى الجوكر الكبير قبل الصغير',
+        'blueStuck' => '$offender خيّس الجوكر الكبير',
         _ => '',
       };
       final reasonColor = v['winReason'] == 'bawanFail' ? KoutColors.lose : Colors.white;
@@ -1973,7 +1977,7 @@ class _RoundResult extends StatelessWidget {
             Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               const Text('حديدة الدور', style: TextStyle(fontSize: 14, color: KoutColors.gold)),
               Text(client.seatName(best.seat), style: const TextStyle(fontSize: 20)),
-              Text(best.bawan ? 'جاب باون' : 'جاب ${best.points} نقطة', style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC))),
+              Text(best.bawan ?? 'جاب ${best.points} نقطة', style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC))),
             ]),
           ]),
           const SizedBox(height: 10),

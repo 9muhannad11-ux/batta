@@ -237,6 +237,11 @@ function playCard(state, seat, card) {
     state.resolvedSignal = { seat, suits: [JOKER_SIGNAL], big: card === GREY };
   }
 
+  if (card === BLUE && state.trick.length === 1) {
+    // الكبير ما يفتتح: إذا ما بقى معه غيره والافتتاح عنده «خيّس الجوكر الكبير» وفريقه يخسر المباراة
+    state.bluePlayed = true;
+    return endRound(state, { type: 'blueStuck', team: 1 - teamOf(seat), matchWin: true, offender: seat });
+  }
   if (card === BLUE) {
     const loses = blueLosesMatch(state, seat);
     state.bluePlayed = true;
@@ -271,7 +276,7 @@ function resolveAfterTrick(state) {
   }
 
   if (state.bawan) {
-    if (state.tricksWon[opp] > 0) return endRound(state, { type: 'bawanFail', team: opp, matchWin: true });
+    if (state.tricksWon[opp] > 0) return endRound(state, { type: 'bawanFail', team: opp, matchWin: true, breaker: state.lastTrick?.winner }); // breaker: اللي قلب الباون
     if (state.tricksWon[bidTeam] === TRICKS) return endRound(state, { type: 'bawanWin', team: bidTeam, matchWin: true });
     return;
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -23,6 +24,11 @@ class AudioEngine {
   static web.AudioContext get _context {
     final existing = _ctx;
     if (existing != null) return existing;
+    // الآيفون: زر الصامت يكتم أصوات الصفحات، إلا إذا الصفحة قالت إنها «تشغيل وسائط» (Safari 17 وفوق)
+    try {
+      final session = (globalContext['navigator'] as JSObject?)?['audioSession'] as JSObject?;
+      session?['type'] = 'playback'.toJS;
+    } catch (_) {}
     final ctx = web.AudioContext(web.AudioContextOptions(latencyHint: 'interactive'.toJS));
     _ctx = ctx;
     // الآيفون يوقف الصوت لما تطلع من الصفحة أو تجي مكالمة، فنخلي المستمعين دايماً
@@ -87,10 +93,17 @@ class AudioEngine {
     }
     final gain = ctx.createGain();
     gain.gain.value = volume;
-    final panner = ctx.createStereoPanner();
-    panner.pan.value = pan;
-    gain.connect(panner);
-    panner.connect(ctx.destination);
+    // الآيفونات القديمة ما فيها StereoPanner: بدونه الصوت يطلع من الوسط بدل ما ينكتم كله
+    web.StereoPannerNode? panner;
+    try {
+      panner = ctx.createStereoPanner();
+      panner.pan.value = pan;
+      gain.connect(panner);
+      panner.connect(ctx.destination);
+    } catch (_) {
+      panner = null;
+      gain.connect(ctx.destination);
+    }
     final source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = loop;
@@ -100,7 +113,7 @@ class AudioEngine {
     source.onended = ((web.Event _) {
       if (_channels[channel] == playing) _channels.remove(channel);
       gain.disconnect();
-      panner.disconnect();
+      panner?.disconnect();
       if (!done.isCompleted) done.complete();
     }).toJS;
     _channels[channel] = playing;

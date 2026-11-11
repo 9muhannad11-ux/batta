@@ -23,6 +23,19 @@ class _CachedPaintState extends State<CachedPaint> {
 
   Object? _shownKey;
   ui.Image? _shown;
+  double? _measured; // التكبير الحقيقي على الشاشة (إطار الجوال بالكمبيوتر، تصغير الطاولة، Transform...)
+
+  // نقيس كم الرسمة متكبّرة فعلاً على الشاشة، وإذا يختلف نعيد الصورة بنفس الدقة عشان ما تطلع مبكسلة
+  void _measure(double fallback) {
+    if (!mounted) return;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    final m = box.getTransformTo(null);
+    final screen = (Offset(m.entry(0, 0), m.entry(1, 0)).distance) * MediaQuery.devicePixelRatioOf(context);
+    // نقرّب لربع، عشان ما تنعاد الصورة مع كل فرق بسيط
+    final r = ((screen <= 0 ? fallback : screen) * 4).ceil() / 4;
+    if (_measured == null || (r - _measured!).abs() > 0.2) setState(() => _measured = r);
+  }
 
   static void _put(Object key, ui.Image image) {
     _cache[key] = image;
@@ -59,7 +72,9 @@ class _CachedPaintState extends State<CachedPaint> {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = MediaQuery.devicePixelRatioOf(context) * widget.scale;
+    final fallback = MediaQuery.devicePixelRatioOf(context) * widget.scale;
+    final ratio = _measured ?? fallback;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measure(fallback));
     return LayoutBuilder(builder: (context, box) {
       final size = box.biggest;
       final key = (widget.cacheKey, size, ratio);
@@ -86,7 +101,7 @@ class _ImagePainter extends CustomPainter {
       image,
       Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
       Rect.fromLTWH(-pad, -pad, size.width + pad * 2, size.height + pad * 2),
-      Paint()..filterQuality = FilterQuality.low,
+      Paint()..filterQuality = FilterQuality.medium,
     );
   }
 

@@ -256,6 +256,7 @@ for (const players of [6, 4]) {
     let seed = players;
     const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const outcomes = {};
+    let stuck = 0;
     for (let g = 0; g < 200; g++) {
       const s = E.createMatch({ rng, players });
       assert.strictEqual(s.hands.flat().length, players === 6 ? 54 : 36);
@@ -275,8 +276,11 @@ for (const players of [6, 4]) {
       }
       assert.ok(s.winner === 0 || s.winner === 1);
       assert.notStrictEqual(s.winReason, 'blueEarly', 'bot threw the big joker too early');
-      assert.ok(s.winReason === 'score' ? Math.max(...s.scores) >= 54 : ['bawanWin', 'bawanFail'].includes(s.winReason));
+      // الكبير ينلعب طبيعي، فأحياناً يخيس (قليل)
+      if (s.winReason === 'blueStuck') stuck++;
+      assert.ok(s.winReason === 'score' ? Math.max(...s.scores) >= 54 : ['bawanWin', 'bawanFail', 'blueStuck'].includes(s.winReason));
     }
+    assert.ok(stuck < 10, `bots got stuck with the big joker in ${stuck} of 200 matches`);
     for (const k of ['made', 'failed']) assert.ok(outcomes[k] > 0, `no ${k} outcome`);
   });
 }
@@ -522,6 +526,87 @@ test('bot leading trick 2 with the small joker: a card that loses the lead (lowe
   assert.strictEqual(Bot.decide(s, 0).card, 'D-6'); // عنده ورقة صغيرة من نوع ثاني: يرميها
 });
 
+test('second trick with the small joker: if every normal card would take the trick, the bot throws the small joker', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: false, trickNo: 1, turn: 0, played: [] });
+  // زميله ماسك اللمّة بالتسعة، والبوت عنده بس أوراق أكبر من النوع: أي ورقة تاخذها، فيرمي الصغير
+  s.hands[0] = [E.GREY, 'H-13', 'H-14', 'C-5', 'D-6', 'D-7', 'D-8', 'D-9'];
+  s.trick = [{ seat: 4, card: 'H-9' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY);
+  // عنده ورقة أصغر من ورقة زميله: يقدر يخليها، فيرميها ويمسك الصغير
+  s.hands[0] = [E.GREY, 'H-13', 'H-4', 'C-5', 'D-6', 'D-7', 'D-8', 'D-9'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
+});
+
+test('small joker: the bot never takes trick 2 with a normal card, and throws it in trick 1 when the rest of its hand is all strong', () => {
+  const s = E.createMatch({ khabis: 5 });
+  // الشاري معه الصغير وخال الحكم، وانفتحت اللمّة الثانية بحكم: ما ياخذها بالخال، يرمي حكم ما يفوز
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 0, greyPlayed: false, trickNo: 1, turn: 0, played: [] });
+  s.hands[0] = [E.GREY, 'S-14', 'S-6', 'S-2', 'S-7', 'S-3', 'D-4', 'D-9'];
+  s.trick = [{ seat: 4, card: 'S-12' }, { seat: 5, card: 'S-4' }];
+  const card = Bot.decide(s, 0).card;
+  assert.notStrictEqual(card, 'S-14');
+  assert.ok(card === E.GREY || E.trickWinner([...s.trick, { seat: 0, card }], 'S') !== 0);
+  // اللمّة الأولى، ما عنده النوع وباقي ورقه كله حكم: يرمي الصغير بدل ما يقطع
+  Object.assign(s, { trickNo: 0 });
+  s.hands[0] = [E.GREY, 'D-13', 'D-8', 'D-14', 'D-12', 'D-11', 'D-6', 'D-9', 'D-10'];
+  s.trump = 'D';
+  s.trick = [{ seat: 3, card: 'C-14' }, { seat: 4, card: 'C-7' }, { seat: 5, card: 'C-8' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.GREY);
+  // اللمّة الأولى وعنده ورق صغير من نوع ثاني: ما يضطر يرمي الصغير
+  s.hands[0] = [E.GREY, 'D-13', 'D-8', 'D-14', 'H-3', 'H-4', 'S-5', 'S-6', 'S-7'];
+  assert.notStrictEqual(Bot.decide(s, 0).card, E.GREY);
+});
+
+test('bot leaves the trick to its mate only when every higher card is in its own hand (or already out)', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 3, turn: 0, played: [] });
+  // زميله (4) نزّل الشايب، والخال عند البوت: كل الأكبر عنده، يخليها لزميله
+  s.hands[0] = ['H-14', 'H-4', 'C-5', 'D-6', 'D-7'];
+  s.trick = [{ seat: 4, card: 'H-13' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
+  // زميله نزّل الولد والبنت برا (والشايب نزل)، والبوت معه الخال: بينهم ورقة برا، فياخذها بالخال
+  s.hands[0] = ['H-14', 'H-4', 'C-5', 'D-6', 'D-7'];
+  s.trick = [{ seat: 4, card: 'H-11' }, { seat: 5, card: 'H-3' }];
+  s.played = ['H-13'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-14');
+  s.trick = [{ seat: 4, card: 'H-12' }, { seat: 5, card: 'H-3' }];
+  // الخال نزل من قبل: البنت صارت أكبر باقية بعد الشايب اللي عنده، يخليها
+  s.hands[0] = ['H-13', 'H-4', 'C-5', 'D-6', 'D-7'];
+  s.played = ['H-14'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
+  // ورقته أقرب أكبر من ورقة زميله (زميله البنت والبوت الشايب، والخال برا): ما تفرق، يخليها له وما يرمي الشايب
+  s.played = [];
+  s.hands[0] = ['H-13', 'H-11', 'H-4', 'C-5', 'D-6'];
+  s.trick = [{ seat: 4, card: 'H-12' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
+  // معه أقرب أصغر (الولد) وغيره: ما يرمي الولد
+  s.hands[0] = ['H-11', 'H-9', 'C-5', 'D-6'];
+  s.trick = [{ seat: 4, card: 'H-12' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-9');
+  // زميله الولد والبوت معه الشايب (البنت برا): فيها فرق، ياخذها بالشايب
+  s.hands[0] = ['H-13', 'H-4', 'C-5', 'D-6'];
+  s.trick = [{ seat: 4, card: 'H-11' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-13');
+  s.trick = [{ seat: 4, card: 'H-12' }, { seat: 5, card: 'H-3' }];
+  // ما عنده النوع والخال برا: يقطع بأصغر حكم
+  s.played = [];
+  s.hands[0] = ['S-3', 'S-9', 'C-5', 'D-6', 'D-7'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-3');
+});
+
+test('bot plays the top card of the led suit, unless its mate already played the card right below it', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 3, turn: 0, played: [] });
+  // الخصم افتتح بالعشرة، والبوت عنده الخال: يرميه
+  s.hands[0] = ['H-14', 'H-4', 'C-5', 'D-6', 'D-7'];
+  s.trick = [{ seat: 3, card: 'H-10' }, { seat: 4, card: 'H-5' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-14');
+  // زميله (4) رمى الشايب (ملاصق للخال): ما تفرق، يخليها له
+  s.trick = [{ seat: 3, card: 'H-10' }, { seat: 4, card: 'H-13' }, { seat: 5, card: 'H-3' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-4');
+});
+
 test('trump led: bot plays its top trump instead of a joker, and never jokers over a mate holding the top trump', () => {
   const s = E.createMatch({ khabis: 5 });
   Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 3, turn: 0, played: [] });
@@ -529,8 +614,8 @@ test('trump led: bot plays its top trump instead of a joker, and never jokers ov
   s.hands[0] = [E.BLUE, 'S-14', 'H-4', 'C-5', 'D-6', 'D-7'];
   s.trick = [{ seat: 5, card: 'S-9' }];
   assert.strictEqual(Bot.decide(s, 0).card, 'S-14');
-  // خطر يخيس الكبير (باقي 4 أوراق): يرمي الكبير
-  s.hands[0] = [E.BLUE, 'S-14', 'H-4', 'C-5'];
+  // خطر يخيس الكبير (باقي ورقه كلها أكبر أوراق موجودة): يرمي الكبير
+  s.hands[0] = [E.BLUE, 'S-14', 'H-14', 'C-14'];
   assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
   // الصغير ما نزل واللمّة الثانية: لو أخذها بالخال بيفتتح الثالثة ويخيس الصغير، فيرمي الصغير
   Object.assign(s, { greyPlayed: false, trickNo: 1 });
@@ -546,13 +631,32 @@ test('trump led: bot plays its top trump instead of a joker, and never jokers ov
   assert.strictEqual(Bot.decide(s, 0).card, 'S-3');
 });
 
-test('bot gets rid of the big joker before it is stuck with the lead', () => {
+test('bot only has to throw the big joker when all its other cards are top cards (or two cards left and the other takes this trick)', () => {
   const s = E.createMatch({ khabis: 5 });
   Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 6, turn: 0, played: [] });
-  // زميله ماسك اللمّة بس باقي 3 أوراق: يرمي الكبير
+  // زميله ماسك اللمّة وورقه مو كلها أكبر أوراق: يلعب طبيعي (أصغر ورقة)
   s.hands[0] = [E.BLUE, 'H-9', 'C-3'];
   s.trick = [{ seat: 4, card: 'H-14' }, { seat: 5, card: 'H-10' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'H-9');
+  // ورقه الباقية كلها أكبر أوراق (خال الكلفس والديمن): مجبور يرمي الكبير
+  s.hands[0] = [E.BLUE, 'C-14', 'D-14'];
   assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // باقي ورقه كله حكم (حتى لو فيه حكم صغير): يقطع بالكبير بدل أصغر حكم، وإلا كل الافتتاحيات تصير عنده
+  s.hands[0] = [E.BLUE, 'S-7', 'S-14', 'S-12'];
+  s.trick = [{ seat: 5, card: 'H-13' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // حكم مع ورقة كبيرة من نوع ثاني: نفس الشي
+  s.hands[0] = [E.BLUE, 'S-10', 'S-14', 'H-14'];
+  s.trick = [{ seat: 5, card: 'D-13' }];
+  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // حكم مع ورقة صغيرة من نوع ثاني: يقدر يطلّع الافتتاح فيها، فما يضطر
+  s.hands[0] = [E.BLUE, 'S-10', 'S-14', 'H-4'];
+  s.trick = [{ seat: 5, card: 'D-13' }];
+  assert.notStrictEqual(Bot.decide(s, 0).card, E.BLUE);
+  // الكبير ما ينرمى فوق صغير زميله
+  s.hands[0] = [E.BLUE, 'C-14', 'D-14'];
+  s.trick = [{ seat: 4, card: E.GREY }, { seat: 5, card: 'H-10' }];
+  assert.notStrictEqual(Bot.decide(s, 0).card, E.BLUE);
   // باقي ورقتين والثانية تفوز باللمّة قبل الأخيرة: يرمي الكبير الحين
   s.hands[0] = [E.BLUE, 'S-14'];
   s.trick = [{ seat: 5, card: 'H-10' }];
@@ -570,13 +674,10 @@ test('bot: throws a joker when an opponent holds the trick and no normal card ca
   s.hands[0] = [E.BLUE, 'H-9', 'H-3'];
   s.trick = [{ seat: 5, card: 'H-14' }];
   assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
-  // حتى لو يقدر يغلبه بورقة عادية: يرمي الكبير أول ما يصير آمن، عشان ما يبقى معه لآخر افتتاح ويخيسه
+  // يقدر يغلبه بأكبر ورقة باقية من النوع: يرميها ويخلي الكبير (يلعب طبيعي)
   s.hands[0] = [E.BLUE, 'H-13', 'H-3', 'C-4', 'D-5'];
   s.played = ['H-14'];
   s.trick = [{ seat: 5, card: 'H-10' }];
-  assert.strictEqual(Bot.decide(s, 0).card, E.BLUE);
-  // نفس الشي بدون الكبير: أصغر ورقة تغلب
-  s.hands[0] = ['H-13', 'H-3', 'C-4', 'D-5'];
   assert.strictEqual(Bot.decide(s, 0).card, 'H-13');
   s.played = [];
   // الكبير قبل نزول الصغير يخسّر المباراة: ما يرميه
@@ -779,7 +880,7 @@ test('the last bot of its team plays to win the trick when its team is losing it
   assert.strictEqual(play(5, losing, ['H-13', 'H-11', 'H-6']), 'H-11');
   // ما عنده ورقة تغلب: يرمي الجوكر
   assert.strictEqual(play(5, losing, ['H-6', 'JG', 'D-2']), 'JG');
-  // زميله فايز باللمّة: ما يضيّع ورقه
+  // زميله فايز باللمّة بالولد والبوت معه البنت (ملاصقة، ما تفرق): يخليها له ويرمي الأصغر
   assert.strictEqual(play(5, [{ seat: 1, card: 'H-3' }, { seat: 2, card: 'H-4' }, { seat: 3, card: 'H-11' }, { seat: 4, card: 'H-5' }], ['H-12', 'H-6']), 'H-6');
   // باقي زميل بعده: ما يتغير لعبه
   assert.strictEqual(play(3, [{ seat: 1, card: 'H-3' }, { seat: 2, card: 'H-10' }], ['H-12', 'H-6']), 'H-6');
@@ -794,4 +895,58 @@ test('finished rounds go into the match history with the running score', () => {
   assert.strictEqual(h.length, 1);
   assert.strictEqual(h[0].round, 1);
   assert.deepStrictEqual(h[0].scores, [0, 6]);
+});
+
+test('bot never looks at other players\' hands: reshuffling them does not change its decision', () => {
+  for (const players of [6, 4]) {
+    let seed = players * 31;
+    const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    let checked = 0;
+    for (let g = 0; g < 30; g++) {
+      const s = E.createMatch({ rng, players });
+      while (s.phase !== 'matchEnd') {
+        if (s.phase === 'roundEnd') { E.nextRound(s, rng); continue; }
+        const seat = s.phase === 'bawanOffer' ? s.buyer : s.turn;
+        const action = Bot.decide(s, seat);
+        // نسخة ثانية من نفس اللحظة، بس أوراق الباقين متخربطة بينهم (نفس العدد لكل واحد)
+        const copy = structuredClone(s);
+        const pool = [];
+        for (let p = 0; p < players; p++) if (p !== seat) pool.push(...copy.hands[p]);
+        for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+        for (let p = 0; p < players; p++) if (p !== seat) copy.hands[p] = pool.splice(0, copy.hands[p].length);
+        assert.deepStrictEqual(Bot.decide(copy, seat), action);
+        checked++;
+        Bot.apply(s, seat, action);
+      }
+    }
+    assert.ok(checked > 1000);
+  }
+});
+
+test('bot with the big joker does not gamble on a king when the ace is unknown: it plays the joker', () => {
+  const s = E.createMatch({ khabis: 5, players: 4 });
+  Object.assign(s, { phase: 'playing', trump: 'H', currentBid: 6, buyer: 0, greyPlayed: true, trickNo: 3, turn: 2, played: [] });
+  // زميله (0) افتتح بسبيت صغيرة، الخصم (1) رمى أصغر، والبوت (2) معه الباشة والكبير، وباقي خصم (3) بعده
+  s.hands[2] = ['S-13', E.BLUE, 'D-4', 'C-5', 'C-6', 'D-7'];
+  s.trick = [{ seat: 0, card: 'S-6' }, { seat: 1, card: 'S-3' }];
+  assert.strictEqual(Bot.decide(s, 2).card, E.BLUE);
+  // الخال نزل من قبل: الباشة صارت أكبر ورقة باقية، يرميها ويخلي الكبير
+  s.played = ['S-14'];
+  assert.strictEqual(Bot.decide(s, 2).card, 'S-13');
+  // ما معه الكبير: ياخذها بالباشة مثل قبل
+  s.played = [];
+  s.hands[2] = ['S-13', 'D-4', 'C-5', 'C-6', 'D-7'];
+  assert.strictEqual(Bot.decide(s, 2).card, 'S-13');
+});
+
+test('mate ruffed a side suit and the bot is void too: it leaves the trick to its mate and does not overtrump', () => {
+  const s = E.createMatch({ khabis: 5 });
+  Object.assign(s, { phase: 'playing', trump: 'S', currentBid: 6, buyer: 1, greyPlayed: true, trickNo: 3, turn: 0, played: [] });
+  // الخصم (3) افتتح هاس، زميله (4) قطع بسبعة الحكم، والبوت ما عنده هاس وعنده حكم أكبر: ما يقطع فوقه
+  s.hands[0] = ['S-12', 'S-3', 'C-5', 'D-6', 'D-9'];
+  s.trick = [{ seat: 3, card: 'H-10' }, { seat: 4, card: 'S-7' }, { seat: 5, card: 'H-4' }];
+  assert.strictEqual(Bot.decide(s, 0).card, 'C-5');
+  // كل ورقه حكم: يرمي أصغر حكم (ما يغلب زميله)
+  s.hands[0] = ['S-12', 'S-3', 'S-9'];
+  assert.strictEqual(Bot.decide(s, 0).card, 'S-3');
 });

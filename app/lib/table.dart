@@ -590,7 +590,13 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                     ),
                   ),
                   Positioned(top: 2, right: 2, child: _TopActions(client: c)),
-                  Positioned.fromRect(rect: Rect.fromLTWH(0, 0, b.size.width, b.handTop), child: _overlay(v)),
+                  // النوافذ بنص الطاولة بالضبط (نفس المسافة فوق وتحت مركزها). نتيجة المباراة النهائية تاخذ الشاشة كلها
+                  Positioned.fromRect(
+                    rect: v['phase'] == 'matchEnd'
+                        ? Rect.fromLTWH(0, 0, b.size.width, b.size.height)
+                        : Rect.fromCenter(center: Offset(b.size.width / 2, b.table.center.dy), width: b.size.width, height: 2 * min(b.table.center.dy, b.size.height - b.table.center.dy)),
+                    child: _overlay(v),
+                  ),
                 ]),
               ),
             );
@@ -1046,7 +1052,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       return _ChromePanel(child: Text('${c.seatName(buyer!)} يفكر يعلن باون...', style: const TextStyle(fontSize: 18, color: KoutColors.ink)));
     }
     // النتيجة تطلع بعد ما تخلص آخر لمّة
-    if ((phase == 'roundEnd' || phase == 'matchEnd') && _collecting == null) return _Panel(child: _RoundResult(client: c, view: v));
+    if ((phase == 'roundEnd' || phase == 'matchEnd') && _collecting == null) return _Panel(big: phase == 'matchEnd', child: _RoundResult(client: c, view: v));
     return const SizedBox.shrink();
   }
 }
@@ -1312,16 +1318,22 @@ class _FlipCard extends StatelessWidget {
 
 /// يكبّر النافذة، ويصغّرها بس إذا ما وسعتها المساحة
 class _Grow extends StatelessWidget {
-  static const _scale = 1.35;
+  final double scale;
+  final double? portraitScale; // تكبير ثاني للشاشة الطولية (إذا انعطى)
   final Widget child;
-  const _Grow({required this.child});
+  const _Grow({required this.child, this.scale = 1.35, this.portraitScale});
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (_, box) {
-        final w = box.maxWidth / _scale, h = box.maxHeight / _scale;
+        // التكبير الزايد (النتيجة النهائية) بس إذا العرض يكفي، عشان الكلام ما ينكسر بالشاشة الطولية
+        final portrait = box.maxHeight > box.maxWidth;
+        final scale = portrait && portraitScale != null
+            ? portraitScale!
+            : (this.scale <= 1.35 ? this.scale : max(1.35, min(this.scale, box.maxWidth / 350)));
+        final w = box.maxWidth / scale, h = box.maxHeight / scale;
         return Center(
           child: Transform.scale(
-            scale: _scale,
+            scale: scale,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: w, maxHeight: h),
               child: FittedBox(
@@ -1467,10 +1479,13 @@ class _TurnRingState extends State<_TurnRing> {
 /// النتائج والكلام الثاني: لوحة غامقة
 class _Panel extends StatelessWidget {
   final Widget child;
-  const _Panel({required this.child});
+  final bool big; // نتيجة المباراة النهائية: أكبر
+  const _Panel({required this.child, this.big = false});
 
   @override
   Widget build(BuildContext context) => _Grow(
+        scale: big ? 1.7 : 1.35,
+        portraitScale: big ? 1.35 * 0.6 : null, // النتيجة النهائية بالطولي أصغر 40٪
         child: Container(
           margin: const EdgeInsets.all(8),
           padding: const EdgeInsets.all(18),
@@ -1727,7 +1742,6 @@ class _Seat extends StatelessWidget {
     final teamColor = KoutColors.team(seat % 2);
     final bids = (v['bids'] as List).where((b) => b['seat'] == seat).toList();
     final passed = phase == 'bidding' && bids.isNotEmpty && bids.last['bid'] == 'pass';
-    final bidLabel = bids.isEmpty || passed ? null : bidName(bids.last['bid'] as Object);
     final sig = client.signals[seat];
     final info = client.seatInfo(seat);
     final isBot = info?['bot'] == true;
@@ -1763,6 +1777,9 @@ class _Seat extends StatelessWidget {
       if (offline) const Positioned(top: -4, left: -4, child: Icon(Icons.wifi_off, size: 14, color: KoutColors.lose)),
       // طاف: علامة كف رمادية جنب الشخصية من جهة الطاولة
       if (passed) Transform.translate(offset: toward * (size * 0.5 + 14), child: _PassSign(size: size * 0.46)),
+      // المزايدة: رقمها بدائرة بنفس مكان وطريقة كف «طاف»
+      if (phase == 'bidding' && bids.isNotEmpty && !passed)
+        Transform.translate(offset: toward * (size * 0.5 + 14), child: _BidSign(key: ValueKey('bid-${bids.last['bid']}'), bid: bids.last['bid'] as Object, size: size * 0.46)),
       // الإشارات: تظهر كلها مع بعض جنب الشخصية من جهة وسط الطاولة
       if (sig != null)
         Transform.translate(
@@ -1792,7 +1809,6 @@ class _Seat extends StatelessWidget {
     final tags = <Widget>[
       if (isBuyer && v['madmoon'] == true) const OutlinedText('مضمون', size: 13, color: KoutColors.madmoon),
       if (isBuyer && v['majbur'] == true) const OutlinedText('مجبور', size: 13, color: KoutColors.majbur),
-      if (phase == 'bidding' && bidLabel != null) OutlinedText(bidLabel, size: 13, color: bidLabel == 'طاف' ? const Color(0xFFCCCCCC) : Colors.white),
       if (isKhabis && phase == 'bidding') const OutlinedText('الموزع', size: 11, color: Color(0xFFDDDDDD)),
       if (left != null && showSeconds)
         ValueListenableBuilder(
@@ -1829,6 +1845,36 @@ class _Seat extends StatelessWidget {
       name,
       Wrap(spacing: 6, alignment: WrapAlignment.center, children: tags),
     ]);
+  }
+}
+
+/// علامة المزايدة: دائرة فيها رقم المزايدة (6 مجبور برتقالي، و9 ذهبي)، تطلع مثل علامة طاف
+class _BidSign extends StatelessWidget {
+  final Object bid;
+  final double size;
+  const _BidSign({super.key, required this.bid, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final majbur = bid == 'majbur';
+    final nine = bid == 9;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.4, end: 1),
+      duration: const Duration(milliseconds: 180),
+      builder: (_, s, child) => Transform.scale(scale: s, child: child),
+      child: Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: majbur ? const Color(0xFFB86400) : (nine ? KoutColors.gold : const Color(0xFF111111)),
+          border: Border.all(color: Colors.white, width: max(1.5, size * 0.07)),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2))],
+        ),
+        child: Text(majbur ? '6' : '$bid', textScaler: TextScaler.noScaling, style: TextStyle(fontSize: size * 0.62, height: 1, fontWeight: FontWeight.w700, color: nine ? Colors.black : Colors.white)),
+      ),
+    );
   }
 }
 
@@ -1999,7 +2045,7 @@ class _RoundResult extends StatelessWidget {
         if (history.isNotEmpty) ...[
           const SizedBox(height: 10),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 112, maxWidth: 300),
+            constraints: const BoxConstraints(maxHeight: 150, maxWidth: 300),
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 for (final r in history)

@@ -108,8 +108,9 @@ class Sfx {
   // تكتكة آخر 5 ثواني (الملف 5 ثواني)، وتوقف أول ما يتحرك اللاعب
   static void tick() => _play('tick');
   static void stopTick() => _stop('tick');
-  static void win() => _play('win');
-  static void lose() => _play('lose');
+  // الفوز والخسارة أوطى عشان أصوات الشخصيات تطغى عليهم (نص القوة، -6 dB)
+  static void win() => _play('win', volume: 0.5);
+  static void lose() => _play('lose', volume: 0.5);
   // نبض القلب يتكرر طول ما الطاولة ذهبية
   static void gold() => _play('gold', loop: true);
   static void stopGold() => _stop('gold');

@@ -69,6 +69,27 @@ function decidePlay(state, seat) {
   const deadlineOpen = !state.greyPlayed && !(state.madmoon && state.bluePlayed);
   const lastChance = state.trickNo === E.GREY_DEADLINE - 1;
 
+  // اللمّة الثانية ومعه الصغير: إذا كل ورقه العادية تاخذ اللمّة (ما يقدر يخليها)، بيفتتح الثالثة
+  // والصغير ما يفتتح فيخيسه، فهو مجبور يرمي الصغير الحين
+  if (deadlineOpen && state.trickNo === 1 && state.trick.length > 0 && hand.includes(E.GREY) && legal.includes(E.GREY)) {
+    const plainNow = legal.filter((c) => !E.isJoker(c));
+    const taking = (c) => E.trickWinner([...state.trick, { seat, card: c }], trump) === seat;
+    if (plainNow.length && plainNow.every(taking)) return E.GREY;
+    // وما ياخذ اللمّة الثانية بورقة عادية أبداً: يبقى له بس الورق اللي ما يفوز (والصغير)
+    legal = legal.filter((c) => E.isJoker(c) || !taking(c));
+  }
+  // اللمّة الأولى ومعه الصغير وباقي ورقه كله قوي (حكم، أو أكبر ورقة باقية من نوعها، أو ولد وفوق):
+  // ممكن ياخذ كل اللمّات ويبقى الافتتاح عنده، فيرمي الصغير الحين بدل ما يقطع
+  if (deadlineOpen && !state.madmoon && state.trickNo === 0 && state.trick.length > 0 && hand.includes(E.GREY) && legal.includes(E.GREY)) {
+    const known = new Set([...(state.played || []), ...state.trick.map((t) => t.card)]);
+    const topOf = (c) => {
+      for (let r = E.rankOf(c) + 1; r <= 14; r++) if (!known.has(`${c[0]}-${r}`) && !hand.includes(`${c[0]}-${r}`)) return false;
+      return true;
+    };
+    const rest = hand.filter((c) => !E.isJoker(c));
+    if (rest.length && rest.every((c) => c[0] === trump || topOf(c) || E.rankOf(c) >= 11)) return E.GREY;
+  }
+
   // زميله شاري 8 والخصم افتتح بحكم: يمسك الجوكر الصغير لين ينزل آص الحكم
   // (إلا إذا هذي آخر فرصة ينزل فيها الصغير)
   const first = state.trick[0];
@@ -79,17 +100,31 @@ function decidePlay(state, seat) {
     if (!aceOut) legal = legal.filter((c) => c !== E.GREY);
   }
 
-  // الافتتاح بحكم: خطر يخيس الجوكر إذا مسكه الحين؟
-  // الكبير: قربت النهاية (4 أوراق أو أقل) أو باقي ورقه كله حكم (بيبقى الافتتاح عنده).
-  // الصغير: لازم ينزل بأول 3 لمّات، وإذا أخذ هاللمّة بيفتتح اللي بعدها (والصغير ما يفتتح)
   const ledTrump = !!first && !E.isJoker(first.card) && first.card[0] === trump;
-  const blueRisk = hand.includes(E.BLUE) && (hand.length <= 4 || hand.every((c) => E.isJoker(c) || c[0] === trump));
-  const greyRisk = hand.includes(E.GREY) && deadlineOpen && state.trickNo >= 1;
   const seenNow = new Set([...(state.played || []), ...state.trick.map((t) => t.card)]);
   const isTopLeft = (card) => {
     for (let r = E.rankOf(card) + 1; r <= 14; r++) if (!seenNow.has(`${card[0]}-${r}`) && !hand.includes(`${card[0]}-${r}`)) return false;
     return true;
   };
+  // خطر يخيس الجوكر إذا مسكه الحين؟
+  // الكبير: باقي ورقه كلها أكبر أوراق موجودة، أو كله حكم (ولو معه ورقة أو ورقتين كبار من نوع ثاني):
+  // بياخذ كل لمّة ويبقى الافتتاح عنده لين يبقى معه الكبير بس،
+  // أو باقي ورقتين والثانية تاخذ هاللمّة (قبل الأخيرة).
+  // الصغير: لازم ينزل بأول 3 لمّات، وإذا أخذ هاللمّة بيفتتح اللي بعدها (والصغير ما يفتتح)
+  const others = hand.filter((c) => !E.isJoker(c));
+  // ورقة «كبيرة» من غير الحكم (ممكن تفوز بلمّتها): أكبر ورقة باقية من نوعها، أو ولد وفوق
+  const side = others.filter((c) => c[0] !== trump);
+  const bigSide = side.every((c) => isTopLeft(c) || E.rankOf(c) >= 11);
+  const blueRisk = hand.includes(E.BLUE) && (
+    (others.length > 0 && others.every(isTopLeft)) ||
+    // أي شك إن باقي ورقه يفوز بكل اللمّات (كله حكم أو ورق كبير): ممكن كل الافتتاحيات تصير عنده
+    (others.length > 0 && bigSide) ||
+    (hand.length === 2 && state.trick.length > 0 && others.length === 1 && E.trickWinner([...state.trick, { seat, card: others[0] }], trump) === seat));
+  const greyRisk = hand.includes(E.GREY) && deadlineOpen && state.trickNo >= 1;
+  // ما يرمي الكبير فوق صغير زميله
+  if (state.trick.some((t) => t.card === E.GREY && t.seat !== seat && E.teamOf(t.seat) === myTeam) && legal.some((c) => c !== E.BLUE)) {
+    legal = legal.filter((c) => c !== E.BLUE);
+  }
   if (ledTrump && !blueRisk && !greyRisk) {
     // الافتتاح بحكم وعنده أكبر حكم باقي (ومعه جوكر): يرمي الحكم ويخلي الجوكر
     const myTop = legal.filter((c) => !E.isJoker(c) && c[0] === trump).sort((a, b) => E.rankOf(b) - E.rankOf(a))[0];
@@ -106,10 +141,8 @@ function decidePlay(state, seat) {
   }
 
   // الكبير ما يفتتح: إذا خلاه لآخر ورقة والافتتاح عنده يخيسه ويخسر المباراة.
-  // والكبير يغلب أي لمّة، فما يضيع: أول ما يصير رميه آمن (الصغير نزل) يرميه إذا فريقه مو ماسك اللمّة،
-  // وإذا قربت النهاية (4 أوراق أو أقل) أو باقي ورقه كله حكم (بيبقى الافتتاح عنده) يرميه حتى لو زميله ماسكها
-  if (hand.includes(E.BLUE) && legal.includes(E.BLUE) && state.trick.length > 0 && !E.blueLosesMatch(state, seat) &&
-      (!mateWinning || hand.length <= 4 || hand.every((c) => E.isJoker(c) || c[0] === trump))) return E.BLUE;
+  // ينلعب طبيعي، وما يضطر يرميه إلا إذا فيه خطر يخيسه (blueRisk فوق)
+  if (blueRisk && legal.includes(E.BLUE) && state.trick.length > 0 && !E.blueLosesMatch(state, seat)) return E.BLUE;
   if (deadlineOpen && state.trickNo >= 1 && state.trick.length > 0 && (!mateWinning || lastChance)) {
     if (state.madmoon && seat === state.buyer && legal.includes(E.BLUE)) return E.BLUE;
     if (legal.includes(E.GREY)) return E.GREY;
@@ -212,17 +245,63 @@ function decidePlay(state, seat) {
     }
   }
 
+  // عنده أكبر ورقة باقية من النوع المنزول وتغلب: يرميها، إلا إذا زميله رمى قبله الورقة الملاصقة لها
+  // (أقرب ورقة تحتها، وكل اللي بينهم نزل أو عنده): نفس القوة، فيخليها لزميله
+  if (same.length) {
+    const top = highest(same, trump);
+    const adjacent = (a, b) => {
+      const [lo, hi] = [E.rankOf(a), E.rankOf(b)].sort((x, y) => x - y);
+      for (let r = lo + 1; r < hi; r++) if (!seenNow.has(`${a[0]}-${r}`) && !hand.includes(`${a[0]}-${r}`)) return false;
+      return true;
+    };
+    const mateNext = state.trick.some((t) => t.seat !== seat && E.teamOf(t.seat) === myTeam && !E.isJoker(t.card) && t.card[0] === top[0] && adjacent(t.card, top));
+    // (ومعه الصغير قبل ما ينزل باللمّة الثانية وفوق: ما ياخذ، لو أخذ بيفتتح ويخيس الصغير)
+    if (isTopLeft(top) && wins(top) && !mateNext && !greyRisk) return top;
+  }
+
   // آخر واحد من فريقه باللمّة وورق فريقه ما يفوز: يرمي أصغر ورقة تغلب، وإلا الجوكر
-  const later = Array.from({ length: state.players - 1 - state.trick.length }, (_, i) => (seat + 1 + i) % state.players);
+  const later =Array.from({ length: state.players - 1 - state.trick.length }, (_, i) => (seat + 1 + i) % state.players);
+  // يبي ياخذ اللمّة بورقة مو أكبر ورقة باقية من نوعها (ما يعرف الأكبر مع من) وباقي خصم يلعب بعده:
+  // إذا معه الكبير ورميه آمن يرميه بدالها، عشان اللمّة تنضمن
+  const laterOpp = later.some((s) => E.teamOf(s) !== myTeam);
+  const sure = (card) => (!isTopLeft(card) && laterOpp && legal.includes(E.BLUE) && !E.blueLosesMatch(state, seat) && wins(E.BLUE)) ? E.BLUE : card;
   if (!mateWinning && !later.some((s) => E.teamOf(s) === myTeam)) {
     const canWin = plain.filter(wins);
-    if (canWin.length) return lowest(canWin, trump);
+    if (canWin.length) return sure(lowest(canWin, trump));
     const joker = [E.GREY, E.BLUE].find((j) => legal.includes(j) && wins(j));
     if (joker) return joker;
   }
 
-  // زميله صاحب أكبر ورقة باللمّة: يرمي أصغر ورقة عنده ويخلي اللمّة له
-  if (mateWinning) return lowest(same.length ? same : (nonTrumps.length ? nonTrumps : plain), trump);
+  // زميله صاحب أكبر ورقة باللمّة: يخليها له بس إذا كل الأوراق الأكبر من ورقة زميله عنده هو (أو نزلت)،
+  // أو ما بقى أحد يلعب بعده. وإلا ياخذها هو: أكبر ورقة من النوع إذا تغلب، أو أصغر حكم يغلب إذا ما عنده النوع
+  if (mateWinning) {
+    const w = E.trickWinner(state.trick, trump);
+    const mateCard = state.trick.find((t) => t.seat === w).card;
+    // ومعه الصغير قبل ما ينزل: ما ياخذ اللمّة (لو أخذها بيفتتح والصغير ما يفتتح فيخيسه)
+    // زميله قطع بحكم على نوع مو حكم، والبوت ما عنده النوع: يخليها له وما يقطع فوقه
+    const mateRuffed = !E.isJoker(mateCard) && mateCard[0] === trump && led !== trump && !same.length;
+    const safe = later.length === 0 || E.isJoker(mateCard) || isTopLeft(mateCard) || mateRuffed || (hand.includes(E.GREY) && deadlineOpen);
+    // ورقته «ملاصقة» لورقة زميله (أقرب أكبر أو أصغر، وكل اللي بينهم نزل أو عنده): نفس القوة، فما تفرق
+    const nextTo = (c) => {
+      if (E.isJoker(c) || E.isJoker(mateCard) || c[0] !== mateCard[0]) return false;
+      const [lo, hi] = [E.rankOf(c), E.rankOf(mateCard)].sort((a, b) => a - b);
+      for (let r = lo + 1; r < hi; r++) if (!seenNow.has(`${c[0]}-${r}`) && !hand.includes(`${c[0]}-${r}`)) return false;
+      return true;
+    };
+    if (!safe) {
+      // ياخذها بورقة أكبر فيها فرق (بينها وبين ورقة زميله ورقة برا)؛ الملاصقة ما تفيد فيخليها لزميله
+      const sameWin = same.filter((c) => wins(c) && !nextTo(c));
+      if (sameWin.length) return sure(highest(sameWin, trump));
+      if (!same.length) {
+        const trumpWin = trumps.filter(wins);
+        if (trumpWin.length) return lowest(trumpWin, trump);
+      }
+    }
+    // يخليها لزميله بأصغر ورقة، وما يرمي الملاصقة لورقة زميله إذا عنده غيرها
+    const pool = same.length ? same : (nonTrumps.length ? nonTrumps : plain);
+    const notNext = pool.filter((c) => !nextTo(c));
+    return lowest(notNext.length ? notNext : pool, trump);
+  }
 
   // الخصم ماسك اللمّة: إذا ما يقدر يغلبه بورقة عادية، يرمي الجوكر (الأصغر اللي يغلب)
   const plainWinners = plain.filter(wins);

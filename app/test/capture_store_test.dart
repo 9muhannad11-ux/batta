@@ -161,7 +161,7 @@ void main() {
       await _tap(tester, find.byIcon(Icons.arrow_back).first);
       await _tap(tester, find.text('التفضيلات'));
       await _shot(tester, 'build/preview_store_${name}_prefs.png');
-      await _tap(tester, find.text('بو شنب'));
+      await _tap(tester, find.text('مرهون'));
       await tester.pump(const Duration(milliseconds: 400));
       await _shot(tester, 'build/preview_store_${name}_focus.png');
       await _tap(tester, find.byIcon(Icons.arrow_back).first);

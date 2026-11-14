@@ -43,8 +43,8 @@ const bgThemes = [
 ];
 
 /// الشخصيات المقفلة وسعرها (الباقي مجاني)
-const lockedChars = {'khalfan': 3000, 'bodhirs': 2500, 'marhoon': 2000, 'mundaghit': 1500, 'buhamdan': 1000};
-const _charUsd = {'khalfan': '2.99\$', 'bodhirs': '2.49\$', 'marhoon': '1.99\$', 'mundaghit': '1.49\$', 'buhamdan': '0.99\$'};
+const lockedChars = {'khalfan': 3000, 'marhoon': 2000, 'mundaghit': 1500, 'buhamdan': 1000};
+const _charUsd = {'khalfan': '2.99\$','marhoon': '1.99\$', 'mundaghit': '1.49\$', 'buhamdan': '0.99\$'};
 const _tablePrices = {'blue': 300, 'maroon': 600, 'black': 1000};
 const _bgPrices = {'sand': 300, 'navy': 600, 'wood': 1000};
 const _colorUsd = {300: '0.49\$', 600: '0.99\$', 1000: '1.49\$'};

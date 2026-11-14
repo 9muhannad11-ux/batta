@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'friends.dart';
 import 'progress.dart';
 import 'wallet.dart';
 
@@ -125,29 +126,33 @@ class GameClient extends ChangeNotifier {
   /// اسم اللاعب (مثل الحساب): ينكتب أول مرة وينحفظ، ويتغير من التفضيلات
   Future<void> saveName(String value) async {
     name = value.trim();
+    startFriends();
     notifyListeners();
     final p = await SharedPreferences.getInstance();
     await p.setString('name', name);
   }
 
+  /// اتصال الأصدقاء (الحضور): يبدأ أول ما يكون عندنا اسم
+  void startFriends() => Friends.instance.start(url: serverUrl, name: name, char: char);
+
   Future<void> createRoom() async {
     Wallet.instance.roomStake = null;
     await _savePrefs();
-    _open(() => _send({'t': 'create', 'name': name, 'char': ?char}));
+    _open(() => _send({'t': 'create', 'name': name, 'char': ?char, 'fc': Friends.instance.myCode}));
   }
 
   /// بحث عن لاعبين: mode 6 أو 4، و score هدف المباراة 54 أو 34
   Future<void> search(int mode, int score) async {
     Wallet.instance.enterSearch();
     await _savePrefs();
-    _open(() => _send({'t': 'search', 'mode': mode, 'score': score, 'name': name, 'char': ?char}));
+    _open(() => _send({'t': 'search', 'mode': mode, 'score': score, 'name': name, 'char': ?char, 'fc': Friends.instance.myCode}));
   }
 
   /// تدريب مع البوتات بدون وقت
   Future<void> practice(int mode) async {
     Wallet.instance.roomStake = null;
     await _savePrefs();
-    _open(() => _send({'t': 'practice', 'mode': mode, 'name': name, 'char': ?char}));
+    _open(() => _send({'t': 'practice', 'mode': mode, 'name': name, 'char': ?char, 'fc': Friends.instance.myCode}));
   }
 
   Future<void> joinRoom(String roomCode) async {
@@ -156,7 +161,7 @@ class GameClient extends ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     // لو نفس الغرفة اللي كنا فيها، نرجع لمقعدنا
     final savedToken = p.getString('room') == roomCode ? p.getString('token') : null;
-    _open(() => _send({'t': 'join', 'code': roomCode, 'name': name, 'token': ?savedToken, 'char': ?char}));
+    _open(() => _send({'t': 'join', 'code': roomCode, 'name': name, 'token': ?savedToken, 'char': ?char, 'fc': Friends.instance.myCode}));
   }
 
   /// يحاول يتصل لين دقيقة ونص: سيرفر Render المجاني ينام إذا ما أحد يلعب، ويحتاج 30-60 ثانية يصحى
@@ -210,7 +215,7 @@ class GameClient extends ChangeNotifier {
       // إعادة الاتصال تلقائياً لنفس المقعد
       Future.delayed(const Duration(seconds: 2), () {
         if (!_wantConnection || connected) return;
-        _open(() => _send({'t': 'join', 'code': code, 'token': token, 'name': name}));
+        _open(() => _send({'t': 'join', 'code': code, 'token': token, 'name': name, 'fc': Friends.instance.myCode}));
       });
     }
   }
@@ -328,6 +333,7 @@ class GameClient extends ChangeNotifier {
   void sit(int seat) => _send({'t': 'sit', 'seat': seat});
   Future<void> chooseChar(String id) async {
     char = id;
+    startFriends();
     if (room != null) _send({'t': 'char', 'char': id});
     notifyListeners();
     final p = await SharedPreferences.getInstance();

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kout/cards.dart';
+import 'package:kout/friends.dart';
 import 'package:kout/main.dart';
 import 'package:kout/net.dart';
 import 'package:kout/progress.dart';
@@ -13,7 +15,10 @@ import 'package:kout/sounds.dart';
 import 'package:kout/wallet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _Client extends GameClient {}
+class _Client extends GameClient {
+  @override
+  Future<void> search(int mode, int score) async {}
+}
 
 Future<void> _shot(WidgetTester tester, String out) async {
   await tester.runAsync(() async {
@@ -65,11 +70,16 @@ void main() {
     expect(w.buy(shopItems({}).firstWhere((i) => i.id == 'blue')), true);
     expect(w.balance, 670);
     expect(w.owns('table', 'blue'), true);
-    // اليوم الثاني: هدية
-    await w.load(now: DateTime.now().add(const Duration(days: 1)));
+    // اليوم الثاني: الهدية تنتظر ضغطة، وما تنستلم مرتين
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    await w.load(now: tomorrow);
+    expect(w.balance, 670);
+    expect(w.giftReady, true);
+    expect(await w.claimGift(now: tomorrow), true);
     expect(w.balance, 870);
-    expect(w.giftToday, 200);
-    w.giftToday = null;
+    expect(await w.claimGift(now: tomorrow), false);
+    await w.load(now: tomorrow);
+    expect(w.giftReady, false);
   });
 
   test('progress: stats and challenges', () async {
@@ -111,6 +121,14 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await tester.runAsync(() => Wallet.instance.load());
       await tester.runAsync(() => Progress.instance.load());
+      // أصدقاء للمعاينة
+      Friends.instance.debugSet([
+        Friend('K7Q2XM', 'سالم', 'wadamtih'),
+        Friend('P3RT8A', 'خالد', 'khusaib'),
+        Friend('Z9MN4B', 'عبدالله', 'aslam'),
+        Friend('H2WE6C', 'فهد', null),
+        Friend('Q8LD5F', 'ناصر', 'marhoon'),
+      ], {'K7Q2XM': FriendStatus.online, 'P3RT8A': FriendStatus.playing, 'Z9MN4B': FriendStatus.room}, code: 'B4TT3H');
       Progress.instance.stats.addAll({'matches': 24, 'wins': 15, 'losses': 9, 'rounds': 188, 'bought': 41, 'boughtMade': 30, 'boughtFailed': 11, 'bigBidMade': 6, 'bawanMade': 2, 'bawanFailed': 1, 'bawanBroken': 3, 'points': 612, 'jokerPenalty': 1, 'ghawaziWon': 1340});
       for (var r = 1; r <= 2; r++) {
         Progress.instance.onState(code: 'x', view: {'phase': r == 2 ? 'matchEnd' : 'roundEnd', 'round': r, 'winner': r == 2 ? 0 : null, 'scores': [r, 0], 'lastRound': {'type': 'made', 'team': 0, 'points': 6, 'buyer': 0, 'bid': 6}}, mySeat: 0, online: true);
@@ -119,19 +137,31 @@ void main() {
         ..balance = 1000
         ..owned.clear()
         ..owned.add('table:blue')
-        ..table = 'blue';
+        ..table = 'blue'
+        ..giftReady = true;
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       final c = _Client()..name = 'مهند';
       await tester.pumpWidget(RepaintBoundary(key: const ValueKey('shot'), child: KoutApp(key: ValueKey(name), client: c)));
       await tester.pump(const Duration(milliseconds: 400));
       await _shot(tester, 'build/preview_store_${name}_menu.png');
+      // الأصدقاء
+      await _tap(tester, find.byIcon(Icons.people_alt));
+      expect(find.text('3 متصل من 5'), findsOneWidget);
+      await _shot(tester, 'build/preview_store_${name}_friends.png');
+      await _tap(tester, find.byIcon(Icons.arrow_back).first);
+      // هدية اليوم: العملات تطير للرصيد
+      await _tap(tester, find.text('هدية اليوم'));
+      await _shot(tester, 'build/preview_store_${name}_giftfly.png');
+      await tester.pump(const Duration(seconds: 1));
+      expect(Wallet.instance.balance, 1200);
+      await _shot(tester, 'build/preview_store_${name}_gifted.png');
       await _tap(tester, find.text('المتجر'));
       await _shot(tester, 'build/preview_store_${name}_ghawazi.png');
       await _tap(tester, find.byIcon(Icons.arrow_back).first);
       await _tap(tester, find.text('التفضيلات'));
       await _shot(tester, 'build/preview_store_${name}_prefs.png');
-      await _tap(tester, find.text('محمد بو ضرس'));
+      await _tap(tester, find.text('بو شنب'));
       await tester.pump(const Duration(milliseconds: 400));
       await _shot(tester, 'build/preview_store_${name}_focus.png');
       await _tap(tester, find.byIcon(Icons.arrow_back).first);
@@ -145,6 +175,25 @@ void main() {
       await _tap(tester, find.text('6 لاعبين'));
       await _tap(tester, find.text('دور كامل'));
       await _shot(tester, 'build/preview_store_${name}_stakes.png');
+      // دخول جيم: العملات تطير من الرصيد على الخيار
+      await _tap(tester, find.text('تفوز: 272'));
+      await _shot(tester, 'build/preview_store_${name}_stakefly.png');
+      await tester.pump(const Duration(seconds: 1));
+      await _tap(tester, find.byIcon(Icons.arrow_back).first);
+      await _tap(tester, find.byIcon(Icons.arrow_back).first);
+      // التدريب: الخيار الثالث «قوانين اللعب»
+      await _tap(tester, find.text('تدريب'));
+      await _shot(tester, 'build/preview_store_${name}_training.png');
+      await _tap(tester, find.text('قوانين اللعب'));
+      await tester.runAsync(() async {
+        final ctx = tester.element(find.byType(KoutApp));
+        for (final card in ['JB', 'JG', for (var r = 2; r <= 14; r++) 'S-$r']) {
+          await precacheImage(cardImage(card), ctx);
+        }
+      });
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('قوة الأوراق'), findsOneWidget);
+      await _shot(tester, 'build/preview_store_${name}_rules.png');
       await _tap(tester, find.byIcon(Icons.arrow_back).first);
       await _tap(tester, find.byIcon(Icons.arrow_back).first);
       await tester.pumpWidget(const SizedBox());

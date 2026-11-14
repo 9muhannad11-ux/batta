@@ -70,7 +70,7 @@ class Wallet extends ChangeNotifier {
   final Set<String> owned = {}; // 'char:khalfan' / 'table:blue' / 'bg:sand'
   String table = 'grey', bg = 'mat';
   int stake = 0; // المبلغ المختار للبحث الجاي
-  int? giftToday; // إذا انضافت هدية اليوم الحين (عشان نعلم اللاعب)
+  bool giftReady = false; // هدية اليوم موجودة وما استلمها
 
   // الجيم اللي حط فيه غوازي: كود الغرفة والمبلغ
   String? _stakeRoom;
@@ -99,16 +99,11 @@ class Wallet extends ChangeNotifier {
     bg = p.getString('bgTheme') ?? 'mat';
     _stakeRoom = p.getString('stakeRoom');
     _stakeAmount = p.getInt('stakeAmount');
-    // أول فتح باليوم: هدية (أول مرة باللعبة ياخذ رصيد البداية بس)
+    // هدية اليوم تنتظر اللاعب يضغط عليها (أول مرة باللعبة ياخذ رصيد البداية بس)
     final today = _day(now ?? DateTime.now());
     final last = p.getString('giftDay');
-    if (last != today) {
-      if (last != null) {
-        balance += dailyGift;
-        giftToday = dailyGift;
-      }
-      await p.setString('giftDay', today);
-    }
+    if (last == null) await p.setString('giftDay', today);
+    giftReady = last != null && last != today;
     // جيم كان شغال وانقفلت اللعبة: يعتبر خسارة (المبلغ انخصم من قبل)
     if (_stakeRoom != null) await _clearStake(p);
     await _save(p);
@@ -148,6 +143,21 @@ class Wallet extends ChangeNotifier {
     notifyListeners();
     _save();
   }
+
+  /// استلام هدية اليوم (بضغطة من اللاعب)
+  Future<bool> claimGift({DateTime? now}) async {
+    if (!giftReady) return false;
+    giftReady = false;
+    balance += dailyGift;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setString('giftDay', _day(now ?? DateTime.now()));
+    await _save(p);
+    return true;
+  }
+
+  /// كم باقي على هدية بكرة
+  static Duration untilNextGift(DateTime now) => DateTime(now.year, now.month, now.day + 1).difference(now);
 
   /// جايزة (تحدي)
   void addGhawazi(int amount) {
@@ -237,6 +247,12 @@ class GhawaziAmount extends StatelessWidget {
         ],
         GhawaziIcon(size: size * 1.15),
         SizedBox(width: size * 0.3),
-        Text('$amount', style: TextStyle(fontFamily: 'ElMessiri', fontSize: size, fontWeight: FontWeight.w800, color: color)),
+        // الرقم يعدّ لين يوصل للجديد (لما تنضاف أو تنسحب غوازي)
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: amount.toDouble()),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOut,
+          builder: (_, v, _) => Text('${v.round()}', style: TextStyle(fontFamily: 'ElMessiri', fontSize: size, fontWeight: FontWeight.w800, color: color)),
+        ),
       ]);
 }

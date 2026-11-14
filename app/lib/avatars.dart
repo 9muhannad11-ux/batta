@@ -12,8 +12,8 @@ class _Look {
   final String head; // kumma (كمّة السويق)، kummaWhite (كمّة بيضاء)، kummaBrown (بيضاء بتطريز بني)، turban (مصر)، pakol (طاقية باكستانية بلفة صوف)، bald (أقرع بشعر قصير على الجنبين)، qahfiya (قحفية مخرّمة بلون headColor)، hair (شعر قصير)
   final Color headColor; // لون المصر
   final String beard; // none, stubble, light, short, full, goatee, circle (سكسوكة موصولة بالشنب)
-  final String mustache; // none, light, thick, trim (رفيع مرسوم)
-  final String brows; // calm, sharp, angry, sad, thick, flat (مستقيم بارد)
+  final String mustache; // none, light, thick, trim (رفيع مرسوم)، bushy (كثيف وعريض وأطرافه نازلة)
+  final String brows; // calm, sharp, angry, sad, thick, bushy (أكثف بشعيرات)، flat (مستقيم بارد)
   final String eyes; // calm, open, closed, smile (الخد يرفع الجفن التحتاني), cold (جفن ثقيل ونظرة بدون لمعة)
   final String mouth; // neutral, smile, frown, grin, gap, faint (ابتسامة خفيفة باردة)
   final bool thin;
@@ -33,6 +33,8 @@ class _Look {
   final bool shirt; // قميص بياقة مدببة وأزرار
   final bool pajama; // بيجامة نوم مخططة بياقة مقلوبة وأزرار
   final bool kameez; // ياقة واقفة وأزرار بدل فتحة الدشداشة (القميص الباكستاني والثوب السعودي)
+  final double headScale; // حجم الراس (1 = العادي)، يصغر أو يكبر من عند الرقبة
+  final bool openNeck; // جيب الدشداشة مفتوح من الجهة اللي ما فيها الفرفوشة بس
   final bool white; // لحية وشنب وحواجب بيض
   final bool old; // كبير بالسن: تجاعيد
   const _Look({
@@ -60,6 +62,8 @@ class _Look {
     this.shirt = false,
     this.pajama = false,
     this.kameez = false,
+    this.openNeck = false,
+    this.headScale = 1,
     this.white = false,
     this.old = false,
   });
@@ -71,7 +75,7 @@ const characterNames = <String, String>{
   'khusaib': 'خصيب',
   'marhoon': 'مرهون',
   'musabbah': 'سعيد',
-  'bodhirs': 'محمد بو ضرس',
+  'bodhirs': 'بو شنب', // (المعرّف من أيام اسمه محمد بو ضرس، عشان المشتريات والاختيارات المحفوظة)
   'abdo': 'عبدو اليابس',
   'aslam': 'أسلم',
   'mundaghit': 'المنضغط',
@@ -91,8 +95,8 @@ const _looks = <String, _Look>{
   'marhoon': _Look(skin: Color(0xFFBE8C64), robe: Color(0xFF8C6E52), head: 'turban', headColor: Color(0xFFC8A27A), brows: 'sad', eyes: 'calm', mouth: 'frown', beard: 'full', mustache: 'thick', thin: true, white: true, old: true, tilt: -0.12, noseW: 1.1, noseHook: true, lips: 0.7),
   // سعيد (المعرّف musabbah من أيام اسمه مصبّح، عشان اختيارات اللاعبين المحفوظة): وجه طويل ونحيف بملامح عمانية (بشرة سمرا، حواجب كثيفة، خشم طويل، شنب كثيف ولحية مرتبة)، وكمّة بيضاء بتطريز مفصّل
   'musabbah': _Look(skin: Color(0xFFB27A50), robe: Color(0xFFF7F7F4), head: 'kummaWhite', beard: 'short', mustache: 'thick', brows: 'thick', eyes: 'open', eyeSize: 0.92, nose: 'long', mouth: 'smile', thin: true, long: true, noseHook: true, lips: 0.9, eyeGap: 0.95),
-  // محمد بو ضرس: مايل للسمار وناقصه سن قدام
-  'bodhirs': _Look(skin: Color(0xFF9C6B43), robe: Color(0xFF9FC1E6), mouth: 'gap', mustache: 'thick', noseW: 1.45, lips: 1.4),
+  // بو شنب: كمّة عمانية بيضاء مطرزة بلون ترابي واحد (أوطى من العادية وبعرض راسه مع الشعر) وشعره الأسود الناعم يبين تحتها، شنب أسود كثيف وعريض، ذقن خفيف محلوق، حواجب كثيفة مقوّسة، دشداشة بنية غامقة جيبها مفتوح
+  'bodhirs': _Look(skin: Color(0xFFB27B54), robe: Color(0xFF4A4038), head: 'smallKumma', openNeck: true, headScale: 0.92, mustache: 'bushy', beard: 'stubble', brows: 'bushy', eyes: 'open', eyeSize: 0.85, mouth: 'faint', long: true, noseW: 1.2, lips: 1.1, eyeGap: 1.02),
   // عبدو اليابس: قوة وصلابة ولحية مو كبيرة تغطي الوجه، وكمّة بيضاء بتطريز أخضر
   'abdo': _Look(skin: Color(0xFFB07A4F), robe: Color(0xFF5E6368), head: 'kummaGreen', brows: 'sharp', beard: 'full', mustache: 'thick', noseW: 1.2, eyeGap: 1.04),
   // أسلم: باكستاني بوجه عريض، پاکول صوف بني، لحية سودا كاملة وشنب، شلوار قميص زيتوني
@@ -368,7 +372,12 @@ class _FacePainter extends CustomPainter {
           ..lineTo(cx + s * 0.085, s * 0.66)
           ..lineTo(cx - s * 0.085, s * 0.66),
         fill(skinDark.withValues(alpha: 0.6)));
-    canvas.drawPath(neck, line);
+    if (look.openNeck) {
+      canvas.drawLine(Offset(cx - s * 0.085, s * 0.66), Offset(cx - s * 0.095, s * 0.79), line);
+      canvas.drawLine(Offset(cx + s * 0.085, s * 0.66), Offset(cx + s * 0.095, s * 0.79), line);
+    } else {
+      canvas.drawPath(neck, line);
+    }
     // فتحة الدشداشة والفراخة (الشرابة)، أو ياقة القميص الباكستاني وأزراره
     if (look.shirt) {
       _shirtCollar(canvas, s, cx, line, fill);
@@ -377,16 +386,29 @@ class _FacePainter extends CustomPainter {
     } else if (look.kameez) {
       _kameezCollar(canvas, s, cx, line, fill);
     } else {
-    canvas.drawPath(
-        Path()
-          ..moveTo(cx - s * 0.1, s * 0.79)
-          ..quadraticBezierTo(cx, s * 0.86, cx + s * 0.1, s * 0.79),
-        line);
-    canvas.drawLine(Offset(cx, s * 0.82), Offset(cx, s * 0.97), line); // خياطة الوسط من الرقبة
+    // الجيب المفتوح ينرسم قبل الفرفوشة (الفرفوشة تتعلق على طرفه المنثني)، وبدون خط الياقة على الرقبة
+    if (look.openNeck) {
+      _openNeck(canvas, s, cx, line);
+    } else {
+      canvas.drawPath(
+          Path()
+            ..moveTo(cx - s * 0.1, s * 0.79)
+            ..quadraticBezierTo(cx, s * 0.86, cx + s * 0.1, s * 0.79),
+          line);
+    }
+    canvas.drawLine(Offset(cx, s * (look.openNeck ? 0.835 : 0.82)), Offset(cx, s * 0.97), line); // خياطة الوسط من الرقبة
     // الفرفوشة: تتعلق من طرف الفتحة، جزء مبروم منفوخ، وخصر ضيق، وشرابة تنفتح تحته
     // (تحت 0.9 يغطيها إطار الشخصية)
-    final fx = cx - s * 0.07;
+    final fx = cx - s * (look.openNeck ? 0.05 : 0.07);
     final tassel = Color.lerp(look.robe, Colors.black, 0.42)!;
+    canvas.save();
+    if (look.openNeck) {
+      // الطرف منثني لبرا، فالفرفوشة تميل معه شوي
+      canvas.translate(0, s * 0.02);
+      canvas.translate(fx, s * 0.8);
+      canvas.rotate(0.3);
+      canvas.translate(-fx, -s * 0.8);
+    }
     final strands = Paint()
       ..color = Color.lerp(tassel, Colors.white, 0.3)!
       ..strokeWidth = max(0.5, s * 0.005);
@@ -408,6 +430,7 @@ class _FacePainter extends CustomPainter {
       canvas.drawLine(Offset(fx + s * x * 0.2, s * 0.848), Offset(fx + s * x, s * 0.895), strands);
     }
     canvas.drawLine(Offset(fx - s * 0.006, s * 0.84), Offset(fx + s * 0.006, s * 0.84), Paint()..color = Color.lerp(tassel, Colors.black, 0.3)!..strokeWidth = max(0.8, s * 0.01));
+    canvas.restore();
     }
 
     if (look.scarf) _shoulderShemagh(canvas, s, cx, line, fill);
@@ -417,6 +440,11 @@ class _FacePainter extends CustomPainter {
       canvas.translate(cx, s * 0.68);
       canvas.rotate(headTilt);
       canvas.translate(-cx, -s * 0.68 - headNod * s);
+    }
+    if (look.headScale != 1) {
+      canvas.translate(cx, s * 0.67);
+      canvas.scale(look.headScale);
+      canvas.translate(-cx, -s * 0.67);
     }
 
     // الأذون
@@ -475,7 +503,7 @@ class _FacePainter extends CustomPainter {
       'flat' => (0.424, 0.416),
       _ => (0.408, 0.398),
     };
-    final browW = switch (look.brows) { 'angry' => 0.017, 'thick' => 0.02, _ => 0.013 };
+    final browW = switch (look.brows) { 'angry' => 0.017, 'thick' => 0.02, 'bushy' => 0.026, _ => 0.013 };
     final eyeX = s * 0.097 * look.eyeGap; // بعد العين عن النص
     final gapShift = eyeX - s * 0.097;
     for (final side in [-1.0, 1.0]) {
@@ -490,6 +518,20 @@ class _FacePainter extends CustomPainter {
             ..quadraticBezierTo(xm, s * (ym - lift + browW + 0.004), xi, s * (yi - liftIn + browW))
             ..close(),
           fill(look.white ? const Color(0xFFE2DED6) : const Color(0xFF241812)));
+      // كثيف: شعيرات طالعة من الحواف عشان يبين أكثف
+      if (look.brows == 'bushy') {
+        final hairP = Paint()
+          ..color = const Color(0xFF241812)
+          ..strokeWidth = max(0.6, s * 0.0045)
+          ..strokeCap = StrokeCap.round;
+        for (var k = 0; k <= 8; k++) {
+          final t = k / 8;
+          final x = xi + (xo - xi) * t;
+          final yTop = s * ((1 - t) * (1 - t) * (yi - liftIn) + 2 * t * (1 - t) * (ym - lift) + t * t * (yo - lift * 0.7));
+          // الجزء اللي يطلع برا الحاجب صغير (15% من الطول الأول)
+          canvas.drawLine(Offset(x, yTop + s * 0.004), Offset(x + side * s * 0.008 * 0.15, yTop - s * 0.006 * 0.15), hairP);
+        }
+      }
     }
 
     // ظل بارد تحت العيون
@@ -538,6 +580,7 @@ class _FacePainter extends CustomPainter {
         _temples(canvas, s, cx, hw, fill);
         _kumma(canvas, s, cx, hw, line, fill, style: look.head);
       case 'turban':
+      case 'turbanEmb':
         _turban(canvas, s, cx, hw, line, fill);
       case 'pakol':
         _temples(canvas, s, cx, hw, fill);
@@ -547,6 +590,21 @@ class _FacePainter extends CustomPainter {
       case 'qahfiya':
         _temples(canvas, s, cx, hw, fill);
         _qahfiya(canvas, s, cx, hw, line, fill);
+      case 'softHair':
+        _softHair(canvas, s, cx, hw, line);
+      case 'smallKumma':
+        // الشعر يبين تحت الكمّة بس (ما يطلع فوقها)
+        canvas.save();
+        canvas.clipRect(Rect.fromLTRB(0, s * 0.2, s, s));
+        _softHair(canvas, s, cx, hw, line);
+        canvas.restore();
+        // الكمّة العمانية البيضاء المطرزة (نفس رسمة كمّة سعيد)، متصغّرة بالطول ومكبّرة بالعرض على قد راسه مع الشعر
+        canvas.save();
+        canvas.translate(cx, s * 0.15);
+        canvas.scale(1.09 / 1.035, (0.335 - 0.15) / (0.38 - 0.165));
+        canvas.translate(-cx, -s * 0.165);
+        _kumma(canvas, s, cx, hw, line, fill, style: 'kummaWhite', one: const Color(0xFFBDAE8D)); // التطريز كله ترابي
+        canvas.restore();
       default:
         _hair(canvas, s, cx, hw, line, fill);
     }
@@ -973,6 +1031,7 @@ class _FacePainter extends CustomPainter {
 
   void _mustache(Canvas canvas, double s, double cx, Paint Function(Color) fill) {
     if (look.mustache == 'none') return;
+    if (look.mustache == 'bushy') return _bushyMustache(canvas, s, cx, fill);
     final trim = look.mustache == 'trim';
     final thick = look.mustache == 'thick' || trim;
     final lipY = s * 0.632;
@@ -1002,6 +1061,37 @@ class _FacePainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// شنب كثيف وعريض: يغطي فوق الشفة كلها، وأطرافه نازلة شوي عند زوايا الفم
+  void _bushyMustache(Canvas canvas, double s, double cx, Paint Function(Color) fill) {
+    final lipY = s * 0.632;
+    final w = s * 0.118, h = s * 0.066;
+    final mus = Path()
+      ..moveTo(cx - w, lipY + s * 0.016)
+      ..quadraticBezierTo(cx - w * 1.02, lipY - h * 0.55, cx - w * 0.55, lipY - h)
+      ..quadraticBezierTo(cx - w * 0.15, lipY - h * 1.12, cx, lipY - h * 0.88)
+      ..quadraticBezierTo(cx + w * 0.15, lipY - h * 1.12, cx + w * 0.55, lipY - h)
+      ..quadraticBezierTo(cx + w * 1.02, lipY - h * 0.55, cx + w, lipY + s * 0.016)
+      ..quadraticBezierTo(cx + w * 0.8, lipY - s * 0.004, cx + w * 0.5, lipY - s * 0.008)
+      ..quadraticBezierTo(cx, lipY - s * 0.016, cx - w * 0.5, lipY - s * 0.008)
+      ..quadraticBezierTo(cx - w * 0.8, lipY - s * 0.004, cx - w, lipY + s * 0.016)
+      ..close();
+    canvas.drawPath(mus, fill(const Color(0xF2120A06)));
+    canvas.save();
+    canvas.clipPath(mus);
+    final rnd = Random(7);
+    final p = Paint()
+      ..color = const Color(0x4D6E5646)
+      ..strokeWidth = max(0.5, s * 0.004)
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 110; i++) {
+      final x = cx + (rnd.nextDouble() * 2 - 1) * w;
+      final y = lipY + s * 0.01 - rnd.nextDouble() * (h + s * 0.01);
+      final dir = x < cx ? -1 : 1;
+      canvas.drawLine(Offset(x, y), Offset(x + dir * s * 0.007, y + s * 0.012), p);
+    }
+    canvas.restore();
+  }
+
   // شعر قصير أسود يبين تحت الكمّة عند الصدغ
   void _temples(Canvas canvas, double s, double cx, double hw, Paint Function(Color) fill) {
     for (final side in [-1.0, 1.0]) {
@@ -1017,7 +1107,7 @@ class _FacePainter extends CustomPainter {
 
   /// الكمّة العمانية. white=false: كمّة السويق (بيج، خطوط بيضاء بارزة، معيّنات زرقاء وشيفرون بني وردي).
   /// kummaWhite: كمّة بيضاء بتطريز ناعم ملوّن. kummaBrown: بيضاء بتطريز بني (ورق فوق، أشرطة، ووردات).
-  void _kumma(Canvas canvas, double s, double cx, double hw, Paint line, Paint Function(Color) fill, {required String style}) {
+  void _kumma(Canvas canvas, double s, double cx, double hw, Paint line, Paint Function(Color) fill, {required String style, Color? one}) {
     final white = style != 'kumma';
     canvas.save();
     canvas.translate(cx, s * 0.3);
@@ -1069,7 +1159,9 @@ class _FacePainter extends CustomPainter {
       _brownEmbroidery(canvas, s, cx, half, fill, color: style == 'kummaGreen' ? const Color(0xFF1F5E3A) : const Color(0xFF6E4234));
     } else if (white) {
       // كمّة سعيد البيضاء بتطريز ملوّن مفصّل: وردات فوق، حزام متعرّج بمعيّنات، شريطين، وصف معيّنات وأسهم تحت
-      const purple = Color(0xFF7B1FA2), blueE = Color(0xFF1E6FD9), red = Color(0xFFD32F2F);
+      // one: كل التطريز بلون واحد (كمّة بو شنب الترابية)
+      final purple = one ?? const Color(0xFF7B1FA2), blueE = one ?? const Color(0xFF1E6FD9), red = one ?? const Color(0xFFD32F2F);
+      final yellow = one ?? const Color(0xFFFFD54F);
       final thin = Paint()
         ..color = red
         ..style = PaintingStyle.stroke
@@ -1085,7 +1177,7 @@ class _FacePainter extends CustomPainter {
           for (final (dx, dy) in const [(0.0, -1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0)]) {
             canvas.drawCircle(Offset(x + dx * s * 0.0065, y + dy * s * 0.0065), s * 0.0048, fill(c));
           }
-          canvas.drawCircle(Offset(x, y), s * 0.003, fill(const Color(0xFFFFD54F)));
+          canvas.drawCircle(Offset(x, y), s * 0.003, fill(yellow));
           canvas.drawCircle(Offset(x + s * 0.023, y), s * 0.003, fill(red));
         }
       }
@@ -1105,7 +1197,7 @@ class _FacePainter extends CustomPainter {
       for (var i = -5; i <= 5; i++) {
         final x = cx + i * s * cell;
         motif(diamond(x, s * 0.267, s * 0.014, s * 0.022), blueE);
-        canvas.drawPath(diamond(x, s * 0.267, s * 0.005, s * 0.008), fill(const Color(0xFFFFD54F)));
+        canvas.drawPath(diamond(x, s * 0.267, s * 0.005, s * 0.008), fill(one == null ? yellow : Colors.white));
         canvas.drawCircle(Offset(x + s * cell / 2, s * 0.267), s * 0.0055, fill(purple));
         motif(chevron(x + s * cell / 2, s * 0.243, s * 0.008, s * 0.012), red);
         motif(chevron(x + s * cell / 2, s * 0.291, s * 0.008, s * 0.012, up: true), red);
@@ -1298,6 +1390,7 @@ class _FacePainter extends CustomPainter {
       final x = cx + i * s * 0.03;
       canvas.drawLine(Offset(x, top), Offset(x + s * 0.06, bottom), pat);
     }
+    if (look.head == 'turbanEmb') _embroidery(canvas, s, cx, half, top, bottom);
     canvas.restore();
     canvas.drawPath(whole, line);
     // ثنية خفيفة عند مدخل الطرف باللون نفسه
@@ -1320,6 +1413,59 @@ class _FacePainter extends CustomPainter {
             ..strokeCap = StrokeCap.round);
     }
     canvas.restore();
+  }
+
+  /// تطريز المصر (مثل مصر بو شنب): شريط عريض مايل فوق بلون عنابي وعليه نقشة حمرا وذهبية،
+  /// ونقاط ذهبية وحمرا على حواف اللفات تحت
+  void _embroidery(Canvas canvas, double s, double cx, double half, double top, double bottom) {
+    const maroon = Color(0xFF7A2E26), red = Color(0xFFC8432F), gold = Color(0xFFD9A441), cream = Color(0xFFE8C98A);
+    final dot = Paint();
+    // الشريط المايل من يسار تحت لفوق يمين
+    final band = Path()
+      ..moveTo(cx - half * 1.1, top + s * 0.11)
+      ..quadraticBezierTo(cx - half * 0.2, top + s * 0.0, cx + half * 0.75, top - s * 0.01)
+      ..lineTo(cx + half * 1.05, top + s * 0.11)
+      ..quadraticBezierTo(cx - half * 0.1, top + s * 0.13, cx - half * 1.1, top + s * 0.235)
+      ..close();
+    canvas.drawPath(band, Paint()..color = maroon.withValues(alpha: 0.92));
+    canvas.save();
+    canvas.clipPath(band);
+    // نقشة: معينات ذهبية بنصها نقطة حمرا، بصفين
+    for (var row = 0; row < 3; row++) {
+      for (var i = 0; i < 9; i++) {
+        final t = i / 8;
+        final x = cx - half * 1.05 + t * half * 2.0 + row * s * 0.02;
+        final y = top + s * (0.15 - t * 0.12 + row * 0.04) - s * 0.01;
+        final d = s * 0.018;
+        canvas.drawPath(
+            Path()
+              ..moveTo(x, y - d)
+              ..lineTo(x + d, y)
+              ..lineTo(x, y + d)
+              ..lineTo(x - d, y)
+              ..close(),
+            dot..color = gold.withValues(alpha: 0.9));
+        canvas.drawCircle(Offset(x, y), d * 0.45, dot..color = red);
+      }
+    }
+    canvas.restore();
+    // حواف الشريط: خيط كريمي
+    final edge = Paint()
+      ..color = cream.withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(0.5, s * 0.004);
+    canvas.drawPath(band, edge);
+    // اللفات تحت: نقاط تطريز حمرا وذهبية بالتناوب
+    for (var i = 0; i < 3; i++) {
+      final y = bottom - s * (0.03 + i * 0.05);
+      for (var k = 0; k <= 14; k++) {
+        final t = k / 14;
+        final x = cx - half * 1.0 + t * half * 2.0;
+        // نفس ميلان اللفة تقريباً
+        final yy = y + s * 0.03 - t * s * 0.045 - sin(t * pi) * s * 0.02;
+        canvas.drawCircle(Offset(x, yy), s * 0.007, dot..color = (k + i).isEven ? gold : red);
+      }
+    }
   }
 
   /// القحفية: طاقية مخرّمة مدوّرة، والشعر يبين تحتها
@@ -1558,6 +1704,105 @@ class _FacePainter extends CustomPainter {
           ..strokeWidth = max(0.6, s * 0.005));
     canvas.drawRRect(roll, line);
     canvas.restore();
+  }
+
+  /// جيب الدشداشة: الياقة مرخية (أوطى من الرقبة) والصدر يبين داخلها، وشق صغير مفتوح من جهة الفرفوشة
+  void _openNeck(Canvas canvas, double s, double cx, Paint line) {
+    // يبدأ بنفس لون الرقبة بالضبط (بدون حد بينهم)، ويغمق شوي بس تحت
+    final skinTop = look.skin, skinLow = Color.lerp(look.skin, Colors.black, 0.12)!;
+    // الياقة: قوس أوطى من الرقبة، يكمّل الجلد من الرقبة للصدر بدون قماش بينهم
+    final u = Path()
+      ..moveTo(cx - s * 0.112, s * 0.775)
+      ..quadraticBezierTo(cx, s * 0.9, cx + s * 0.112, s * 0.775)
+      ..lineTo(cx + s * 0.09, s * 0.76)
+      ..lineTo(cx - s * 0.09, s * 0.76)
+      ..close();
+    // الشق: من الياقة جهة الفرفوشة ينزل لين خياطة الوسط
+    final slit = Path()
+      ..moveTo(cx - s * 0.05, s * 0.82)
+      ..quadraticBezierTo(cx - s * 0.028, s * 0.875, cx, s * 0.915)
+      ..lineTo(cx, s * 0.835)
+      ..close();
+    final chest = Path.combine(PathOperation.union, u, slit);
+    canvas.drawPath(
+        chest,
+        Paint()
+          ..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [skinTop, skinLow]).createShader(chest.getBounds()));
+    // حافة الياقة والشق (على القماش)
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx - s * 0.112, s * 0.775)
+          ..quadraticBezierTo(cx - s * 0.085, s * 0.808, cx - s * 0.05, s * 0.82)
+          ..quadraticBezierTo(cx - s * 0.028, s * 0.875, cx, s * 0.915),
+        line);
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx, s * 0.835)
+          ..quadraticBezierTo(cx + s * 0.06, s * 0.826, cx + s * 0.112, s * 0.775),
+        line);
+    // ثنية خفيفة على طرف الشق (القماش منثني لبرا شوي)
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx - s * 0.06, s * 0.83)
+          ..quadraticBezierTo(cx - s * 0.04, s * 0.88, cx - s * 0.012, s * 0.915),
+        Paint()
+          ..color = Color.lerp(look.robe, Colors.black, 0.25)!
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(0.6, s * 0.005)
+          ..strokeCap = StrokeCap.round);
+  }
+
+  /// شعر أسود ناعم طويل شوي: حجم فوق، غرّة مسحوبة على الجنب فوق الجبهة، ويغطي فوق الأذن
+  void _softHair(Canvas canvas, double s, double cx, double hw, Paint line) {
+    final hair = Path()
+      ..moveTo(cx - hw * 1.06, s * 0.5)
+      ..quadraticBezierTo(cx - hw * 1.2, s * 0.3, cx - hw * 0.85, s * 0.2)
+      ..quadraticBezierTo(cx - hw * 0.3, s * 0.12, cx + hw * 0.35, s * 0.14)
+      ..quadraticBezierTo(cx + hw * 1.12, s * 0.17, cx + hw * 1.12, s * 0.38)
+      ..quadraticBezierTo(cx + hw * 1.12, s * 0.46, cx + hw * 1.04, s * 0.5)
+      ..lineTo(cx + hw * 0.93, s * 0.48)
+      ..quadraticBezierTo(cx + hw * 0.95, s * 0.38, cx + hw * 0.82, s * 0.33)
+      // الغرّة: تنزل من اليمين وتنسحب لليسار فوق الجبهة بطرف مدبب
+      ..quadraticBezierTo(cx + hw * 0.4, s * 0.31, cx - hw * 0.05, s * 0.335)
+      ..quadraticBezierTo(cx - hw * 0.45, s * 0.355, cx - hw * 0.72, s * 0.34)
+      ..quadraticBezierTo(cx - hw * 0.5, s * 0.315, cx - hw * 0.62, s * 0.3)
+      ..quadraticBezierTo(cx - hw * 0.85, s * 0.33, cx - hw * 0.92, s * 0.4)
+      ..lineTo(cx - hw * 0.94, s * 0.48)
+      ..close();
+    final bounds = hair.getBounds();
+    canvas.drawPath(
+        hair,
+        Paint()
+          ..shader = const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF2E2420), Color(0xFF0E0A08)])
+              .createShader(bounds));
+    canvas.save();
+    canvas.clipPath(hair);
+    // خصل ناعمة: خطوط منحنية طويلة من فوق للغرّة، ولمعة عريضة خفيفة
+    final strand = Paint()
+      ..color = const Color(0x2EFFFFFF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(0.5, s * 0.004)
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 14; i++) {
+      final t = i / 13;
+      final x0 = cx + hw * (0.9 - t * 1.6);
+      canvas.drawPath(
+          Path()
+            ..moveTo(x0, s * 0.15)
+            ..quadraticBezierTo(x0 - hw * 0.15, s * 0.24, x0 - hw * 0.45, s * 0.32),
+          strand);
+    }
+    canvas.drawPath(
+        Path()
+          ..moveTo(cx - hw * 0.55, s * 0.19)
+          ..quadraticBezierTo(cx, s * 0.155, cx + hw * 0.5, s * 0.18),
+        Paint()
+          ..color = const Color(0x33FFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = s * 0.02
+          ..strokeCap = StrokeCap.round);
+    canvas.restore();
+    canvas.drawPath(hair, line);
   }
 
   void _hair(Canvas canvas, double s, double cx, double hw, Paint line, Paint Function(Color) fill) {

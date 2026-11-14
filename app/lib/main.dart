@@ -2,15 +2,20 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'avatars.dart';
 import 'cards.dart';
+import 'coins.dart';
+import 'friends.dart';
 import 'fullscreen.dart';
 import 'intro.dart';
+import 'invite.dart';
 import 'menus.dart';
 import 'net.dart';
 import 'progress.dart';
 import 'progress_pages.dart';
+import 'rules_page.dart';
 import 'sounds.dart';
 import 'store.dart';
 import 'table.dart';
@@ -21,7 +26,9 @@ void main() async {
   final client = GameClient();
   await Wallet.instance.load();
   await Progress.instance.load();
+  await Friends.instance.load();
   await client.loadPrefs();
+  client.startFriends(); // الأصدقاء: مين متصل، والدعوات (إذا فيه اسم)
   await Sfx.loadSettings();
   runApp(KoutApp(client: client, intro: client.intro));
 }
@@ -30,7 +37,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.19';
+const appVersion = '1.0.20';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;
@@ -226,10 +233,11 @@ class MenuPanel extends StatelessWidget {
       );
 }
 
-/// الشعار بزوايا دائرية وظل
+/// الشعار بزوايا دائرية وظل، وفريم أسود مثل فريم الخيارات الرئيسية
 class AppLogo extends StatelessWidget {
   final double size;
-  const AppLogo({super.key, required this.size});
+  final double? frame; // سماكة الفريم (الافتراضي بنفس نسبة فريم الخيارات: 5 من 180)
+  const AppLogo({super.key, required this.size, this.frame});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -238,6 +246,10 @@ class AppLogo extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(size * 0.22),
           boxShadow: [BoxShadow(color: Colors.black45, blurRadius: size * 0.12, offset: Offset(0, size * 0.04))],
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size * 0.22),
+          border: Border.all(color: const Color(0xFF111111), width: frame ?? size * 5 / 180),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(size * 0.22),
@@ -262,6 +274,31 @@ class _HomeScreenState extends State<HomeScreen> {
   int _mode = 6;
   int _score = 54;
   String? _storeFocus; // غرض نفتح عليه المتجر (من التفضيلات)
+  // أماكن الرصيد والهدية وخيارات الدخول: العملات تطير بينها
+  // (تتجدد مع كل صفحة: وقت الانتقال الصفحة القديمة والجديدة يكونون مع بعض)
+  var _balanceKey = GlobalKey(), _giftKey = GlobalKey(), _stakeBalanceKey = GlobalKey();
+  final Map<int, GlobalKey> _stakeKeys = {};
+  _Page? _keysPage;
+  bool _coinsFlying = false;
+
+  /// هدية اليوم: العملات تطير من الخانة للرصيد، والرصيد يزيد أول ما توصل
+  void _claimGift() {
+    if (_coinsFlying || !Wallet.instance.giftReady) return;
+    _coinsFlying = true;
+    flyCoins(context, from: _giftKey, to: _balanceKey, onLand: Wallet.instance.claimGift, onDone: () => _coinsFlying = false);
+  }
+
+  /// دخول جيم بغوازي: العملات تطير من الرصيد على الخيار، وبعدها يبدأ البحث
+  void _enterStake(int stake) {
+    if (_coinsFlying) return;
+    Wallet.instance.setStake(stake);
+    if (!Wallet.instance.canEnter()) return _search(_mode, _score, stake);
+    _coinsFlying = true;
+    flyCoins(context, from: _stakeBalanceKey, to: _stakeKeys[stake]!, count: stake >= 400 ? 12 : 8, onDone: () {
+      _coinsFlying = false;
+      if (mounted) _search(_mode, _score, stake);
+    });
+  }
 
   void _openStore([String? item]) => setState(() {
         _storeFocus = item;
@@ -271,19 +308,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // هدية اليوم
-    final gift = Wallet.instance.giftToday;
-    if (gift != null) {
-      Wallet.instance.giftToday = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Row(children: [const GhawaziIcon(size: 22), const SizedBox(width: 8), Text('هدية اليوم: $gift غوازي', style: const TextStyle(color: Colors.black, fontFamily: appFont, fontSize: 19))]),
-          backgroundColor: Colors.white,
-          duration: const Duration(seconds: 3),
-        ));
-      });
-    }
     // نجهّز الورق والأصوات من الشاشة الرئيسية، عشان ما تتأخر أول مرة تظهر باللعب
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (Sfx.muted || !mounted) return;
@@ -400,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Stack(fit: StackFit.expand, children: [
       const MenuBackdrop(),
       Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      AppLogo(size: logo),
+      AppLogo(size: logo, frame: 5 * w / 180), // نفس سماكة فريم الخيارات
       if (c.connecting) _connecting(),
       SizedBox(height: wide ? 10 : 18),
       if (wide)
@@ -435,26 +459,35 @@ class _HomeScreenState extends State<HomeScreen> {
           SideButton(icon: Icons.military_tech, label: 'تاريخك', phase: 0.75, onTap: () => setState(() => _page = _Page.history)),
         ]),
       ),
-      // رصيد الغوازي
+      // رصيد الغوازي، وتحته خانة هدية اليوم
       PositionedDirectional(
         top: 10,
         start: 8,
-        child: ListenableBuilder(listenable: Wallet.instance, builder: (_, _) => MenuChip(child: GhawaziAmount(Wallet.instance.balance, label: true))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ListenableBuilder(listenable: Wallet.instance, builder: (_, _) => MenuChip(key: _balanceKey, child: GhawaziAmount(Wallet.instance.balance, label: true))),
+          const SizedBox(height: 6),
+          GiftBox(key: _giftKey, onTap: _claimGift),
+        ]),
       ),
+      // فوق على اليسار: الأصدقاء بالزاوية، وجنبه الإعدادات وملء الشاشة
       PositionedDirectional(
         top: 8,
         end: 8,
-        child: Pressable(child: OutlinedButton(
-          onPressed: withTap(() => showSettings(context, c)),
-          style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
-          child: const Icon(Icons.settings, size: 22),
-        )),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (Fullscreen.supported) ...[_fullscreenButton(), const SizedBox(width: 8)],
+          Pressable(child: OutlinedButton(
+            onPressed: withTap(() => showSettings(context, c)),
+            style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
+            child: const Icon(Icons.settings, size: 22),
+          )),
+          const SizedBox(width: 8),
+          FriendsButton(onTap: () => setState(() => _page = _Page.friends)),
+        ]),
       ),
-      if (Fullscreen.supported)
-        PositionedDirectional(
-          top: 8,
-          end: 60,
-          child: ValueListenableBuilder<bool>(
+    ]);
+  }
+
+  Widget _fullscreenButton() => ValueListenableBuilder<bool>(
             valueListenable: Fullscreen.on,
             builder: (context, full, _) => Tooltip(
               message: full ? 'خروج من ملء الشاشة' : 'ملء الشاشة',
@@ -464,10 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Icon(full ? Icons.fullscreen_exit : Icons.fullscreen, size: 24),
               )),
             ),
-          ),
-        ),
-    ]);
-  }
+          );
 
   // بعد اختيار عدد اللاعبين: كم نقطة
   Widget _scores(GameClient c, BoxConstraints box) {
@@ -504,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
           constraints: BoxConstraints(maxWidth: w * 2 + 16),
           child: Row(children: [
             Expanded(child: BackRow(title: _score == 54 ? 'دور كامل' : 'دور على السريع', onBack: () => setState(() => _page = _Page.scores))),
-            ListenableBuilder(listenable: wallet, builder: (_, _) => MenuChip(child: GhawaziAmount(wallet.balance, size: 16, label: true))),
+            ListenableBuilder(listenable: wallet, builder: (_, _) => MenuChip(key: _stakeBalanceKey, child: GhawaziAmount(wallet.balance, size: 16, label: true))),
           ]),
         ),
         if (c.connecting) _connecting(),
@@ -514,13 +544,16 @@ class _HomeScreenState extends State<HomeScreen> {
             if (i > 0) const SizedBox(width: 16),
             Opacity(
               opacity: wallet.balance >= s ? 1 : 0.5,
-              child: MenuCard(
-                width: w,
-                suit: _mode == 6 ? 'S' : 'D',
-                heading: 'الدخول',
-                coins: s,
-                title: 'تفوز: ${(s * (1 + Wallet.winBonus)).round()}',
-                onTap: off ? null : () => _search(_mode, _score, s),
+              child: KeyedSubtree(
+                key: _stakeKeys.putIfAbsent(s, GlobalKey.new),
+                child: MenuCard(
+                  width: w,
+                  suit: _mode == 6 ? 'S' : 'D',
+                  heading: 'الدخول',
+                  coins: s,
+                  title: 'تفوز: ${(s * (1 + Wallet.winBonus)).round()}',
+                  onTap: off ? null : () => _enterStake(s),
+                ),
               ),
             ),
           ],
@@ -529,14 +562,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // التدريب: 6 أو 4 لاعبين مع البوتات
+  // التدريب: 6 أو 4 لاعبين مع البوتات، وقوانين اللعب
   Widget _trainingPage(GameClient c, BoxConstraints box) {
-    final w = min(min((box.maxWidth - 60) / 2, (box.maxHeight - 90) / cardRatio), 240.0);
+    // بالطولي: التدريبين فوق والقوانين تحت. بالعرضي: الثلاثة بصف
+    final tall = box.maxHeight > box.maxWidth;
+    final w = tall
+        ? min(min((box.maxWidth - 60) / 2, (box.maxHeight - 120) / 2 / cardRatio), 240.0)
+        : min(min((box.maxWidth - 64) / 3, (box.maxHeight - 90) / cardRatio), 240.0);
     final off = c.connecting;
+    final rules = MenuCard(width: w, suit: 'H', icon: Icons.menu_book, title: 'قوانين اللعب', subtitle: 'قوة الأوراق والقوانين', onTap: () => setState(() => _page = _Page.rules));
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: w * 2 + 16),
+          constraints: BoxConstraints(maxWidth: tall ? w * 2 + 16 : w * 3 + 32),
           child: BackRow(title: 'تدريب', onBack: () => setState(() => _page = _Page.menu)),
         ),
         if (c.connecting) _connecting(),
@@ -546,7 +584,9 @@ class _HomeScreenState extends State<HomeScreen> {
             if (i > 0) const SizedBox(width: 16),
             MenuCard(width: w, suit: 'H', ring: mode, title: '$mode لاعبين', subtitle: 'مع البوتات بدون وقت', onTap: off ? null : () => _practice(mode)),
           ],
+          if (!tall) ...[const SizedBox(width: 16), rules],
         ]),
+        if (tall) ...[const SizedBox(height: 16), rules],
       ]),
     );
   }
@@ -595,16 +635,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final c = widget.client;
     showErrors(context, c);
+    if (_keysPage != _page) {
+      _keysPage = _page;
+      _balanceKey = GlobalKey();
+      _giftKey = GlobalKey();
+      _stakeBalanceKey = GlobalKey();
+      _stakeKeys.clear();
+    }
     return Scaffold(
       body: ChromeBackground(
         child: SafeArea(
-          child: PageSwitcher(
+          child: Stack(fit: StackFit.expand, children: [
+          PageSwitcher(
             id: _page,
             child: LayoutBuilder(builder: (context, box) => switch (_page) {
                   _Page.account => _account(c, box),
                   _Page.menu => _menu(c, box),
                   _Page.scores => _scores(c, box),
                   _Page.practice => _trainingPage(c, box),
+                  _Page.friends => FriendsPage(onBack: () => setState(() => _page = _Page.menu)),
+                  _Page.rules => RulesPage(onBack: () => setState(() => _page = _Page.practice)),
                   _Page.custom => _custom(c),
                   _Page.stakes => _stakesPage(c, box),
                   _Page.store => StorePage(focus: _storeFocus, onBack: () => setState(() => _page = _storeFocus == null ? _Page.menu : _Page.prefs)),
@@ -617,13 +667,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                 }),
           ),
+          // دعوة من صديق لغرفته: تطلع فوق أي صفحة
+          InviteBanner(onJoin: (code) => c.joinRoom(code)),
+          ]),
         ),
       ),
     );
   }
 }
 
-enum _Page { account, menu, scores, stakes, practice, custom, store, prefs, challenges, history }
+enum _Page { account, menu, scores, stakes, practice, custom, store, prefs, challenges, history, rules, friends }
 
 class LobbyScreen extends StatelessWidget {
   final GameClient client;
@@ -634,128 +687,155 @@ class LobbyScreen extends StatelessWidget {
     final c = client;
     showErrors(context, c);
     final full = c.seats.every((s) => s != null);
+    final waiting = c.seats.where((s) => s == null).length;
+
+    // فريق: عنوانه، ومقاعده تتقاسم المكان الموجود (بدون سحب)
     Widget team(int t) => Expanded(
           child: Column(children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 3),
               decoration: BoxDecoration(color: KoutColors.team(t), borderRadius: BorderRadius.circular(8)),
               child: Text('الفريق ${KoutColors.teamName(t)}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: t == 0 ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: t == 0 ? Colors.white : Colors.black, fontSize: 15, fontWeight: FontWeight.w700)),
             ),
-            const SizedBox(height: 8),
-            for (var seat = t; seat < c.mode; seat += 2) _SeatTile(client: c, seat: seat),
+            const SizedBox(height: 6),
+            Expanded(
+              child: LayoutBuilder(builder: (_, box) {
+                final rows = c.mode ~/ 2;
+                final h = ((box.maxHeight - 6 * (rows - 1)) / rows).clamp(26.0, 84.0);
+                return Column(children: [
+                  for (var seat = t, i = 0; seat < c.mode; seat += 2, i++) ...[
+                    if (i > 0) const SizedBox(height: 6),
+                    _SeatTile(client: c, seat: seat, height: h),
+                  ],
+                ]);
+              }),
+            ),
           ]),
         );
 
+    // فوق: رجوع، والعنوان، وزر الدعوة
     final bar = Row(children: [
-      const AppLogo(size: 44),
-      const SizedBox(width: 10),
-      const Expanded(child: Text('الغرفة', style: TextStyle(fontSize: 24, color: KoutColors.ink))),
       Pressable(child: OutlinedButton(
         onPressed: withTap(c.leave),
         style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(8), minimumSize: const Size(44, 44)),
         child: const Icon(Icons.arrow_back, size: 20),
       )),
+      const SizedBox(width: 10),
+      const Expanded(child: Text('الغرفة', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: KoutColors.ink))),
     ]);
-    final codePanel = MenuPanel(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-      child: Column(children: [
-        const Text('كود الغرفة', style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 13)),
-        SelectableText(c.code ?? '', textAlign: TextAlign.center, style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w700, letterSpacing: 10, color: Colors.white)),
-        const Text('أرسل الكود لأصحابك عشان يدخلون', style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 13)),
-      ]),
-    );
+
+    // الكود: سطر واحد، وبضغطة ينسخ
+    final codeChip = Pressable(child: GestureDetector(
+      onTap: withTap(() => _copy(context, c.code ?? '', 'نسخت الكود')),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: const Color(0xFF111111), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white, width: 2)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('الكود', style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 13)),
+          const SizedBox(width: 8),
+          Text(c.code ?? '', style: const TextStyle(fontSize: 26, height: 1.1, fontWeight: FontWeight.w700, letterSpacing: 6, color: Colors.white)),
+          const SizedBox(width: 6),
+          const Icon(Icons.copy, size: 18, color: Color(0xFFBBBBBB)),
+        ]),
+      ),
+    ));
+
     // عدد اللاعبين: المضيف يختار (المحدد أبيض)
     Widget modeButton(int m) {
       final on = c.mode == m;
-      return Expanded(
-        child: Pressable(child: GestureDetector(
-          onTap: withTap(c.isHost && !on ? () => c.setMode(m) : null),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            color: on ? Colors.white : const Color(0xFF111111),
-            child: Text('$m لاعبين', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: on ? Colors.black : Colors.white)),
-          ),
-        )),
-      );
+      return Pressable(child: GestureDetector(
+        onTap: withTap(c.isHost && !on ? () => c.setMode(m) : null),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+          color: on ? Colors.white : const Color(0xFF111111),
+          child: Text('$m لاعبين', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: on ? Colors.black : Colors.white)),
+        ),
+      ));
     }
 
-    final mode = Column(children: [
-      Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white, width: 2)),
-        child: Row(children: [modeButton(6), modeButton(4)]),
-      ),
-      if (c.mode == 4)
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text('36 ورقة: بدون 2-6 كلفس وهاس، وبدون 2-5 سبيت وديمن', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 13)),
-        ),
-    ]);
-    final seats = Column(children: [
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [team(0), const SizedBox(width: 10), team(1)]),
-      const Text('اضغط على مقعد فاضي عشان تنتقل له، وعلى مقعدك عشان تختار شخصيتك', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 12)),
-    ]);
-    final actions = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (c.isHost) ...[
-        if (!full)
-          Pressable(child: OutlinedButton.icon(
-            onPressed: withTap(c.addBots),
-            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
-            icon: const Icon(Icons.smart_toy),
-            label: const Text('عبّي المقاعد الفاضية', style: TextStyle(fontSize: 16)),
-          )),
-        const SizedBox(height: 8),
-        Pressable(child: FilledButton(
-          onPressed: withTap(full ? c.start : null),
-          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-          child: Text(full ? 'ابدأ اللعب' : 'بانتظار ${c.seats.where((s) => s == null).length} لاعبين'),
-        )),
-      ] else
-        const Text('بانتظار المضيف يبدأ اللعبة...', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 16)),
-      if (!c.connected)
-        const Padding(
-          padding: EdgeInsets.only(top: 12),
-          child: Text('انقطع الاتصال، جاري إعادة الاتصال...', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.lose)),
-        ),
-    ]);
+    final mode = Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white, width: 2)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [modeButton(6), modeButton(4)]),
+    );
+
+    // تحت: عبّي بالبوتات، وابدأ
+    final actions = c.isHost
+        ? Row(children: [
+            if (!full) ...[
+              Expanded(
+                child: Pressable(child: OutlinedButton.icon(
+                  onPressed: withTap(c.addBots),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                  icon: const Icon(Icons.smart_toy),
+                  label: const FittedBox(child: Text('عبّي الفاضي ببوتات', style: TextStyle(fontSize: 15))),
+                )),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Pressable(child: FilledButton(
+                onPressed: withTap(full ? c.start : null),
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 13)),
+                child: FittedBox(child: Text(full ? 'ابدأ اللعب' : 'بانتظار $waiting لاعبين')),
+              )),
+            ),
+          ])
+        : const Text('بانتظار المضيف يبدأ اللعبة...', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 16));
 
     return Scaffold(
       body: ChromeBackground(
         child: SafeArea(
           child: LayoutBuilder(builder: (context, box) {
-            final wide = box.maxWidth > box.maxHeight && box.maxWidth > 560;
+            final wide = box.maxWidth > 600;
             return Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: wide ? 900 : 520),
-                child: wide
-                    // عرضي: عمودين (الكود والاختيار يمين، المقاعد يسار)
-                    ? Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: Column(children: [if (!full) const WaitBanner(), bar, const SizedBox(height: 12), codePanel, const SizedBox(height: 12), mode, const SizedBox(height: 12), actions]),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(child: SingleChildScrollView(child: seats)),
-                        ]),
-                      )
-                    : ListView(padding: const EdgeInsets.all(16), children: [
-                        if (!full) const WaitBanner(),
-                        bar,
-                        const SizedBox(height: 12),
-                        codePanel,
-                        const SizedBox(height: 12),
-                        mode,
-                        const SizedBox(height: 12),
-                        seats,
-                        const SizedBox(height: 14),
-                        actions,
-                      ]),
+                constraints: BoxConstraints(maxWidth: wide ? 760 : 520),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                  child: Column(children: [
+                    // بالعرضي: الكود وعدد اللاعبين بنفس سطر العنوان، وبالطولي تحته
+                    if (wide)
+                      Row(children: [Expanded(child: bar), const SizedBox(width: 10), codeChip, const SizedBox(width: 10), mode])
+                    else ...[
+                      bar,
+                      const SizedBox(height: 10),
+                      Wrap(alignment: WrapAlignment.center, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [codeChip, mode]),
+                    ],
+                    if (c.mode == 4)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text('36 ورقة: بدون 2-6 كلفس وهاس، وبدون 2-5 سبيت وديمن', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 12)),
+                      ),
+                    const SizedBox(height: 10),
+                    // المقاعد بالنص، وإذا فيه مكان زايد (الطولي) ورق يتخلط تحتها لين يكتمل العدد
+                    Expanded(
+                      child: LayoutBuilder(builder: (_, area) {
+                        final rows = c.mode ~/ 2;
+                        final need = 32 + rows * 84.0 + 6 * (rows - 1);
+                        final seatsH = min(area.maxHeight, need);
+                        final shuffle = !full && area.maxHeight - seatsH >= 120;
+                        return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          SizedBox(height: seatsH, child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [team(0), const SizedBox(width: 10), team(1)])),
+                          if (shuffle) const Padding(padding: EdgeInsets.only(top: 24), child: CardShuffle(cardWidth: 34)),
+                        ]);
+                      }),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: wide ? 4 : 6),
+                      child: const Text('المقعد الفاضي: «دعوة» لربعك، أو الكرسي تنتقل له. ومقعدك تختار شخصيتك', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.ink, fontSize: 12)),
+                    ),
+                    actions,
+                    if (!c.connected)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text('انقطع الاتصال، جاري إعادة الاتصال...', textAlign: TextAlign.center, style: TextStyle(color: KoutColors.lose)),
+                      ),
+                  ]),
+                ),
               ),
             );
           }),
@@ -763,6 +843,72 @@ class LobbyScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+void _copy(BuildContext context, String text, String done) {
+  Clipboard.setData(ClipboardData(text: text));
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(done, style: const TextStyle(color: Colors.black, fontFamily: appFont, fontSize: 18)),
+    backgroundColor: Colors.white,
+    duration: const Duration(seconds: 2),
+  ));
+}
+
+/// دعوة الربع: بالكود بس (بدون رابط، عشان عنوان السيرفر ما ينعرف)
+void showInvite(BuildContext context, GameClient c) {
+  final code = c.code ?? '';
+  final text = 'تعال العب معاي بتّه! ادخل «غرفة مخصصة» وحط الكود $code';
+  Widget option(IconData icon, String label, Color color, VoidCallback onTap) => Expanded(
+        child: Pressable(child: GestureDetector(
+          onTap: withTap(onTap),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+              child: Icon(icon, color: Colors.white, size: 28),
+            ),
+            const SizedBox(height: 6),
+            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.white)),
+          ]),
+        )),
+      );
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1B1C1F),
+    isScrollControlled: true, // بالعرضي ياخذ الطول اللي يحتاجه (الافتراضي 9/16 من الشاشة وما يكفي)
+    constraints: const BoxConstraints(maxWidth: 560),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        // بالعرضي لو طالت (أصدقاء كثير) تنسحب
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('دعوة', style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('ربعك يدخلون «غرفة مخصصة» ويحطون هالكود', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Color(0xFFBBBBBB))),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+            decoration: BoxDecoration(color: const Color(0xFF2A2C31), borderRadius: BorderRadius.circular(12)),
+            child: Text(code, style: const TextStyle(fontSize: 34, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: 10, color: Color(0xFFFFE08A))),
+          ),
+          const SizedBox(height: 12),
+          // أصدقائي المتصلين: الدعوة توصلهم على طول
+          FriendsToInvite(roomCode: code),
+          const SizedBox(height: 12),
+          Row(children: [
+            if (Invite.canShare) option(Icons.ios_share, 'شارك', const Color(0xFF3A6FD8), () => Invite.share(text)),
+            if (Invite.canOpen) option(Icons.chat, 'واتساب', const Color(0xFF25A244), () => Invite.open('https://wa.me/?text=${Uri.encodeComponent(text)}')),
+            option(Icons.content_copy, 'انسخ الدعوة', const Color(0xFF555960), () {
+              Navigator.pop(ctx);
+              _copy(context, text, 'نسخت الدعوة');
+            }),
+          ]),
+        ])),
+      ),
+    ),
+  );
 }
 
 /// اختيار الشخصية: كل الشخصيات بأسمائها، واللي ماخذها لاعب ثاني باهتة وما تنضغط
@@ -865,7 +1011,8 @@ void showCharacterPicker(BuildContext context, GameClient c) {
 class _SeatTile extends StatelessWidget {
   final GameClient client;
   final int seat;
-  const _SeatTile({required this.client, required this.seat});
+  final double height;
+  const _SeatTile({required this.client, required this.seat, this.height = 60});
 
   @override
   Widget build(BuildContext context) {
@@ -873,8 +1020,8 @@ class _SeatTile extends StatelessWidget {
     final me = seat == client.mySeat;
     final canMove = s == null || s['bot'] == true;
     final teamColor = KoutColors.team(seat % 2);
+    final av = max(18.0, min(44.0, (height - 6) * 0.75));
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF111111),
         // مقعدك بإطار لون فريقك
@@ -883,30 +1030,71 @@ class _SeatTile extends StatelessWidget {
         boxShadow: me ? [BoxShadow(color: teamColor.withValues(alpha: 0.5), blurRadius: 8)] : null,
       ),
       child: Pressable(child: InkWell(
-        onTap: withTap(me ? () => showCharacterPicker(context, client) : (canMove ? () => client.sit(seat) : null)),
+        // المقعد الفاضي: دعوة لربعك (والانتقال له من زر الكرسي)
+        onTap: withTap(me ? () => showCharacterPicker(context, client) : (s == null ? () => showInvite(context, client) : (canMove ? () => client.sit(seat) : null))),
+        // الإطار من ضمن الارتفاع
         child: SizedBox(
-          height: 60,
+          height: height - (me ? 6 : 4),
           child: Row(children: [
             const SizedBox(width: 7),
             if (s == null)
               Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFBFE6F7), border: Border.all(color: teamColor, width: 2)),
-                child: const Icon(Icons.event_seat_outlined, color: Color(0xFF5A6A72), size: 22),
+                width: av,
+                height: av,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFFFFE08A), border: Border.all(color: teamColor, width: 2)),
+                child: Icon(Icons.person_add_alt_1, color: Colors.black, size: av / 2),
               )
             else
-              CharacterAvatar(charId: s['char'] as String?, size: 44, ring: teamColor, background: teamColor),
+              CharacterAvatar(charId: s['char'] as String?, size: av, ring: teamColor, background: teamColor),
             const SizedBox(width: 7),
             Expanded(
-              child: Text(s == null ? 'فاضي' : '${s['name']}${me ? ' (أنت)' : ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, color: s == null ? const Color(0xFF999999) : Colors.white)),
+              child: s == null
+                  ? const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text('دعوة', style: TextStyle(fontSize: 14, color: Color(0xFFFFE08A), fontWeight: FontWeight.w700)),
+                    )
+                  : Text('${s['name']}${me ? ' (أنت)' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, color: Colors.white)),
             ),
+            // زر صغير: انتقل لهالمقعد
+            if (s == null)
+              Pressable(child: Tooltip(
+                message: 'انتقل لهالمقعد',
+                child: InkResponse(
+                  onTap: withTap(() => client.sit(seat)),
+                  radius: 18,
+                  child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6), child: Icon(Icons.event_seat, size: 20, color: Color(0xFFBBBBBB))),
+                ),
+              )),
             if (s != null && s['bot'] == true) const Icon(Icons.smart_toy, size: 17, color: Color(0xFFBBBBBB)),
+            // لاعب حقيقي مو من أصدقائي: زر أضفه
+            if (s != null && !me && s['fc'] is String && !Friends.instance.list.any((f) => f.code == s['fc']))
+              Pressable(child: Tooltip(
+                message: 'أضفه لأصدقائك',
+                child: InkResponse(
+                radius: 16,
+                onTap: withTap(() {
+                  final err = Friends.instance.add(s['fc'] as String, name: s['name'] as String?, char: s['char'] as String?);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(err ?? 'انضاف ${s['name']} لأصدقائك', style: const TextStyle(color: Colors.black, fontFamily: appFont, fontSize: 18)),
+                    backgroundColor: Colors.white,
+                    duration: const Duration(seconds: 2),
+                  ));
+                  (context as Element).markNeedsBuild();
+                }),
+                child: const Padding(padding: EdgeInsets.symmetric(horizontal: 5, vertical: 6), child: Icon(Icons.person_add_alt_1, size: 18, color: Color(0xFFFFE08A))),
+                ),
+              )),
             if (client.isHost && s != null && !me)
-              Pressable(child: IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.white), onPressed: withTap(() => client.kick(seat)), tooltip: 'طرد')),
+              Pressable(child: Tooltip(
+                message: 'طرد',
+                child: InkResponse(
+                  radius: 16,
+                  onTap: withTap(() => client.kick(seat)),
+                  child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6), child: Icon(Icons.close, size: 16, color: Colors.white)),
+                ),
+              )),
+            const SizedBox(width: 4),
           ]),
 )        ),
       ),

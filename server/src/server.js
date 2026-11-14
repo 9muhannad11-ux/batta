@@ -25,7 +25,7 @@ const CHARACTERS = [
   { id: 'khusaib', name: 'خصيب' },
   { id: 'marhoon', name: 'مرهون' },
   { id: 'musabbah', name: 'سعيد' },
-  { id: 'bodhirs', name: 'محمد بو ضرس' },
+  { id: 'bodhirs', name: 'بو شنب' },
   { id: 'abdo', name: 'عبدو اليابس' },
   { id: 'aslam', name: 'أسلم' },
   { id: 'mundaghit', name: 'المنضغط' },
@@ -92,7 +92,8 @@ function lobbyInfo(room) {
     search: !!room.search,
     searchMsLeft: room.search ? Math.max(0, room.searchEnds - Date.now()) : null,
     practice: room.practice,
-    seats: room.seats.map((s) => s && { name: s.name, bot: s.bot, connected: s.bot || !!s.ws, char: s.char }),
+    // fc: كود الصداقة للاعب (عشان يقدر الباقين يضيفونه)
+    seats: room.seats.map((s) => s && { name: s.name, bot: s.bot, connected: s.bot || !!s.ws, char: s.char, fc: s.bot ? undefined : s.ws?.ctx?.fc }),
   };
 }
 
@@ -185,9 +186,55 @@ function seatOf(room, token) {
   return room.seats.findIndex((s) => s && s.token === token);
 }
 
+// ---------- الأصدقاء ----------
+// كل جهاز له كود صداقة (يولّده التطبيق ويحفظه). التطبيق يفتح اتصال «حضور» وهو بالقوائم،
+// ويسأل كل شوي عن أصدقائه: مين متصل، ومين يلعب، ومين بغرفة
+function cleanCode(code) {
+  return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+}
+
+/// حالة صاحب الكود: playing / room / online، أو null إذا مو متصل
+function presenceOf(fc) {
+  let best = null, name = null, char = null;
+  for (const c of wss.clients) {
+    const x = c.ctx;
+    if (!x || x.fc !== fc || c.readyState !== c.OPEN) continue;
+    name = x.name || name;
+    char = x.char || char;
+    if (x.room && x.room.game && !x.room.practice) best = { s: 'playing' };
+    else if (x.room && !x.room.game && !x.room.search) { if (best?.s !== 'playing') best = { s: 'room' }; }
+    else if (!best) best = { s: 'online' };
+  }
+  return best && { ...best, name, char };
+}
+
 function handle(ws, msg) {
   const ctx = ws.ctx;
+  if (msg.fc) ctx.fc = cleanCode(msg.fc);
+  if (msg.name) ctx.name = cleanName(msg.name);
+  if (msg.char && CHARACTERS.some((c) => c.id === msg.char)) ctx.char = msg.char;
   switch (msg.t) {
+    case 'hello': // اتصال الحضور من القوائم
+      ctx.presence = true;
+      return send(ws, { t: 'hello' });
+    case 'friends': { // مين من أصدقائي متصل
+      const online = {};
+      for (const code of (Array.isArray(msg.list) ? msg.list : []).slice(0, 100)) {
+        const p = presenceOf(cleanCode(code));
+        if (p) online[cleanCode(code)] = p;
+      }
+      return send(ws, { t: 'friends', online });
+    }
+    case 'invite': { // دعوة صديق متصل لغرفتي
+      const room = rooms.get(String(msg.code || ''));
+      if (!room || room.game || room.search) return send(ws, { t: 'error', msg: 'الغرفة مو موجودة' });
+      const to = cleanCode(msg.to);
+      let sent = false;
+      for (const c of wss.clients) {
+        if (c.ctx && c.ctx.fc === to && c.ctx.presence) { send(c, { t: 'invited', from: ctx.name || 'لاعب', code: room.code }); sent = true; }
+      }
+      return send(ws, { t: 'inviteSent', to, ok: sent });
+    }
     case 'create': {
       const room = createRoom();
       const seat = newSeat(room, { name: cleanName(msg.name), ws, want: msg.char });
@@ -411,4 +458,4 @@ setInterval(() => {
 
 server.listen(PORT, () => console.log(`kout server listening on :${PORT}`));
 
-module.exports = { server, rooms, CHARACTERS, schedule };
+module.exports = { server, rooms, CHARACTERS, schedule, cleanCode };

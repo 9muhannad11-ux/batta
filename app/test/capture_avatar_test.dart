@@ -17,7 +17,7 @@ const _chars = [
   ('khusaib', 'خصيب'),
   ('marhoon', 'مرهون'),
   ('musabbah', 'سعيد'),
-  ('bodhirs', 'محمد بو ضرس'),
+  ('bodhirs', 'بو شنب'),
   ('abdo', 'عبدو اليابس'),
   ('aslam', 'أسلم'),
   ('mundaghit', 'المنضغط'),

@@ -323,6 +323,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         Sfx.jokerBig();
       } else if (t['card'] == 'JG') {
         Sfx.joker();
+      } else if (trump is String && t['card'] == '$trump-14') {
+        // خال الحكم (آص الحكم): صوت ضربة على الطاولة، يوافق وصول الورقة (طيرانها 220ms)
+        Future.delayed(const Duration(milliseconds: 150), Sfx.trumpAce);
       } else {
         Sfx.play();
       }

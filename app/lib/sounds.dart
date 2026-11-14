@@ -43,7 +43,7 @@ class Sfx {
     await p.setDouble('voiceVolume', voiceVolume);
   }
 
-  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap', 'lift'];
+  static const _names = ['play', 'joker', 'joker_big', 'signal_big', 'deal', 'collect', 'tick', 'win', 'lose', 'gold', 'bawan', 'tap', 'lift', 'coins', 'trump_ace'];
 
   static double get _duckFactor => _speaking.isEmpty ? 1 : duck;
   // دقات قلب الباون ما تنخفض مع كلام الشخصيات (لازم تبقى عالية)
@@ -96,9 +96,11 @@ class Sfx {
 
   static void intro() => _play('logo_intro'); // أنميشن الشعار عند فتح اللعبة
   static void tap() => _play('tap', volume: 0.6); // أي ضغطة على القوائم
+  static void coins() => _play('coins', volume: 0.7); // غوازي تطير (هدية اليوم، دخول جيم)
   static void play() => _play('play');
   static void joker() => _play('joker'); // بدل صوت الورقة لما ينرمى الجوكر الصغير
   static void jokerBig() => _play('joker_big', volume: 0.55); // الجوكر الكبير (أوطى من الصغير)
+  static void trumpAce() => _play('trump_ace', volume: 0.8); // خال الحكم (آص الحكم) لما ينزل
   static void signalBig() => _play('signal_big'); // كف الجوكر الكبير
   // صوت واحد طول طلعات الورق (tools/sound-candidates/make-deal.js)
   static void deal() => _play('deal', volume: 0.4);
@@ -125,6 +127,7 @@ class Sfx {
     'musabbah': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
     'medhat': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
     'khusaib': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+    'bodhirs': {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}, // بو شنب
   };
 
   static bool hasVoice(String? char, int event) => voices[char]?.contains(event) ?? false;

@@ -40,6 +40,14 @@ class GameClient extends ChangeNotifier {
 
   DateTime? deadline; // متى يخلص وقت اللاعب اللي عليه الدور
 
+  // الأنميشن ما تتأثر بالاتصال:
+  // 1) حركتي (رمي ورقة، مزايدة، حكم، باون) تبين على طول بدون ما تنتظر رد السيرفر
+  // 2) لو وصلت حالات ورا بعض (النت علّق وفك)، كل وحدة تنتظر أنميشن اللي قبلها يخلص
+  Map<String, dynamic>? _serverView; // آخر حالة من السيرفر (نرجع لها لو رفض حركتي)
+  final List<({Map<String, dynamic> view, DateTime at})> _pending = [];
+  DateTime _holdUntil = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _pendingTimer;
+
   int get mySeat => (room?['you'] as int?) ?? 0;
   bool get isHost => room?['isHost'] == true;
   bool get started => room?['started'] == true;
@@ -216,16 +224,16 @@ class GameClient extends ChangeNotifier {
         _savePrefs();
       case 'room':
         room = m;
-        if (m['started'] != true) view = null;
+        if (m['started'] != true) {
+          view = null;
+          _resetPending();
+        }
         final searchMs = m['searchMsLeft'] as int?;
         searchEnds = searchMs == null ? null : DateTime.now().add(Duration(milliseconds: searchMs));
       case 'state':
-        view = m['view'] as Map<String, dynamic>;
-        final ms = view!['turnMsLeft'] as int?;
-        deadline = ms == null ? null : DateTime.now().add(Duration(milliseconds: ms));
-        // الإحصائيات قبل المحفظة (المحفظة تنسى المبلغ بعد نهاية المباراة)
-        Progress.instance.onState(code: code, view: view!, mySeat: mySeat, online: Wallet.instance.roomStake != null);
-        Wallet.instance.onState(code: code, phase: view!['phase'] as String?, winner: view!['winner'] as int?, myTeam: mySeat % 2);
+        _pending.add((view: m['view'] as Map<String, dynamic>, at: DateTime.now()));
+        _drain();
+        return;
       case 'signal':
         final seat = m['seat'] as int;
         var incoming = (m['suits'] as List).cast<String>();
@@ -246,6 +254,8 @@ class GameClient extends ChangeNotifier {
         });
       case 'error':
         error = m['msg'] as String;
+        // السيرفر رفض حركتي: نرجع للحالة الصحيحة
+        if (_serverView != null) view = _serverView;
       case 'kicked':
         kicked = true;
         leave();
@@ -254,6 +264,60 @@ class GameClient extends ChangeNotifier {
   }
 
   void _send(Map<String, dynamic> msg) => _ch?.sink.add(jsonEncode(msg));
+
+  /// الحالات اللي وصلت تنطبق بالترتيب، وكل وحدة تنتظر لين يخلص أنميشن اللي قبلها
+  void _drain() {
+    _pendingTimer?.cancel();
+    while (_pending.isNotEmpty) {
+      final wait = _holdUntil.difference(DateTime.now());
+      if (wait > Duration.zero) {
+        _pendingTimer = Timer(wait, _drain);
+        return;
+      }
+      final next = _pending.removeAt(0);
+      _applyState(next.view, next.at);
+    }
+  }
+
+  void _resetPending() {
+    _pending.clear();
+    _pendingTimer?.cancel();
+    _holdUntil = DateTime.fromMillisecondsSinceEpoch(0);
+    _serverView = null;
+  }
+
+  void _applyState(Map<String, dynamic> v, DateTime receivedAt) {
+    final before = _serverView;
+    _serverView = v;
+    view = v;
+    // الوقت من لحظة وصول الرسالة، مو من لحظة تطبيقها
+    final ms = v['turnMsLeft'] as int?;
+    deadline = ms == null ? null : receivedAt.add(Duration(milliseconds: ms));
+    _holdUntil = DateTime.now().add(Duration(milliseconds: _animMs(before, v)));
+    // الإحصائيات قبل المحفظة (المحفظة تنسى المبلغ بعد نهاية المباراة)
+    Progress.instance.onState(code: code, view: v, mySeat: mySeat, online: Wallet.instance.roomStake != null);
+    Wallet.instance.onState(code: code, phase: v['phase'] as String?, winner: v['winner'] as int?, myTeam: mySeat % 2);
+    notifyListeners();
+  }
+
+  /// كم ياخذ أنميشن التغيير من الحالة اللي قبل لهذي (توزيع، لمّ لمّة، طيران ورقة)
+  static int _animMs(Map<String, dynamic>? a, Map<String, dynamic> b) {
+    if (a == null) return 0;
+    if (b['round'] != a['round'] && b['phase'] == 'bidding' && (b['bids'] as List).isEmpty) return 2650;
+    if (b['round'] == a['round'] && (b['trickNo'] as int) > (a['trickNo'] as int)) return 2250;
+    if (b['round'] == a['round'] && (b['trick'] as List).length > (a['trick'] as List).length) return 240;
+    return 0;
+  }
+
+  /// حركتي تبين على طول: نعدّل الحالة عندنا لين يرد السيرفر بالحالة الصحيحة
+  void _optimistic(Map<String, dynamic> Function(Map<String, dynamic> v) change) {
+    final v = view;
+    if (v == null) return;
+    view = change(Map.of(v));
+    deadline = null;
+    notifyListeners();
+  }
+
 
   void clearError() {
     error = null;
@@ -276,10 +340,42 @@ class GameClient extends ChangeNotifier {
   void rematch() => _send({'t': 'rematch'});
 
   // أوامر اللعب
-  void bid(Object value) => _send({'t': 'bid', 'value': value});
-  void chooseTrump(String suit) => _send({'t': 'trump', 'suit': suit});
-  void play(String card) => _send({'t': 'play', 'card': card});
-  void answerBawan(bool accept) => _send({'t': 'bawan', 'accept': accept});
+  void bid(Object value) {
+    _send({'t': 'bid', 'value': value});
+    if (!((view?['legalBids'] as List?)?.contains(value) ?? false)) return;
+    _optimistic((v) => v
+      ..['bids'] = [...v['bids'] as List, {'seat': mySeat, 'bid': value}]
+      ..['legalBids'] = const []
+      ..['turn'] = -1);
+  }
+
+  void chooseTrump(String suit) {
+    _send({'t': 'trump', 'suit': suit});
+    final v = view;
+    if (v == null || v['phase'] != 'trump' || v['buyer'] != mySeat) return;
+    _optimistic((v) => v
+      ..['trump'] = suit
+      ..['phase'] = 'playing'
+      ..['legalCards'] = const []
+      ..['turn'] = (mySeat + 1) % (v['players'] as int)); // أول واحد على يمين الشاري يبدأ
+  }
+
+  void play(String card) {
+    _send({'t': 'play', 'card': card});
+    final v = view;
+    if (v == null || v['phase'] != 'playing' || v['turn'] != mySeat || !(v['legalCards'] as List).contains(card)) return;
+    _optimistic((v) => v
+      ..['hand'] = [for (final h in v['hand'] as List) if (h != card) h]
+      ..['trick'] = [...v['trick'] as List, {'seat': mySeat, 'card': card}]
+      ..['legalCards'] = const []
+      // الدور للي بعدي، إلا إذا خلصت اللمّة (الفايز يعرفه السيرفر)
+      ..['turn'] = (v['trick'] as List).length + 1 < (v['players'] as int) ? (mySeat + 1) % (v['players'] as int) : -1);
+  }
+
+  void answerBawan(bool accept) {
+    _send({'t': 'bawan', 'accept': accept});
+    _optimistic((v) => v..['bawanOffer'] = false);
+  }
   void signal(List<String> suits) => _send({'t': 'signal', 'suits': suits});
 
   void leave() {
@@ -292,6 +388,7 @@ class GameClient extends ChangeNotifier {
     connecting = false;
     room = null;
     view = null;
+    _resetPending();
     code = null;
     token = null;
     notifyListeners();

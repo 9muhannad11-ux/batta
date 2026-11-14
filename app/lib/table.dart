@@ -141,6 +141,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
   int _seenTrickNo = 0;
   int _seenTrickLen = 0;
   int _seenBids = 0;
+  final Set<String> _landed = {}; // أوراق نزل صوتها (ورقتي تنزل قبل رد السيرفر، فما نعيده)
   final Map<int, String> _talking = {}; // اللاعب → الصوت الشغّال له (فمه يتحرك معه)
   bool _goldOn = false;
   int _resultShownRound = 0;
@@ -278,6 +279,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _dragCard = null;
       _collecting = null;
       _releasedAt.clear();
+      _landed.clear();
       c.slapPending.clear();
       if (freshDeal) {
         _deal.forward(from: 0);
@@ -303,7 +305,9 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
 
     // صوت الورقة اللي نزلت: جوكر، أو كف الجوكر الكبير، أو ورقة عادية.
     // before: أوراق اللمّة اللي نزلت قبلها (عشان نعرف إذا الكبير نزل فوق الصغير)
-    void landed(Map<String, dynamic> t, List<Map<String, dynamic>> before) {
+    // يرجّع false إذا الورقة نزلت من قبل (ورقتي قبل رد السيرفر)
+    bool landed(Map<String, dynamic> t, List<Map<String, dynamic>> before) {
+      if (!_landed.add('${t['card']}')) return false;
       final seat = t['seat'] as int;
       if (t['card'] == 'JB' && before.any((x) => x['card'] == 'JG')) _say(seat, VoiceEvent.blueOverGrey);
       // الجوكرين وآص الحكم: موجة برتقالية مثل قطرة ماي تطلع من مكان الورقة لما توصل الطاولة
@@ -322,6 +326,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       } else {
         Sfx.play();
       }
+      return true;
     }
 
     if (trickNo > _seenTrickNo && v['lastTrick'] != null) {
@@ -330,10 +335,13 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
       _collectSound = false;
       _liftSound = false;
       final done = (_collecting!['cards'] as List).cast<Map<String, dynamic>>();
-      landed(done.last, done.sublist(0, done.length - 1));
-      _collect.forward(from: 0);
+      // آخر ورقة لو كانت ورقتي ونزلت من قبل، ما تطير مرة ثانية: اللمّ يبدأ من بعد وصولها
+      final fresh = landed(done.last, done.sublist(0, done.length - 1));
+      _collect.forward(from: fresh ? 0 : 260 / _collectMs);
     } else if (trickLen > _seenTrickLen) {
-      landed(trick.last, trick.sublist(0, trickLen - 1));
+      for (var i = _seenTrickLen; i < trickLen; i++) {
+        landed(trick[i], trick.sublist(0, i));
+      }
     }
     _seenTrickLen = trickLen;
 

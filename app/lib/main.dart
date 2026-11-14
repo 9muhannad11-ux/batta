@@ -30,7 +30,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.18';
+const appVersion = '1.0.19';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;

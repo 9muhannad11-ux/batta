@@ -77,6 +77,25 @@ FakeClient tableClient(Map<String, dynamic> view) {
 void main() {
   setUp(() => Sfx.muted = true);
 
+  test('my move shows at once without waiting for the server', () {
+    final c = GameClient()
+      ..view = (playingView(legal: ['C-9'])..['legalCards'] = ['C-9']);
+    c.play('S-2'); // ممنوعة: ما تتحرك
+    expect((c.view!['hand'] as List).length, 3);
+    c.play('C-9');
+    expect(c.view!['hand'], ['H-14', 'S-2']);
+    expect(c.view!['trick'], [{'seat': 0, 'card': 'C-9'}]);
+    expect(c.view!['turn'], 1);
+    expect(c.view!['legalCards'], isEmpty);
+
+    c.view = Map.of(playingView())
+      ..['phase'] = 'bidding'
+      ..['legalBids'] = [6, 7, 'pass'];
+    c.bid(7);
+    expect(c.view!['bids'], [{'seat': 0, 'bid': 7}]);
+    expect(c.view!['legalBids'], isEmpty);
+  });
+
   testWidgets('second match after a rematch still plays the match-end voices', (tester) async {
     tester.view.physicalSize = const Size(400, 860);
     tester.view.devicePixelRatio = 1;

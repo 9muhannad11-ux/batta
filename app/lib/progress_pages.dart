@@ -131,34 +131,104 @@ class HistoryPage extends StatelessWidget {
         listenable: Progress.instance,
         builder: (context, _) {
           final p = Progress.instance;
-          final matches = p.value('matches');
-          final rate = matches == 0 ? 0 : (p.value('wins') * 100 / matches).round();
-          Widget tile(String title, String value, {Color color = Colors.white}) => Container(
-                width: 132,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-                decoration: BoxDecoration(color: const Color(0xFF1B1C1F), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white, width: 2)),
+          int pct(int part, int all) => all == 0 ? 0 : (part * 100 / all).round();
+          final matches = p.value('matches'), bought = p.value('bought');
+          final rate = pct(p.value('wins'), matches);
+          const good = Color(0xFF6FD68A), bad = Color(0xFFFF7A7A), gold = Color(0xFFFFE08A), blue = Color(0xFF8EC5FF);
+          String title(String key) => historyStats.firstWhere((s) => s.key == key).title;
+
+          // رقم واحد داخل قسم
+          Widget stat(String label, String value, {Color color = Colors.white}) => Container(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                decoration: BoxDecoration(color: const Color(0xFF2A2C31), borderRadius: BorderRadius.circular(10)),
                 child: Column(children: [
-                  FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 28, height: 1.1, fontWeight: FontWeight.w800, color: color))),
+                  FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 24, height: 1.1, fontWeight: FontWeight.w800, color: color))),
                   const SizedBox(height: 2),
-                  Text(title, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC))),
+                  Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Color(0xFFCCCCCC))),
                 ]),
               );
-          Color colorOf(String key) => switch (key) {
-                'wins' || 'boughtMade' || 'bawanMade' || 'bawanBroken' || 'bigBidMade' => const Color(0xFF6FD68A),
-                'losses' || 'boughtFailed' || 'bawanFailed' || 'jokerPenalty' => const Color(0xFFFF7A7A),
-                'ghawaziWon' => const Color(0xFFFFE08A),
-                _ => Colors.white,
-              };
+          Widget of(String k, {Color color = Colors.white}) => stat(title(k), '${p.value(k)}', color: color);
+
+          // قسم: أيقونة وعنوان، وتحته أرقامه
+          Widget section(IconData icon, String name, List<Widget> stats) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                decoration: BoxDecoration(color: const Color(0xFF1B1C1F), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white, width: 2)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(children: [
+                    Bob(phase: name.hashCode % 10 / 10, lift: 2, child: Icon(icon, size: 24, color: gold)),
+                    const SizedBox(width: 8),
+                    Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ]),
+                  const SizedBox(height: 8),
+                  // 4 بالسطر لو فيه مكان، وإلا 2، وكلهم بنفس العرض
+                  LayoutBuilder(builder: (_, box) {
+                    final cols = box.maxWidth >= 440 ? 4 : 2;
+                    final w = (box.maxWidth - 8 * (cols - 1)) / cols;
+                    return Wrap(spacing: 8, runSpacing: 8, children: [for (final s in stats) SizedBox(width: w, child: s)]);
+                  }),
+                ]),
+              );
+
+          // فوق: دائرة نسبة الفوز، وجنبها المباريات والفوز والخسارة
+          final hero = Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: const Color(0xFF1B1C1F), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white, width: 2)),
+            child: Row(children: [
+              SizedBox(
+                width: 96,
+                height: 96,
+                child: Stack(fit: StackFit.expand, children: [
+                  CircularProgressIndicator(value: rate / 100, strokeWidth: 9, backgroundColor: bad.withValues(alpha: matches == 0 ? 0.25 : 0.8), color: good),
+                  Center(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text('$rate%', style: const TextStyle(fontSize: 24, height: 1.1, fontWeight: FontWeight.w800, color: Colors.white)),
+                      const Text('نسبة الفوز', style: TextStyle(fontSize: 11, color: Color(0xFFCCCCCC))),
+                    ]),
+                  ),
+                ]),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Row(children: [
+                  for (final (k, color) in [('matches', Colors.white), ('wins', good), ('losses', bad)])
+                    Expanded(
+                      child: Column(children: [
+                        FittedBox(fit: BoxFit.scaleDown, child: Text('${p.value(k)}', style: TextStyle(fontSize: 30, height: 1.1, fontWeight: FontWeight.w800, color: color))),
+                        Text(title(k), textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFFCCCCCC))),
+                      ]),
+                    ),
+                ]),
+              ),
+            ]),
+          );
+
           return Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
+              constraints: const BoxConstraints(maxWidth: 620),
               child: Column(children: [
                 Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 0), child: BackRow(title: 'تاريخك', onBack: onBack)),
                 Expanded(
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 16), children: [
-                    Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-                      tile('نسبة الفوز', '$rate%', color: const Color(0xFF8EC5FF)),
-                      for (final s in historyStats) tile(s.title, '${p.value(s.key)}', color: colorOf(s.key)),
+                    hero,
+                    section(Icons.shopping_bag, 'الشراء', [
+                      of('bought'),
+                      of('boughtMade', color: good),
+                      of('boughtFailed', color: bad),
+                      stat('نسبة الوصول', '${pct(p.value('boughtMade'), bought)}%', color: blue),
+                    ]),
+                    section(Icons.local_fire_department, 'الباون والمزايدات الكبيرة', [
+                      of('bawanMade', color: good),
+                      of('bawanFailed', color: bad),
+                      of('bawanBroken', color: good),
+                      of('bigBidMade', color: good),
+                    ]),
+                    section(Icons.style, 'الجولات والنقاط', [
+                      of('rounds'),
+                      stat('نقاط فريقك', '${p.value('points')}'),
+                      of('jokerPenalty', color: bad),
+                      stat(title('ghawaziWon'), '${p.value('ghawaziWon')}', color: gold),
                     ]),
                   ]),
                 ),

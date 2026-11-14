@@ -10,6 +10,8 @@ import 'main.dart' show showErrors;
 import 'menus.dart';
 import 'net.dart';
 import 'sounds.dart';
+import 'store.dart' show MatBackground;
+import 'wallet.dart';
 
 const _turnSeconds = 12.5;
 const _trumpSeconds = 10.0;
@@ -492,7 +494,7 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
         // الخلفية: حصير قديم (حليبي غامق قريب من لون المخدات) بدون زخرفة، شبه 3D
         RepaintBoundary(
           child: Stack(fit: StackFit.expand, children: [
-            Image(image: matImage, repeat: ImageRepeat.repeat, alignment: Alignment.topLeft, fit: BoxFit.none, filterQuality: FilterQuality.low, gaplessPlayback: true),
+            MatBackground(theme: Wallet.instance.bgTheme),
             const CustomPaint(painter: _MatLight()),
           ]),
         ),
@@ -534,11 +536,10 @@ class _TableScreenState extends State<TableScreen> with TickerProviderStateMixin
                         duration: const Duration(milliseconds: 400),
                         decoration: BoxDecoration(
                           gradient: _tableTone(v)?.felt ??
-                              const RadialGradient(
-                                  colors: [Color(0xFFF7F8F9), Color(0xFFB9BCC0), Color(0xFF7A7F85)], stops: [0, 0.55, 1], radius: 0.72, transform: _Ellipse()),
+                              RadialGradient(colors: Wallet.instance.tableTheme.felt, stops: const [0, 0.55, 1], radius: 0.72, transform: const _Ellipse()),
                           borderRadius: BorderRadius.circular(b.size.longestSide),
                           // لمعة على حافة الخشب من جوا
-                          border: Border.all(color: const Color(0xFFC08A55), width: 1.5),
+                          border: Border.all(color: Wallet.instance.tableTheme.edge, width: 1.5),
                         ),
                       ),
                     )),

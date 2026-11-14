@@ -7,6 +7,7 @@ import 'cards.dart';
 import 'main.dart' show ChromeBackground, showErrors;
 import 'net.dart';
 import 'sounds.dart';
+import 'wallet.dart';
 
 /// أي خيار ينضغط ينزل شوي ويصغر شوي، ويرجع لما ينشال الإصبع (عشان يبين إنه انضغط)
 class Pressable extends StatefulWidget {
@@ -180,8 +181,9 @@ class MenuCard extends StatelessWidget {
   final String? heading;
   final String title;
   final String? subtitle;
+  final int? coins; // مبلغ غوازي بالوسط بدل الرمز
   final VoidCallback? onTap;
-  const MenuCard({super.key, required this.width, required this.suit, required this.title, this.icon, this.ring, this.heading, this.subtitle, this.onTap});
+  const MenuCard({super.key, required this.width, required this.suit, required this.title, this.icon, this.ring, this.heading, this.subtitle, this.coins, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +208,14 @@ class MenuCard extends StatelessWidget {
               FittedBox(fit: BoxFit.scaleDown, child: Text(heading!, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: color))),
               const SizedBox(height: 10),
             ],
-            Center(child: Shine(child: ring != null ? CustomPaint(size: Size.square(size), painter: _PlayersRing(ring!, color)) : Icon(icon, size: size, color: color))),
+            if (coins != null)
+              Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Bob(phase: coins! % 7 / 7, child: Shine(child: GhawaziIcon(size: size * 0.8))),
+                const SizedBox(height: 4),
+                Text('$coins', style: const TextStyle(fontSize: 34, height: 1, fontWeight: FontWeight.w800, color: Color(0xFF111111))),
+              ]))
+            else
+              Center(child: Bob(phase: (title.hashCode % 100) / 100, child: Shine(child: ring != null ? CustomPaint(size: Size.square(size), painter: _PlayersRing(ring!, color)) : Icon(icon, size: size, color: color)))),
             const SizedBox(height: 10),
             FittedBox(fit: BoxFit.scaleDown, child: Text(title, style: TextStyle(fontSize: heading == null ? 25 : 20, fontWeight: FontWeight.w700, color: heading == null ? color : _green))),
             if (subtitle != null) ...[
@@ -448,4 +457,91 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
+}
+
+/// حركة خفيفة للأيقونات بالقوائم: تطفو فوق وتحت وتميل شوي. phase يفرّق بين الأيقونات عشان ما تتحرك سوا
+class Bob extends StatefulWidget {
+  final Widget child;
+  final double phase; // من 0 لـ 1
+  final double lift; // كم بكسل تطلع
+  const Bob({super.key, required this.child, this.phase = 0, this.lift = 3});
+
+  @override
+  State<Bob> createState() => _BobState();
+}
+
+class _BobState extends State<Bob> with SingleTickerProviderStateMixin {
+  late final AnimationController _t = AnimationController(vsync: this, duration: const Duration(milliseconds: 2800))..repeat();
+
+  @override
+  void dispose() {
+    _t.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _t,
+        child: widget.child,
+        builder: (_, child) {
+          final a = 2 * pi * (_t.value + widget.phase);
+          return Transform.translate(
+            offset: Offset(0, -widget.lift * sin(a)),
+            child: Transform.rotate(angle: 0.04 * sin(a * 0.5 + 1), child: child),
+          );
+        },
+      );
+}
+
+/// خلفية القائمة الرئيسية: رموز الورق باهتة تطلع لفوق ببطء وتدور، عشان القائمة ما تكون جامدة
+class MenuBackdrop extends StatefulWidget {
+  const MenuBackdrop({super.key});
+
+  @override
+  State<MenuBackdrop> createState() => _MenuBackdropState();
+}
+
+class _MenuBackdropState extends State<MenuBackdrop> with SingleTickerProviderStateMixin {
+  late final AnimationController _t = AnimationController(vsync: this, duration: const Duration(seconds: 40))..repeat();
+
+  @override
+  void dispose() {
+    _t.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _t,
+            builder: (_, _) => Stack(fit: StackFit.expand, children: [
+              LayoutBuilder(builder: (context, box) {
+                final w = box.maxWidth, h = box.maxHeight;
+                const suits = ['S', 'H', 'C', 'D'];
+                return Stack(children: [
+                  for (var i = 0; i < 16; i++)
+                    () {
+                      // كل رمز له مكان وسرعة ثابتة (من رقمه)
+                      final x = ((i * 0.6180339) % 1) * w;
+                      final speed = 1 + (i % 3);
+                      final p = (_t.value * speed + i / 16) % 1;
+                      final y = h + 40 - p * (h + 80);
+                      final size = 22.0 + (i * 7) % 26;
+                      return Positioned(
+                        left: x - size / 2 + 14 * sin(2 * pi * (p * 2 + i / 5)),
+                        top: y - size / 2,
+                        child: Opacity(
+                          // يظهر ويختفي بهدوء عند الأطراف
+                          opacity: 0.10 * sin(pi * p),
+                          child: Transform.rotate(angle: 2 * pi * p * (i.isEven ? 1 : -1), child: SuitIcon(suits[i % 4], size: size)),
+                        ),
+                      );
+                    }(),
+                ]);
+              }),
+            ]),
+          ),
+        ),
+      );
 }

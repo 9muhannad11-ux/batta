@@ -33,7 +33,7 @@ void main() {
     if (icons.existsSync()) await (FontLoader('MaterialIcons')..addFont(Future.value(ByteData.sublistView(icons.readAsBytesSync())))).load();
   });
 
-  testWidgets('menu, character picker and settings', (tester) async {
+  testWidgets('menu and settings', (tester) async {
     addTearDown(tester.view.reset);
     for (final (size, name) in const [(Size(390, 844), 'portrait'), (Size(844, 390), 'landscape')]) {
       tester.view.physicalSize = size;
@@ -42,17 +42,6 @@ void main() {
       await tester.pumpWidget(RepaintBoundary(key: const ValueKey('shot'), child: KoutApp(key: ValueKey(name), client: c)));
       await tester.pump(const Duration(milliseconds: 400));
       await _shot(tester, 'build/preview_menu_$name.png');
-      await tester.tap(find.text('شخصيتك'));
-      await tester.pump(const Duration(milliseconds: 16));
-      await tester.pump(const Duration(milliseconds: 500));
-      await _shot(tester, 'build/preview_menu_${name}_picker.png');
-      await tester.ensureVisible(find.text('فارس')); // بالعرضي تحتاج تمرير
-      await tester.pump();
-      await tester.tap(find.text('فارس'));
-      await tester.pump(const Duration(milliseconds: 16));
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(c.char, 'fares');
-      await _shot(tester, 'build/preview_menu_${name}_chosen.png');
       await tester.tap(find.byIcon(Icons.settings));
       await tester.pump(const Duration(milliseconds: 16));
       await tester.pump(const Duration(milliseconds: 500));

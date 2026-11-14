@@ -12,6 +12,7 @@ import 'package:kout/main.dart';
 import 'package:kout/net.dart';
 import 'package:kout/sounds.dart';
 import 'package:kout/table.dart';
+import 'package:kout/wallet.dart';
 
 class _Client extends GameClient {}
 
@@ -240,6 +241,21 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpWidget(const SizedBox()); // شاشة جديدة للصورة الثانية
     await _capture(tester, const Size(390, 844), 'build/preview_lose.png', result: 'failed');
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('table themes', (tester) async {
+    addTearDown(tester.view.reset);
+    for (final (t, b) in const [('blue', 'sand'), ('maroon', 'navy'), ('black', 'wood')]) {
+      Wallet.instance
+        ..table = t
+        ..bg = b;
+      await tester.pumpWidget(const SizedBox());
+      await _capture(tester, const Size(844, 390), 'build/preview_theme_${t}_$b.png');
+    }
+    Wallet.instance
+      ..table = 'grey'
+      ..bg = 'mat';
     await tester.pump(const Duration(seconds: 3));
   });
 }

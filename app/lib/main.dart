@@ -9,12 +9,18 @@ import 'fullscreen.dart';
 import 'intro.dart';
 import 'menus.dart';
 import 'net.dart';
+import 'progress.dart';
+import 'progress_pages.dart';
 import 'sounds.dart';
+import 'store.dart';
 import 'table.dart';
+import 'wallet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final client = GameClient();
+  await Wallet.instance.load();
+  await Progress.instance.load();
   await client.loadPrefs();
   await Sfx.loadSettings();
   runApp(KoutApp(client: client, intro: client.intro));
@@ -24,7 +30,7 @@ void main() async {
 const appFont = 'ElMessiri';
 
 /// رقم النسخة يطلع تحت الشاشة الرئيسية (نفس version في pubspec.yaml)
-const appVersion = '1.0.17';
+const appVersion = '1.0.18';
 
 class KoutApp extends StatefulWidget {
   final GameClient client;
@@ -251,12 +257,33 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final _name = TextEditingController(text: widget.client.name);
   final _code = TextEditingController();
-  _Page _page = _Page.menu;
+  // أول مرة باللعبة (ما فيه اسم): شاشة الاسم بعد الشعار، وبعدها القائمة
+  late _Page _page = widget.client.name.trim().isEmpty ? _Page.account : _Page.menu;
   int _mode = 6;
+  int _score = 54;
+  String? _storeFocus; // غرض نفتح عليه المتجر (من التفضيلات)
+
+  void _openStore([String? item]) => setState(() {
+        _storeFocus = item;
+        _page = _Page.store;
+      });
 
   @override
   void initState() {
     super.initState();
+    // هدية اليوم
+    final gift = Wallet.instance.giftToday;
+    if (gift != null) {
+      Wallet.instance.giftToday = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: [const GhawaziIcon(size: 22), const SizedBox(width: 8), Text('هدية اليوم: $gift غوازي', style: const TextStyle(color: Colors.black, fontFamily: appFont, fontSize: 19))]),
+          backgroundColor: Colors.white,
+          duration: const Duration(seconds: 3),
+        ));
+      });
+    }
     // نجهّز الورق والأصوات من الشاشة الرئيسية، عشان ما تتأخر أول مرة تظهر باللعب
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (Sfx.muted || !mounted) return;
@@ -268,8 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _apply() {
     final c = widget.client;
-    c.name = _name.text.trim();
-    if (c.name.isEmpty) {
+    if (c.name.trim().isEmpty) {
       c.error = 'اكتب اسمك';
       setState(() {});
       return false;
@@ -283,24 +309,71 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
   void _practice(int mode) {
-    final c = widget.client;
-    c.name = _name.text.trim();
-    c.practice(mode);
+    widget.client.practice(mode);
   }
 
-  void _search(int mode, int score) {
-    if (_apply()) widget.client.search(mode, score);
+  void _search(int mode, int score, int stake) {
+    if (!_apply()) return;
+    Wallet.instance.setStake(stake);
+    if (!Wallet.instance.canEnter()) {
+      widget.client.error = 'غوازيك ما تكفي، اختر مبلغ أصغر أو تدرّب مع البوتات';
+      setState(() {});
+      return;
+    }
+    widget.client.search(mode, score);
   }
 
-  Widget _nameField() => MenuPanel(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-        child: TextField(
-          controller: _name,
-          style: const TextStyle(fontSize: 18, color: Colors.white),
-          decoration: const InputDecoration(labelText: 'اسمك', counterText: '', isDense: true),
-          maxLength: 20,
+  // شاشة الاسم أول مرة: الشعار كبير، واسمك، وزر الدخول
+  Widget _account(GameClient c, BoxConstraints box) {
+    final logo = min(box.maxHeight * 0.32, 150.0);
+    void enter() {
+      if (_name.text.trim().isEmpty) {
+        c.error = 'اكتب اسمك';
+        setState(() {});
+        return;
+      }
+      c.saveName(_name.text);
+      setState(() => _page = _Page.menu);
+    }
+
+    return Stack(fit: StackFit.expand, children: [
+      const MenuBackdrop(),
+      Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Center(child: AppLogo(size: logo)),
+              const SizedBox(height: 14),
+              const Text('هلا والله! موه اسمك؟', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: KoutColors.ink)),
+              const SizedBox(height: 10),
+              MenuPanel(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                child: TextField(
+                  controller: _name,
+                  autofocus: true,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 20, color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'اسمك', counterText: '', isDense: true),
+                  maxLength: 20,
+                  onSubmitted: (_) => enter(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Pressable(child: FilledButton(
+                onPressed: withTap(enter),
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                child: const Text('يلا ندخل', style: TextStyle(fontSize: 20)),
+              )),
+              const SizedBox(height: 6),
+              const Text('تقدر تغيّره بعدين من التفضيلات', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: KoutColors.ink)),
+            ]),
+          ),
         ),
-      );
+      ),
+    ]);
+  }
 
   Widget _connecting() => const Padding(
         // السيرفر المجاني ينام إذا ما أحد يلعب، ويصحى خلال دقيقة
@@ -312,11 +385,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ]),
       );
 
-  // الخيارات الأربعة على شكل ورق
+  // الخيارات الأربعة على شكل ورق، والمتجر والتفضيلات أزرار صغيرة على الجنبين
   Widget _menu(GameClient c, BoxConstraints box) {
     final wide = box.maxWidth > box.maxHeight;
-    final free = box.maxHeight - 132;
-    final w = min(wide ? min((box.maxWidth - 72) / 4, free / cardRatio) : min((box.maxWidth - 40) / 2, (free - 12) / 2 / cardRatio), 240.0) * 0.6;
+    final logo = wide ? min(box.maxHeight * 0.3, 120.0) : min(box.maxHeight * 0.18, 150.0);
+    final free = box.maxHeight - logo - 90;
+    final w = min(wide ? min((box.maxWidth - 72) / 4, free / cardRatio) : min((box.maxWidth - 40) / 2, (free - 12) / 2 / cardRatio), 240.0) * (wide ? 0.72 : 0.62);
     final cards = [
       MenuCard(width: w, suit: 'S', ring: 6, title: '6 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(6)),
       MenuCard(width: w, suit: 'D', ring: 4, title: '4 لاعبين', subtitle: 'العب أونلاين', onTap: () => _choosePlayers(4)),
@@ -324,13 +398,11 @@ class _HomeScreenState extends State<HomeScreen> {
       MenuCard(width: w, suit: 'H', icon: Icons.school, title: 'تدريب', subtitle: 'تمرّن مع البوتات بدون وقت', onTap: () => setState(() => _page = _Page.practice)),
     ];
     return Stack(fit: StackFit.expand, children: [
+      const MenuBackdrop(),
       Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
-        child: Row(children: [const AppLogo(size: 56), const SizedBox(width: 10), Expanded(child: _nameField()), const SizedBox(width: 10), _charButton(c)]),
-      ),
+      AppLogo(size: logo),
       if (c.connecting) _connecting(),
-      const SizedBox(height: 10),
+      SizedBox(height: wide ? 10 : 18),
       if (wide)
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (final card in cards) Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: card)])
       else ...[
@@ -341,6 +413,34 @@ class _HomeScreenState extends State<HomeScreen> {
       const SizedBox(height: 8),
       const Text('نسخة $appVersion', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF4A4D52))),
       ]),
+      // تحت يمين: المتجر والتفضيلات. تحت يسار: التحديات وتاريخك
+      PositionedDirectional(
+        start: 10,
+        bottom: 8,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          SideButton(icon: Icons.shopping_cart, label: 'المتجر', phase: 0, onTap: () => _openStore()),
+          const SizedBox(width: 10),
+          SideButton(icon: Icons.palette, label: 'التفضيلات', phase: 0.25, onTap: () => setState(() => _page = _Page.prefs)),
+        ]),
+      ),
+      PositionedDirectional(
+        end: 10,
+        bottom: 8,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          ListenableBuilder(
+            listenable: Progress.instance,
+            builder: (_, _) => SideButton(icon: Icons.flag, label: 'التحديات', phase: 0.5, dot: Progress.instance.anyToClaim, onTap: () => setState(() => _page = _Page.challenges)),
+          ),
+          const SizedBox(width: 10),
+          SideButton(icon: Icons.military_tech, label: 'تاريخك', phase: 0.75, onTap: () => setState(() => _page = _Page.history)),
+        ]),
+      ),
+      // رصيد الغوازي
+      PositionedDirectional(
+        top: 10,
+        start: 8,
+        child: ListenableBuilder(listenable: Wallet.instance, builder: (_, _) => MenuChip(child: GhawaziAmount(Wallet.instance.balance, label: true))),
+      ),
       PositionedDirectional(
         top: 8,
         end: 8,
@@ -369,27 +469,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
   }
 
-  // شخصيتك قبل بداية اللعبة: تنحفظ وتروح معاك لأي غرفة
-  Widget _charButton(GameClient c) => Pressable(child: GestureDetector(
-        onTap: withTap(() => showCharacterPicker(context, c)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          c.char == null
-              ? Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF111111), border: Border.all(color: Colors.white, width: 2)),
-                  child: const Icon(Icons.person_add, color: Colors.white, size: 22),
-                )
-              : CharacterAvatar(charId: c.char, size: 44, ring: KoutColors.team(0), background: KoutColors.team(0)),
-          const SizedBox(height: 2),
-          const Text('شخصيتك', style: TextStyle(fontSize: 11, color: KoutColors.ink, fontWeight: FontWeight.w700)),
-        ]),
-      ));
-
   // بعد اختيار عدد اللاعبين: كم نقطة
   Widget _scores(GameClient c, BoxConstraints box) {
     final w = min(min((box.maxWidth - 60) / 2, (box.maxHeight - 90) / cardRatio), 240.0);
-    final off = c.connecting;
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ConstrainedBox(
@@ -401,7 +483,46 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           for (final (i, score, hint, icon) in const [(0, 54, 'دور كامل', Icons.emoji_events), (1, 34, 'دور على السريع', Icons.bolt)]) ...[
             if (i > 0) const SizedBox(width: 16),
-            MenuCard(width: w, suit: _mode == 6 ? 'S' : 'D', icon: icon, heading: hint, title: 'من $score نقطة', onTap: off ? null : () => _search(_mode, score)),
+            MenuCard(width: w, suit: _mode == 6 ? 'S' : 'D', icon: icon, heading: hint, title: 'من $score نقطة', onTap: () => setState(() {
+                  _score = score;
+                  _page = _Page.stakes;
+                })),
+          ],
+        ]),
+      ]),
+    );
+  }
+
+  // بعد اختيار نوع الدور: كم غوازي تحط (الفايز يرجع له اللي حطه وفوقه 70%)
+  Widget _stakesPage(GameClient c, BoxConstraints box) {
+    final w = min(min((box.maxWidth - 60) / 2, (box.maxHeight - 120) / cardRatio), 240.0);
+    final off = c.connecting;
+    final wallet = Wallet.instance;
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: w * 2 + 16),
+          child: Row(children: [
+            Expanded(child: BackRow(title: _score == 54 ? 'دور كامل' : 'دور على السريع', onBack: () => setState(() => _page = _Page.scores))),
+            ListenableBuilder(listenable: wallet, builder: (_, _) => MenuChip(child: GhawaziAmount(wallet.balance, size: 16, label: true))),
+          ]),
+        ),
+        if (c.connecting) _connecting(),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (final (i, s) in stakeLevels[_score]!.indexed) ...[
+            if (i > 0) const SizedBox(width: 16),
+            Opacity(
+              opacity: wallet.balance >= s ? 1 : 0.5,
+              child: MenuCard(
+                width: w,
+                suit: _mode == 6 ? 'S' : 'D',
+                heading: 'الدخول',
+                coins: s,
+                title: 'تفوز: ${(s * (1 + Wallet.winBonus)).round()}',
+                onTap: off ? null : () => _search(_mode, _score, s),
+              ),
+            ),
           ],
         ]),
       ]),
@@ -438,8 +559,6 @@ class _HomeScreenState extends State<HomeScreen> {
             constraints: const BoxConstraints(maxWidth: 380),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               BackRow(title: 'غرفة مخصصة', onBack: () => setState(() => _page = _Page.menu)),
-              const SizedBox(height: 10),
-              _nameField(),
               const SizedBox(height: 10),
               if (c.connecting) _connecting(),
               Pressable(child: FilledButton(
@@ -482,10 +601,20 @@ class _HomeScreenState extends State<HomeScreen> {
           child: PageSwitcher(
             id: _page,
             child: LayoutBuilder(builder: (context, box) => switch (_page) {
+                  _Page.account => _account(c, box),
                   _Page.menu => _menu(c, box),
                   _Page.scores => _scores(c, box),
                   _Page.practice => _trainingPage(c, box),
                   _Page.custom => _custom(c),
+                  _Page.stakes => _stakesPage(c, box),
+                  _Page.store => StorePage(focus: _storeFocus, onBack: () => setState(() => _page = _storeFocus == null ? _Page.menu : _Page.prefs)),
+                  _Page.challenges => ChallengesPage(onBack: () => setState(() => _page = _Page.menu)),
+                  _Page.history => HistoryPage(onBack: () => setState(() => _page = _Page.menu)),
+                  _Page.prefs => PrefsPage(
+                      client: c,
+                      onBack: () => setState(() => _page = _Page.menu),
+                      onStore: (item) => _openStore(item),
+                    ),
                 }),
           ),
         ),
@@ -494,7 +623,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-enum _Page { menu, scores, practice, custom }
+enum _Page { account, menu, scores, stakes, practice, custom, store, prefs, challenges, history }
 
 class LobbyScreen extends StatelessWidget {
   final GameClient client;
@@ -670,16 +799,42 @@ void showCharacterPicker(BuildContext context, GameClient c) {
                         child: Pressable(child: GestureDetector(
                           onTap: byPlayer.containsKey(e.key)
                               ? null
-                              : () {
-                                  Sfx.tap();
-                                  c.chooseChar(e.key);
-                                  Navigator.pop(ctx);
-                                },
+                              : !Wallet.instance.owns('char', e.key)
+                                  ? () {
+                                      Sfx.tap();
+                                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                        content: Text('${e.value} مقفلة، تنشرى من المتجر', style: const TextStyle(color: Colors.black, fontFamily: appFont, fontSize: 18)),
+                                        backgroundColor: Colors.white,
+                                        duration: const Duration(seconds: 2),
+                                      ));
+                                    }
+                                  : () {
+                                      Sfx.tap();
+                                      c.chooseChar(e.key);
+                                      Navigator.pop(ctx);
+                                    },
                           child: SizedBox(
                             width: 104,
                             child: Column(children: [
                               const SizedBox(height: 18), // الراس يطلع فوق الإطار
-                              CharacterAvatar(charId: e.key, size: 70, ring: e.key == mine ? Colors.white : team, background: team),
+                              Stack(clipBehavior: Clip.none, children: [
+                                CharacterAvatar(charId: e.key, size: 70, ring: e.key == mine ? Colors.white : team, background: team),
+                                if (!Wallet.instance.owns('char', e.key))
+                                  Positioned(
+                                    bottom: -4,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFFE08A))),
+                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                        const Icon(Icons.lock, size: 12, color: Color(0xFFFFE08A)),
+                                        const SizedBox(width: 3),
+                                        Text('${lockedChars[e.key]}', style: const TextStyle(fontSize: 11, color: Color(0xFFFFE08A), fontWeight: FontWeight.w700)),
+                                      ]),
+                                    )),
+                                  ),
+                              ]),
                               const SizedBox(height: 4),
                               Text(e.value,
                                   textAlign: TextAlign.center,

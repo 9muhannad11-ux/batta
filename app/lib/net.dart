@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'progress.dart';
+import 'wallet.dart';
+
 /// إشارة (نوع أو أكثر، أو جوكر "J") أرسلها لاعب. تظهر للجميع ثانية ونص.
 class SuitSignal {
   final int seat;
@@ -73,6 +76,8 @@ class GameClient extends ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     name = p.getString('name') ?? '';
     char = p.getString('char');
+    // شخصية مقفلة (ما انشرت): ما تنستخدم
+    if (char != null && !Wallet.instance.owns('char', char!)) char = null;
     intro = p.getBool('intro') ?? true;
     // على الويب السيرفر دايماً هو نفس الموقع. وعلى الجوال نستخدم رابط النسخة، إلا إذا اللاعب كتب رابط ثاني بنفسه
     // (المفتاح القديم 'server' ما نقرأه: نسخ قديمة حفظت فيه روابط غلط وكانت تمنع الاتصال)
@@ -109,24 +114,36 @@ class GameClient extends ChangeNotifier {
     }
   }
 
+  /// اسم اللاعب (مثل الحساب): ينكتب أول مرة وينحفظ، ويتغير من التفضيلات
+  Future<void> saveName(String value) async {
+    name = value.trim();
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setString('name', name);
+  }
+
   Future<void> createRoom() async {
+    Wallet.instance.roomStake = null;
     await _savePrefs();
     _open(() => _send({'t': 'create', 'name': name, 'char': ?char}));
   }
 
   /// بحث عن لاعبين: mode 6 أو 4، و score هدف المباراة 54 أو 34
   Future<void> search(int mode, int score) async {
+    Wallet.instance.enterSearch();
     await _savePrefs();
     _open(() => _send({'t': 'search', 'mode': mode, 'score': score, 'name': name, 'char': ?char}));
   }
 
   /// تدريب مع البوتات بدون وقت
   Future<void> practice(int mode) async {
+    Wallet.instance.roomStake = null;
     await _savePrefs();
     _open(() => _send({'t': 'practice', 'mode': mode, 'name': name, 'char': ?char}));
   }
 
   Future<void> joinRoom(String roomCode) async {
+    Wallet.instance.roomStake = null;
     await _savePrefs();
     final p = await SharedPreferences.getInstance();
     // لو نفس الغرفة اللي كنا فيها، نرجع لمقعدنا
@@ -206,6 +223,9 @@ class GameClient extends ChangeNotifier {
         view = m['view'] as Map<String, dynamic>;
         final ms = view!['turnMsLeft'] as int?;
         deadline = ms == null ? null : DateTime.now().add(Duration(milliseconds: ms));
+        // الإحصائيات قبل المحفظة (المحفظة تنسى المبلغ بعد نهاية المباراة)
+        Progress.instance.onState(code: code, view: view!, mySeat: mySeat, online: Wallet.instance.roomStake != null);
+        Wallet.instance.onState(code: code, phase: view!['phase'] as String?, winner: view!['winner'] as int?, myTeam: mySeat % 2);
       case 'signal':
         final seat = m['seat'] as int;
         var incoming = (m['suits'] as List).cast<String>();
@@ -263,6 +283,7 @@ class GameClient extends ChangeNotifier {
   void signal(List<String> suits) => _send({'t': 'signal', 'suits': suits});
 
   void leave() {
+    Wallet.instance.onLeave();
     _wantConnection = false;
     _sub?.cancel();
     _ch?.sink.close();
